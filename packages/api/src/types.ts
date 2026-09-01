@@ -17,9 +17,11 @@ export interface Bindings {
   // binding-less deploy degrade gracefully — voice comments still post with a transcript
   // placeholder rather than erroring (see lib/transcribe).
   AI?: Ai
-  // Optional: when unset, Google OAuth routes are inert (404) and login is bootstrap-only.
-  GOOGLE_CLIENT_ID?: string
-  GOOGLE_CLIENT_SECRET?: string
+  // Optional: when unset, the WorkOS routes are inert (404) and login is bootstrap-only.
+  // WorkOS brokers the Google handshake with its own OAuth credentials — there is no Google
+  // Cloud project to create or own.
+  WORKOS_API_KEY?: string
+  WORKOS_CLIENT_ID?: string
   // Optional one-shot secret gating first-superadmin bootstrap. Unset → bootstrap inert (404).
   BOOTSTRAP_TOKEN?: string
   // Optional Slack bot token (xoxb-…). Unset = kill-switch: comment notifications never fan out to
@@ -48,7 +50,9 @@ export interface Bindings {
   SITE_ROOM?: DurableObjectNamespace
   APP_URL: string
   CONTENT_URL: string
-  ALLOWED_HD: string
+  // Comma-separated extra admin emails. SUPERADMIN_EMAIL is always an admin; both bypass the
+  // invite gate so a fresh instance is reachable before any invite row exists.
+  ADMIN_EMAILS?: string
   SUPERADMIN_EMAIL: string
 }
 

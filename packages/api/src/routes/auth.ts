@@ -1,14 +1,13 @@
-import { decodeIdToken, generateCodeVerifier, generateState } from 'arctic'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
-import { events, users } from '../db/schema'
+import { events, invites, users } from '../db/schema'
 import { bootstrapSuperadminByEmail, createPersonalSpace, superadminStatus, toSessionUser } from '../db/repo'
 import { NEWEST_RELEASE_DATE } from '../whats-new/catalog'
 import { requireAuth } from '../middleware/auth'
 import { sanitizeAvatarUrl } from '../lib/avatar'
 import { bootstrapDecision } from '../lib/bootstrap'
-import { createGoogle, isGoogleEnabled, OAUTH_SCOPES } from '../lib/oauth'
+import { createWorkos, isAdminEmail, isWorkosEnabled } from '../lib/workos'
 import {
   bearerToken,
   createCliToken,
@@ -28,30 +27,35 @@ function safeNext(next: string | null | undefined): string | null {
   return next
 }
 
-interface GoogleClaims {
+/** Identity as this app consumes it, independent of who brokered the login. `sub` is the IdP's
+ *  stable subject — the WorkOS user id — and lands in users.googleId (kept as the column name so
+ *  no migration is needed for a rename that changes nothing). */
+interface IdpClaims {
   sub: string
   email: string
   email_verified: boolean
   name?: string
-  // Profile photo URL (granted by the `profile` scope). Stored host-pinned and served through
-  // /api/avatars — never handed to the browser as-is. See lib/avatar.
+  // Profile photo URL. Stored host-pinned and served through /api/avatars — never handed to the
+  // browser as-is. See lib/avatar.
   picture?: string
-  hd?: string
 }
 
 export const auth = new Hono<AppEnv>()
 
 // --- Browser OAuth ---
 
-auth.get('/google', async (c) => {
-  if (!isGoogleEnabled(c.env)) return c.notFound()
-  const state = generateState()
-  const codeVerifier = generateCodeVerifier()
+auth.get('/workos', async (c) => {
+  if (!isWorkosEnabled(c.env)) return c.notFound()
+  const state = crypto.randomUUID()
   const next = safeNext(c.req.query('next')) // carried through the round-trip in the signed cookie
-  const url = createGoogle(c.env).createAuthorizationURL(state, codeVerifier, OAUTH_SCOPES)
-  url.searchParams.set('hd', c.env.ALLOWED_HD) // UX hint only; the hd claim is verified server-side
+  const url = createWorkos(c.env).userManagement.getAuthorizationUrl({
+    provider: 'GoogleOAuth',
+    clientId: c.env.WORKOS_CLIENT_ID as string,
+    redirectUri: `${c.env.APP_URL}/api/auth/callback`,
+    state,
+  })
 
-  await setSignedCookie(c, OAUTH_COOKIE, JSON.stringify({ state, codeVerifier, next }), c.env.SESSION_SECRET, {
+  await setSignedCookie(c, OAUTH_COOKIE, JSON.stringify({ state, next }), c.env.SESSION_SECRET, {
     httpOnly: true,
     secure: c.env.APP_URL.startsWith('https://'),
     sameSite: 'Lax', // Strict would drop the cookie on the cross-site callback redirect
@@ -62,14 +66,14 @@ auth.get('/google', async (c) => {
 })
 
 auth.get('/callback', async (c) => {
-  if (!isGoogleEnabled(c.env)) return c.notFound()
+  if (!isWorkosEnabled(c.env)) return c.notFound()
   const code = c.req.query('code')
   const state = c.req.query('state')
   const stored = await getSignedCookie(c, c.env.SESSION_SECRET, OAUTH_COOKIE)
   deleteCookie(c, OAUTH_COOKIE, { path: '/' })
 
   if (!code || !state || typeof stored !== 'string') return c.redirect('/login?error=oauth')
-  let parsed: { state: string; codeVerifier: string; next?: string | null }
+  let parsed: { state: string; next?: string | null }
   try {
     parsed = JSON.parse(stored)
   } catch {
@@ -77,19 +81,51 @@ auth.get('/callback', async (c) => {
   }
   if (parsed.state !== state) return c.redirect('/login?error=state')
 
-  let claims: GoogleClaims
+  const workos = createWorkos(c.env)
+  let claims: IdpClaims
+  let workosUserId: string
   try {
-    const tokens = await createGoogle(c.env).validateAuthorizationCode(code, parsed.codeVerifier)
-    claims = decodeIdToken(tokens.idToken()) as unknown as GoogleClaims
+    const result = await workos.userManagement.authenticateWithCode({
+      code,
+      clientId: c.env.WORKOS_CLIENT_ID as string,
+    })
+    workosUserId = result.user.id
+    claims = {
+      sub: result.user.id,
+      email: result.user.email,
+      email_verified: result.user.emailVerified,
+      name: [result.user.firstName, result.user.lastName].filter(Boolean).join(' ') || undefined,
+      picture: result.user.profilePictureUrl ?? undefined,
+    }
   } catch {
     return c.redirect('/login?error=exchange')
   }
 
-  // Hard gate: trust the SIGNED hd claim, not the request param.
   const email = claims.email?.toLowerCase() ?? ''
-  if (claims.hd !== c.env.ALLOWED_HD || !claims.email_verified || !email.endsWith(`@${c.env.ALLOWED_HD}`)) {
-    return c.redirect('/login?error=denied')
+  if (!email || !claims.email_verified) return c.redirect('/login?error=denied')
+
+  // Hard gate. WorkOS brokers Google for ANY account, so the old `hd` domain check has no
+  // equivalent — membership is an explicit allowlist. Admins are exempt so a fresh instance is
+  // reachable before any invite exists. A rejected login leaves no WorkOS user behind.
+  if (!isAdminEmail(c.env, email)) {
+    const invited = await c.get('db').select().from(invites).where(eq(invites.email, email)).limit(1)
+    if (!invited[0]) {
+      c.executionCtx?.waitUntil(workos.userManagement.deleteUser(workosUserId).catch(() => {}))
+      return c.redirect('/login?error=not_invited')
+    }
   }
+
+  // Stamp every completed sign-in, not just gated ones: admins bypass the gate but still show on
+  // the People view, and stamping inside the gate left them reading "never signed in".
+  c.executionCtx?.waitUntil(
+    c
+      .get('db')
+      .update(invites)
+      .set({ usedAt: sql`coalesce(${invites.usedAt}, ${Date.now()})`, workosUserId })
+      .where(eq(invites.email, email))
+      .run()
+      .catch(() => {}),
+  )
 
   const user = await findOrCreateUser(c.get('db'), c.env, claims, email)
   await createSession(c, user)
@@ -128,7 +164,7 @@ auth.get('/me', requireAuth, async (c) => {
   return c.json({ ...user, hasUsedCli: used.length > 0 })
 })
 
-// DEV ONLY: skip Google OAuth for local browser testing. Hard-gated to a localhost
+// DEV ONLY: skip the IdP round-trip for local browser testing. Hard-gated to a localhost
 // APP_URL — in prod APP_URL is https://…workers.dev, so this 404s and can never run.
 auth.post('/dev-login', async (c) => {
   if (!c.env.APP_URL.startsWith('http://localhost')) return c.notFound()
@@ -136,14 +172,14 @@ auth.post('/dev-login', async (c) => {
   const user = await findOrCreateUser(
     c.get('db'),
     c.env,
-    { sub: `dev-${email}`, email, email_verified: true, name: 'Dev User', hd: c.env.ALLOWED_HD },
+    { sub: `dev-${email}`, email, email_verified: true, name: 'Dev User' },
     email,
   )
   await createSession(c, user)
   return c.json({ ok: true, user })
 })
 
-// --- First-run bootstrap (token-gated, no Google) ---
+// --- First-run bootstrap (token-gated, no IdP) ---
 // Establishes the first superadmin on a fresh deploy. Inert (404) until BOOTSTRAP_TOKEN
 // is set. The token rides in the POST body (never the URL — query strings leak via logs,
 // history, and Referer). On first run there is no session cookie, so middleware
@@ -272,18 +308,19 @@ auth.post('/cli/approve', requireAuth, async (c) => {
 
 // --- helpers ---
 
-// Exported for characterization tests. Matches by googleId then email, so a Google login
-// backfills onto a prior bootstrap user (googleId null, same email) without changing role.
+// Exported for characterization tests. Matches by googleId then email, so an IdP login backfills
+// onto a prior bootstrap user (googleId null, same email) without changing role. The column keeps
+// its name: it holds the IdP subject, which is now the WorkOS user id.
 export async function findOrCreateUser(
   db: AppEnv['Variables']['db'],
   env: Bindings,
-  claims: GoogleClaims,
+  claims: IdpClaims,
   email: string,
 ): Promise<SessionUser> {
   const byGoogle = await db.select().from(users).where(eq(users.googleId, claims.sub)).limit(1)
   const existing = byGoogle[0] ?? (await db.select().from(users).where(eq(users.email, email)).limit(1))[0]
 
-  // The photo is re-read from the id_token on EVERY login, which is also the only backfill Google
+  // The photo is re-read from the IdP on EVERY login, which is also the only backfill it
   // offers: users who signed up before avatars existed get one the next time they sign in. A claim
   // that fails the host pin leaves the stored URL untouched rather than clearing a good one.
   const avatarUrl = sanitizeAvatarUrl(claims.picture)

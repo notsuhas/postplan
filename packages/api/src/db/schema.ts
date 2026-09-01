@@ -4,6 +4,21 @@ import type { ApiKeyGrants } from '../lib/api-key'
 // Column names mirror the spec's SQL exactly (camelCase) so raw `wrangler d1 execute`
 // queries in the runbook keep working. IDs are app-generated UUIDs; timestamps are ISO-8601.
 
+/** Email-pinned invite gate. Replaces the Google-Workspace `hd` claim check: WorkOS brokers
+ *  Google for any account on earth, so membership has to be an explicit allowlist. Inviting an
+ *  email IS the invite — there are no invite links to leak or expire. Admins bypass the gate but
+ *  still get a row, so the People view can show whether they have ever signed in. */
+export const invites = sqliteTable('invites', {
+  email: text('email').primaryKey(),
+  invitedBy: text('invitedBy').notNull(),
+  createdAt: integer('createdAt').notNull(),
+  // First completed sign-in, coalesced so it keeps the original timestamp. Null = never signed in.
+  usedAt: integer('usedAt'),
+  // Refreshed on every sign-in, never coalesced: revoking access deletes this WorkOS user, so a
+  // stale id would revoke the wrong one (or nothing).
+  workosUserId: text('workosUserId'),
+})
+
 export const users = sqliteTable('users', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   email: text('email').notNull().unique(),

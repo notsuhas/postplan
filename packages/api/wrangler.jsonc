@@ -7,13 +7,13 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  // Non-secret config. Secrets (GOOGLE_CLIENT_ID/SECRET, SESSION_SECRET, and the optional
+  // Non-secret config. Secrets (WORKOS_API_KEY/CLIENT_ID, SESSION_SECRET, and the optional
   // DATA_TOKEN_SECRET for the glance.db shared backend) via `wrangler secret put`.
   // setup.sh wires the YOUR-SUBDOMAIN sentinel from the live workers.dev URL on deploy.
   "vars": {
     "APP_URL": "https://glance.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
     "CONTENT_URL": "https://glance-content.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
-    "ALLOWED_HD": "yourcompany.com", // EDIT: replace with your own (see README)
+    "ADMIN_EMAILS": "", // EDIT: optional extra admins, comma-separated (SUPERADMIN_EMAIL is always one)
     "SUPERADMIN_EMAIL": "you@yourcompany.com" // EDIT: replace with your own (see README)
   },
   // Main worker serves the React SPA as static assets. run_worker_first forces

@@ -7,7 +7,7 @@ import { cachedStats } from './lib/stats'
 import { GLANCE_DB_JS } from './glancedb/bundle'
 import { buildPublicConfig } from './lib/bootstrap'
 import { INSTALL_SH } from './install-script'
-import { isGoogleEnabled } from './lib/oauth'
+import { isWorkosEnabled } from './lib/workos'
 import { trackCliUsage } from './middleware/analytics'
 import { requireSameOrigin } from './middleware/auth'
 import { admin } from './routes/admin'
@@ -98,7 +98,8 @@ app.get('/api/health', (c) => c.json({ status: 'ok' }))
 app.get('/api/config', async (c) =>
   c.json(
     buildPublicConfig({
-      googleEnabled: isGoogleEnabled(c.env),
+      // WorkOS brokers Google, so the button copy stays accurate; only the broker changed.
+        googleEnabled: isWorkosEnabled(c.env),
       hasSuperadmin: await superadminExists(c.get('db')),
       bootstrapTokenSet: Boolean(c.env.BOOTSTRAP_TOKEN),
     }),

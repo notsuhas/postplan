@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { AppEnv } from '../types'
-import { isGoogleEnabled } from './oauth'
+import { isWorkosEnabled } from './workos'
 import { bootstrapDecision, buildPublicConfig, secretEquals } from './bootstrap'
 
 const TOKEN = 'expected-bootstrap-token'
@@ -106,11 +106,11 @@ describe('buildPublicConfig (pure)', () => {
     })
   })
 
-  test('config-shape: googleEnabled true only when BOTH client id+secret set', () => {
+  test('config-shape: googleEnabled true only when BOTH workos api key + client id set', () => {
     const env = (o: Partial<AppEnv['Bindings']>) => o as AppEnv['Bindings']
-    expect(isGoogleEnabled(env({ GOOGLE_CLIENT_ID: 'a', GOOGLE_CLIENT_SECRET: 'b' }))).toBe(true)
-    expect(isGoogleEnabled(env({ GOOGLE_CLIENT_ID: 'a' }))).toBe(false)
-    expect(isGoogleEnabled(env({ GOOGLE_CLIENT_SECRET: 'b' }))).toBe(false)
-    expect(isGoogleEnabled(env({}))).toBe(false)
+    expect(isWorkosEnabled(env({ WORKOS_API_KEY: 'a', WORKOS_CLIENT_ID: 'b' }))).toBe(true)
+    expect(isWorkosEnabled(env({ WORKOS_API_KEY: 'a' }))).toBe(false)
+    expect(isWorkosEnabled(env({ WORKOS_CLIENT_ID: 'b' }))).toBe(false)
+    expect(isWorkosEnabled(env({}))).toBe(false)
   })
 })

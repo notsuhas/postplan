@@ -26,7 +26,7 @@ export const slackEnabled = (token?: string): boolean => !!token && token.trim()
 /** The unfurl surface needs BOTH secrets — the bot token to post the card and the signing secret to
  *  authenticate Slack's inbound request — and both must mean "off" the same way, so a whitespace-only
  *  secret goes dark rather than leaving the endpoint live behind a guessable key. Shape mirrors
- *  `isGoogleEnabled`. */
+ *  `isWorkosEnabled`. */
 export const slackUnfurlEnabled = (env: Pick<Bindings, 'SLACK_BOT_TOKEN' | 'SLACK_SIGNING_SECRET'>): boolean =>
   slackEnabled(env.SLACK_BOT_TOKEN) && slackEnabled(env.SLACK_SIGNING_SECRET)
 
