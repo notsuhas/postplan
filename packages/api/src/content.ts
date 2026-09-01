@@ -180,20 +180,20 @@ async function serve(c: Ctx, spaceSlug: string, siteSlug: string, rest: string, 
   const siteRow = facts.site
   if (!siteRow) return notFound(c)
 
-  if (userId === null) {
-    // Untokened request: no public tier exists, so anonymous access is never allowed.
-    return c.text('Forbidden', 403)
-  }
-  // Gated path: the token-bound user was re-read live in the batch; a deleted user fails closed
-  // exactly like the old authorizeViewerById did. Authorization then runs through the same
-  // checkAccess the data plane uses — both surfaces enforce the SAME rules, role included: a
-  // superadmin reads this site only if the tiers admit them. The archive decision lives THERE
-  // (410), so it stays one rule rather than a blanket early 410 here.
-  if (!facts.user) return c.text('Forbidden', 403)
-  const access = checkAccess(siteRow, facts.user, facts.isMember, isSharedFromFacts(facts))
+  // ONE decider for both paths. An untokened request is an anonymous viewer, which only the
+  // `unlisted` tier admits — every other tier rejects a null user inside checkAccess, so the rule
+  // stays in lib/access rather than being half-encoded here. On the gated path the token-bound
+  // user was re-read live in the batch; a deleted user fails closed exactly like the old
+  // authorizeViewerById did. Both surfaces enforce the SAME rules, role included: a superadmin
+  // reads this site only if the tiers admit them. The archive decision lives in checkAccess (410),
+  // so it stays one rule rather than a blanket early 410 here.
+  const viewer = userId === null ? null : facts.user
+  if (userId !== null && !viewer) return c.text('Forbidden', 403)
+  const access = checkAccess(siteRow, viewer, facts.isMember, isSharedFromFacts(facts))
   if (!access.ok) {
     if (access.status === 410) return c.text('This site has been archived', 410)
-    return c.text('Forbidden', access.status)
+    // An anonymous caller gets 403, never 401: this origin has no login to challenge.
+    return c.text('Forbidden', userId === null ? 403 : access.status)
   }
 
   let file = fileRows[0]
@@ -228,8 +228,9 @@ async function serve(c: Ctx, spaceSlug: string, siteSlug: string, rest: string, 
   const themeHref = themeHrefFor(siteRow.theme)
   // Usage analytics: count this as a viewer hit only for actual page loads (HTML + rendered
   // markdown), not every CSS/JS/image sub-resource — otherwise one navigation inflates to many.
-  // userId is guaranteed non-null here (anonymous requests 403'd above), so every view is
-  // attributable to a known team member: exact unique-viewer counts, no IP hashing needed.
+  // userId is null for an anonymous `unlisted` read, and events.userId is nullable — those views
+  // still count toward the site total while contributing no unique viewer (no IP hashing), and an
+  // authed view stays exactly attributable.
   const view = () =>
     trackView(c, db, { type: 'view', action: path, userId, siteId: siteRow.id, siteLabel: `${spaceSlug}/${siteSlug}` })
 

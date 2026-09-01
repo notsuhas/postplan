@@ -13,7 +13,7 @@ import type { SiteSummary, Visibility } from '@/lib/types'
 // the three tables read as one system; the owner table swaps in its own interactive visibility
 // cell + actions.
 
-const VIS_RANK: Record<Visibility, number> = { private: 0, members: 1, team: 2 }
+const VIS_RANK: Record<Visibility, number> = { unlisted: 0, private: 1, members: 2, team: 3 }
 export const visRank = (v: Visibility): number => VIS_RANK[v]
 
 // Leading star cell — defined here, beside nameColumn, so all five site tables get the identical

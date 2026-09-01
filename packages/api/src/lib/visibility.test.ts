@@ -5,8 +5,8 @@ describe('normalizeVisibility', () => {
   test('maps the legacy `group` tier onto `members`', () => {
     expect(normalizeVisibility('group')).toBe('members')
   })
-  test('maps the removed `public` tier onto `team`', () => {
-    expect(normalizeVisibility('public')).toBe('team')
+  test('maps the legacy `public` tier onto `unlisted`', () => {
+    expect(normalizeVisibility('public')).toBe('unlisted')
   })
   test('passes every other value through untouched', () => {
     for (const v of ['private', 'members', 'team', 'bogus', undefined, null, 5]) {

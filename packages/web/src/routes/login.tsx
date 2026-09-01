@@ -224,7 +224,7 @@ export function Component() {
                   className="h-12 w-full gap-3 text-[15px] font-medium"
                   onClick={() => {
                     const qs = next ? `?next=${encodeURIComponent(next)}` : ''
-                    window.location.href = `/api/auth/google${qs}`
+                    window.location.href = `/api/auth/workos${qs}`
                   }}
                 >
                   <span className="flex size-6 items-center justify-center rounded bg-white">

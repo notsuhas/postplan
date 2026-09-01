@@ -1,4 +1,4 @@
-import { Building2, ChevronDown, Lock, type LucideIcon, Users } from 'lucide-react'
+import { Building2, ChevronDown, Globe, Lock, type LucideIcon, Users } from 'lucide-react'
 import type { Visibility } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -12,12 +12,20 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-export const VISIBILITIES: Visibility[] = ['private', 'members', 'team']
+// Ordered least-restrictive first so the menu reads as a ramp; `unlisted` is the only tier
+// that admits an anonymous reader, so it is labelled by its risk, not by its convenience.
+export const VISIBILITIES: Visibility[] = ['unlisted', 'private', 'members', 'team']
 
 export const VISIBILITY_META: Record<
   Visibility,
   { label: string; hint: string; icon: LucideIcon; badge: string }
 > = {
+  unlisted: {
+    label: 'Unlisted',
+    hint: 'Anyone with the link',
+    icon: Globe,
+    badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
+  },
   private: { label: 'Private', hint: 'Only you', icon: Lock, badge: 'bg-muted text-muted-foreground' },
   members: { label: 'Members', hint: 'This space only', icon: Users, badge: 'bg-sky-500/15 text-sky-600 dark:text-sky-300' },
   team: { label: 'Team', hint: 'Everyone in your org', icon: Building2, badge: 'bg-primary/15 text-primary' },

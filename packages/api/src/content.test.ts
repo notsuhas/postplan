@@ -299,6 +299,39 @@ describe('view analytics (page-view events)', () => {
     expect(res.status).toBe(403)
     expect(await db.select().from(events)).toHaveLength(0)
   })
+
+  // `unlisted` is the ONE tier an untokened request may read. Guards the whole point of the tier:
+  // an anonymous reader gets the bytes, and the view is still counted (with a null userId, which
+  // events.userId allows) so the site total is not silently wrong.
+  test('an anonymous, untokened request READS an unlisted site and records the view', async () => {
+    const { app, db, r2, env } = setup()
+    const uid = await seedUser(db, { id: 'u2' })
+    const sp = await seedSpace(db, { createdBy: uid, slug: 'pub' })
+    const siteId = await seedSite(db, { spaceId: sp, ownerId: uid, slug: 'open', visibility: 'unlisted' })
+    await seedFile(db, r2, siteId, { path: 'index.html', text: '<h1>anyone</h1>' })
+
+    const res = await app.request('/pub/open/', {}, env)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('anyone')
+
+    const rows = await db.select().from(events)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.userId).toBeNull()
+  })
+
+  // The tier gates only itself: an unlisted sibling must not widen anything else in the space.
+  test('an anonymous request still 403s on a team site next to an unlisted one', async () => {
+    const { app, db, r2, env } = setup()
+    const uid = await seedUser(db, { id: 'u3' })
+    const sp = await seedSpace(db, { createdBy: uid, slug: 'mix' })
+    const open = await seedSite(db, { spaceId: sp, ownerId: uid, slug: 'open', visibility: 'unlisted' })
+    const shut = await seedSite(db, { spaceId: sp, ownerId: uid, slug: 'shut', visibility: 'team' })
+    await seedFile(db, r2, open, { path: 'index.html', text: 'open' })
+    await seedFile(db, r2, shut, { path: 'index.html', text: 'shut' })
+
+    expect((await app.request('/mix/open/', {}, env)).status).toBe(200)
+    expect((await app.request('/mix/shut/', {}, env)).status).toBe(403)
+  })
 })
 
 

@@ -66,7 +66,7 @@ export const sites = sqliteTable(
     // Short blurb derived from the entry HTML's description meta at upload. CONTENT-derived, so a
     // replace overwrites it (title is identity and stays fill-only-null). Feeds the Slack unfurl card.
     description: text('description'),
-    visibility: text('visibility', { enum: ['private', 'members', 'team'] })
+    visibility: text('visibility', { enum: ['unlisted', 'private', 'members', 'team'] })
       .notNull()
       .default('team'),
     status: text('status', { enum: ['active', 'archived'] }).notNull().default('active'),

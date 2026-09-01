@@ -160,11 +160,11 @@ describe('POST /api/sites/:space/:site/fork', () => {
   })
 
   // Same normalization the PATCH route uses: legacy wire values are mapped, never rejected.
-  test('fork.visibility.legacy: `public` normalizes to team rather than 400ing', async () => {
+  test('fork.visibility.legacy: `public` normalizes to unlisted rather than 400ing', async () => {
     const { db, app, env } = await setup()
     expect((await fork(app, env, 'rd', { visibility: 'public', slug: 'legacy' })).status).toBe(200)
     const copy = (await db.select().from(sitesTable).where(eq(sitesTable.slug, 'legacy')))[0]
-    expect(copy?.visibility).toBe('team')
+    expect(copy?.visibility).toBe('unlisted')
   })
 
   test('fork.visibility.invalid: junk 400s and copies nothing', async () => {
