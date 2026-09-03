@@ -10,7 +10,14 @@
 # is the opt-in. No WORKOS_COOKIE_PASSWORD: this port uses glance's own KV session,
 # not WorkOS sealed sessions.
 set -euo pipefail
-cd "$(dirname "$0")/../packages/api"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# deploy.env is gitignored (this repo is public); deploy.example.env documents it.
+# Env vars already set win, so a one-off override still works.
+if [[ -f "$ROOT/deploy.env" ]]; then
+  set -a; . "$ROOT/deploy.env"; set +a
+fi
+cd "$ROOT/packages/api"
 
 : "${WORKOS_API_KEY:?set WORKOS_API_KEY (from the WorkOS dashboard → API Keys)}"
 : "${WORKOS_CLIENT_ID:?set WORKOS_CLIENT_ID (same page)}"
