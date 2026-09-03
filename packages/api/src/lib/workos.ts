@@ -22,7 +22,9 @@ export function createWorkos(env: Bindings): WorkOS {
  *  them the `superadmin` role on every login. SUPERADMIN_EMAIL is always one of them — it is the
  *  address the first-run bootstrap token claims, and ADMIN_EMAILS adds the rest. */
 export function isAdminEmail(env: Bindings, email: string): boolean {
-  const list = `${env.SUPERADMIN_EMAIL},${env.ADMIN_EMAILS ?? ''}`.toLowerCase()
+  // Both are optional in tests and on a half-configured deploy; interpolating an undefined here
+  // would put the literal string "undefined" in the allowlist.
+  const list = `${env.SUPERADMIN_EMAIL ?? ''},${env.ADMIN_EMAILS ?? ''}`.toLowerCase()
   return list
     .split(',')
     .map((e) => e.trim())
