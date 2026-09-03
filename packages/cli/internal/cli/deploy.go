@@ -158,7 +158,8 @@ func (c *client) deploy(argv []string) error {
 			rel, _ := filepath.Rel(root, abs)
 			entries = append(entries, deployEntry{abs: abs, rel: filepath.ToSlash(rel)})
 		}
-		derived = filepath.Base(root)
+		// Not filepath.Base: a build-output leaf like ./dist would name every site "dist".
+		derived = slug.NameFromDir(root)
 	} else {
 		base := filepath.Base(root)
 		entries = []deployEntry{{abs: root, rel: base}}
