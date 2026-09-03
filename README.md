@@ -11,7 +11,9 @@
 > | Anonymous links | none; every viewer needs an account | `unlisted` tier, with an unguessable slug |
 > | Sessions | 24h browser / 30d CLI | 30d both |
 >
-> Upstream is the project to watch and contribute to. Bugs in the shared code belong there.
+> Upstream is the project to watch. **Bugs, security reports and contributions in the shared code
+> belong there, not here** — this fork carries no security policy and accepts no contributions,
+> because a personal instance cannot honour either promise.
 
 
 **Artifacts for every agent — open-source and self-hosted.** Your agent builds a self-contained page, dashboard, or app and ships it to a live URL with one command — from Claude Code, Cursor, Codex, Cline, Aider, or any harness that runs a shell command. Then you review it in the browser and drop comments like a Google Doc, and the agent reads your comments and fixes it.
