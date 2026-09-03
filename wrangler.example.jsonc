@@ -1,15 +1,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "glance",
-  "main": "src/index.ts",
-  "account_id": "YOUR_ACCOUNT_ID", // EDIT: replace with your own (see README)
+  "main": "packages/api/src/index.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
+  "workers_dev": false, // custom domain only — one canonical origin
+  // Custom domain, not a route pattern: wrangler owns the DNS record and the cert, and the
+  // hostname resolves to this worker only. Sibling of the content domain below — SEPARATE
+  // hostnames, because the content origin exists so untrusted uploaded HTML can never reach
+  // this origin's session cookie.
+  "routes": [{ "pattern": "glance.example.com", "custom_domain": true }],
   "observability": { "enabled": true },
   // Non-secret config. Secrets (WORKOS_API_KEY/CLIENT_ID, SESSION_SECRET, and the optional
   // DATA_TOKEN_SECRET for the glance.db shared backend) via `wrangler secret put`.
-  // setup.sh wires the YOUR-SUBDOMAIN sentinel from the live workers.dev URL on deploy.
+  // setup.sh wires the suhas-test sentinel from the live workers.dev URL on deploy.
   "vars": {
     "APP_URL": "https://glance.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
     "CONTENT_URL": "https://glance-content.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
@@ -21,7 +25,7 @@
   // for API routes). Everything else falls through to assets; unknown paths return
   // index.html (200) for client-side routing — incl. the /:space/:site viewer route.
   "assets": {
-    "directory": "../web/dist",
+    "directory": "packages/web/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
@@ -31,7 +35,7 @@
       "binding": "GLANCE_DB",
       "database_name": "glance-db",
       "database_id": "YOUR_D1_DATABASE_ID", // EDIT: replace with your own (see README)
-      "migrations_dir": "drizzle"
+      "migrations_dir": "packages/api/drizzle"
     }
   ],
   // One hibernating Durable Object per site, fanning out glance.db change events to subscribed
