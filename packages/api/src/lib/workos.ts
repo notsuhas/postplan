@@ -17,8 +17,10 @@ export function createWorkos(env: Bindings): WorkOS {
   return new WorkOS(env.WORKOS_API_KEY as string, { clientId: env.WORKOS_CLIENT_ID as string })
 }
 
-/** Comma-separated allowlist. Superadmins bypass the invite gate, so a fresh instance is
- *  reachable before any invite exists. SUPERADMIN_EMAIL is always treated as an admin. */
+/** Comma-separated allowlist of superadmins. Two effects: these addresses bypass the invite gate
+ *  (so a fresh instance is reachable before any invite row exists), and findOrCreateUser grants
+ *  them the `superadmin` role on every login. SUPERADMIN_EMAIL is always one of them — it is the
+ *  address the first-run bootstrap token claims, and ADMIN_EMAILS adds the rest. */
 export function isAdminEmail(env: Bindings, email: string): boolean {
   const list = `${env.SUPERADMIN_EMAIL},${env.ADMIN_EMAILS ?? ''}`.toLowerCase()
   return list

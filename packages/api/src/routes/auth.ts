@@ -309,8 +309,9 @@ auth.post('/cli/approve', requireAuth, async (c) => {
 // --- helpers ---
 
 // Exported for characterization tests. Matches by googleId then email, so an IdP login backfills
-// onto a prior bootstrap user (googleId null, same email) without changing role. The column keeps
-// its name: it holds the IdP subject, which is now the WorkOS user id.
+// onto a prior bootstrap user (googleId null, same email). Role is preserved unless the address is
+// in the admin allowlist, which promotes; nothing here ever demotes. The googleId column keeps its
+// name: it holds the IdP subject, which is now the WorkOS user id.
 export async function findOrCreateUser(
   db: AppEnv['Variables']['db'],
   env: Bindings,
@@ -325,17 +326,24 @@ export async function findOrCreateUser(
   // that fails the host pin leaves the stored URL untouched rather than clearing a good one.
   const avatarUrl = sanitizeAvatarUrl(claims.picture)
 
+  // Promote on EVERY login, not just at creation: adding an address to ADMIN_EMAILS has to reach
+  // someone who already signed in as a member, or the var silently does nothing for them.
+  // Promote-only — removing an address never demotes, so a fat-fingered edit cannot strip the last
+  // superadmin out of its own instance. Demote through the admin UI, deliberately.
+  const admin = isAdminEmail(env, email)
+
   if (existing) {
     const name = claims.name ?? existing.name
+    const role = admin ? 'superadmin' : existing.role
     await db
       .update(users)
-      .set({ name, googleId: claims.sub, avatarUrl: avatarUrl ?? existing.avatarUrl })
+      .set({ name, googleId: claims.sub, avatarUrl: avatarUrl ?? existing.avatarUrl, role })
       .where(eq(users.id, existing.id))
-    return toSessionUser({ ...existing, name })
+    return toSessionUser({ ...existing, name, role })
   }
 
   const id = crypto.randomUUID()
-  const role = email === env.SUPERADMIN_EMAIL.toLowerCase() ? 'superadmin' : 'member'
+  const role = admin ? 'superadmin' : 'member'
   // New signups start caught up on release notes (watermark = newest), so they don't land on an
   // inbox full of "unread" features that shipped before they existed. null would mean all-unread.
   await db.insert(users).values({
