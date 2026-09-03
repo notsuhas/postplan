@@ -43,7 +43,7 @@ export const requireSameOrigin = createMiddleware<AppEnv>(async (c, next) => {
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   const credential = await readCredential(c)
   if (!credential) return c.json({ error: 'unauthorized' }, 401)
-  // The KV session / D1 key lookup is a snapshot frozen for the token's life (24h cookie / 30d
+  // The KV session / D1 key lookup is a snapshot frozen for the token's life (30d cookie / 30d
   // CLI / until the key is queried again). Re-resolve the live row each request so a deleted
   // user is rejected (401) and a role/email change takes effect immediately — e.g. a demoted
   // superadmin loses privilege now (requireSuperAdmin sees the fresh role) rather than at token

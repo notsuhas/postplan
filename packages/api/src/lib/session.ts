@@ -6,7 +6,11 @@ import { API_KEY_PREFIX, apiKeyDb, resolveApiKey, touchApiKeyLastUsed } from './
 import { fireAndForget } from './events'
 
 const SESSION_COOKIE = '__Host-glance_session'
-const SESSION_TTL = 60 * 60 * 24 // 24h
+// Browser and CLI both 30d. The session payload is a cached snapshot — readCredential returns
+// it without re-reading `users` — so this is also how stale a demoted role or a deleted user can
+// be, and 24h was the bound on that. On a single-operator instance the demotion it protects
+// against cannot happen, and the cost was a forced re-login every day.
+const SESSION_TTL = 60 * 60 * 24 * 30 // 30d
 const CLI_TTL = 60 * 60 * 24 * 30 // 30d
 
 // `__Host-` prefix: the browser refuses the cookie unless it is Secure, Path=/, and carries NO

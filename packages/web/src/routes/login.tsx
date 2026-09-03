@@ -260,8 +260,8 @@ export function Component() {
 
               <p className="mt-4 text-center text-xs text-muted-foreground">
                 {googleEnabled
-                  ? 'Approved Google Workspace accounts only · sessions expire after 24h'
-                  : 'Sessions expire after 24h'}
+                  ? 'Approved Google Workspace accounts only · sessions expire after 30 days'
+                  : 'Sessions expire after 30 days'}
               </p>
             </div>
           </div>
