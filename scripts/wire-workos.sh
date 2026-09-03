@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Wire WorkOS into a deployed instance. Two secrets, both from the WorkOS dashboard
-# (API Keys page of the environment you want to use). Nothing here is committed:
-# `wrangler secret put` writes them to the Worker, not to the repo.
+# Wire WorkOS into a deployed instance. WORKOS_CLIENT_ID is readable from the WorkOS
+# API/MCP; WORKOS_API_KEY is not — a key's secret is shown once at creation, so it has
+# to be copied from the dashboard's API Keys page (or a fresh key minted there).
+# Nothing here is committed: `wrangler secret put` writes to the Worker, not the repo.
 #
 #   WORKOS_API_KEY=sk_… WORKOS_CLIENT_ID=client_… scripts/wire-workos.sh
 #
