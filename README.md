@@ -1,19 +1,8 @@
 # Postplan
 
-> **A fork of [Glance](https://github.com/plivo-labs/glance)** by Plivo Inc. (MIT). Glance is the
-> original — the artifact hosting model, the review loop, the two-origin security design and almost
-> all of this code are theirs. Postplan is a personal instance of it with the auth and visibility
-> model changed:
->
-> | | Glance | Postplan |
-> |---|---|---|
-> | Sign-in | Google OAuth, own the Cloud project, membership pinned by Workspace domain (`hd`) | WorkOS AuthKit brokers Google — no Google project — membership is an explicit invite allowlist |
-> | Anonymous links | none; every viewer needs an account | `unlisted` tier, with an unguessable slug |
-> | Sessions | 24h browser / 30d CLI | 30d both |
->
-> Upstream is the project to watch. **Bugs, security reports and contributions in the shared code
-> belong there, not here** — this fork carries no security policy and accepts no contributions,
-> because a personal instance cannot honour either promise.
+> A fork of [Glance](https://github.com/plivo-labs/glance) by Plivo Inc. (MIT) — auth moved to
+> WorkOS, plus an `unlisted` visibility tier. Bugs and security reports in the shared code
+> belong upstream.
 
 
 **Artifacts for every agent — open-source and self-hosted.** Your agent builds a self-contained page, dashboard, or app and ships it to a live URL with one command — from Claude Code, Cursor, Codex, Cline, Aider, or any harness that runs a shell command. Then you review it in the browser and drop comments like a Google Doc, and the agent reads your comments and fixes it.
