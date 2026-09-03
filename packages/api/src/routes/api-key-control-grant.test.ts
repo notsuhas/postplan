@@ -88,7 +88,7 @@ describe('requireControlGrant — a key without the control grant cannot change 
       '/api/sites/acme/deck',
       {
         method: 'PATCH',
-        headers: { Authorization: 'Bearer tok-owner', Origin: 'https://glance.example.com', 'Content-Type': 'application/json' },
+        headers: { Authorization: 'Bearer tok-owner', Origin: 'https://postplan.example.com', 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'Renamed by CLI' }),
       },
       ctx.env,

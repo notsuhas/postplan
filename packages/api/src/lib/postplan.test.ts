@@ -72,7 +72,7 @@ describe('isValidSlug', () => {
 describe('slugifyHandle', () => {
   test('sanitizes email handles', () => {
     expect(slugifyHandle('jane.doe@example.com')).toBe('jane-doe')
-    expect(slugifyHandle('jo@example.com')).toBe('jo-glance') // padded to >= 3
+    expect(slugifyHandle('jo@example.com')).toBe('jo-postplan') // padded to >= 3
   })
 })
 

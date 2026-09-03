@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Derive a Glance site slug from a file/folder name. Mirrors the server's rule
+// Derive a Postplan site slug from a file/folder name. Mirrors the server's rule
 // (api lib/slug.ts): lowercase alphanumeric + hyphens, 3-40 chars, no edge hyphen.
 var (
 	slugNonAlnum = regexp.MustCompile(`[^a-z0-9-]+`)

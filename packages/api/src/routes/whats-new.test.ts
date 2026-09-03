@@ -11,7 +11,7 @@ import { NEWEST_RELEASE_DATE, RELEASES } from '../whats-new/catalog'
 import { findOrCreateUser } from './auth'
 import { whatsNew } from './whats-new'
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 // A watermark inside the real catalog's range: older than 2026-07-01 (voice) but newer than
 // 2026-06-20 (links). Everything published after it counts as unread.
 // CATALOG-COUPLED: the unreadCount literals below (`12`) = the number of releases dated after MID.
@@ -25,7 +25,7 @@ const MID = '2026-06-25T00:00:00.000Z'
 function setup() {
   const db = makeDb()
   const kv = makeKv()
-  const env = { APP_URL, SESSION_SECRET: 's', GLANCE_SESSIONS: kv } as unknown as AppEnv['Bindings']
+  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {

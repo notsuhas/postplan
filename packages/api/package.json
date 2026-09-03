@@ -1,5 +1,5 @@
 {
-  "name": "@glance/api",
+  "name": "@postplan/api",
   "private": true,
   "type": "module",
   "scripts": {

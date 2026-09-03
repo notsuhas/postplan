@@ -8,12 +8,12 @@ import { createDbBroker, reconnectDelay } from './dbBroker'
 // collisions — and pin the two lifecycle properties a listen-only page depends on: resume after an
 // in-site navigation, and re-auth before the 300s token expires.
 
-const APP = 'https://glance.example.com'
-const CONTENT = 'https://glance-content.example.com'
+const APP = 'https://postplan.example.com'
+const CONTENT = 'https://postplan-content.example.com'
 const iframeWin = {} as Window
 const otherWin = {} as Window
 const SITE = { spaceSlug: 'sam', siteSlug: 'demo' }
-const WS_URL = 'wss://glance.example.com/api/_data/_sync/socket'
+const WS_URL = 'wss://postplan.example.com/api/_data/_sync/socket'
 
 type Call = { url: string; init?: RequestInit }
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>
@@ -81,7 +81,7 @@ function hello(
   broker.onWindowMessage({
     origin: over.origin ?? CONTENT,
     source: (over.source ?? iframeWin) as Window,
-    data: { type: 'glance:db-hello' },
+    data: { type: 'postplan:db-hello' },
     ports: [ch.port2],
   } as unknown as MessageEvent)
   return { port: ch.port1, received }
@@ -106,7 +106,7 @@ const replied = (msgs: Record<string, unknown>[], id: number) => msgs.find((m) =
 async function subscribed(handler: Handler, reconnectBaseMs?: number) {
   const b = makeBroker(handler, iframeWin, reconnectBaseMs)
   const h = hello(b.broker)
-  await until('ready', () => typed(h.received, 'glance:db-ready').length > 0)
+  await until('ready', () => typed(h.received, 'postplan:db-ready').length > 0)
   h.port.postMessage({ id: 1, op: 'subscribe' })
   const sock = await until('socket', () => b.sockets[0])
   sock.onopen?.()
@@ -120,9 +120,9 @@ describe('broker realtime relay', () => {
     expect(s.sockets).toHaveLength(1)
     expect(s.sock.url).toBe(WS_URL)
     // Browsers cannot set Authorization on a WebSocket; the token rides the subprotocol list.
-    expect(s.sock.protocols).toEqual(['glance.db.v1', 'tok-1'])
+    expect(s.sock.protocols).toEqual(['postplan.db.v1', 'tok-1'])
     s.sock.emit({ events: [EVENT], cursor: 'c2' })
-    await until('event', () => typed(s.received, 'glance:db-event').length > 0)
+    await until('event', () => typed(s.received, 'postplan:db-event').length > 0)
     expect(JSON.stringify(s.received)).not.toContain('tok-1')
     expect(s.received.some((m) => JSON.stringify(m).includes('Bearer'))).toBe(false)
     s.broker.dispose()
@@ -150,7 +150,7 @@ describe('broker realtime relay', () => {
   test('ATTACK: the page cannot subscribe to another site', async () => {
     const b = makeBroker((url) => (url.startsWith('/api/data-token/') ? mintOk() : frame([], 'c1')))
     const h = hello(b.broker)
-    await until('ready', () => typed(h.received, 'glance:db-ready').length > 0)
+    await until('ready', () => typed(h.received, 'postplan:db-ready').length > 0)
     h.port.postMessage({ id: 1, op: 'subscribe', space: 'evil', site: 'evil', collection: '../../evil' })
     const sock = await until('socket', () => b.sockets[0])
     sock.onopen?.()
@@ -163,7 +163,7 @@ describe('broker realtime relay', () => {
     b.broker.dispose()
   })
 
-  test('pushed events reach the page as glance:db-event frames with NO numeric id', async () => {
+  test('pushed events reach the page as postplan:db-event frames with NO numeric id', async () => {
     const s = await subscribed((url) => {
       if (url.startsWith('/api/data-token/')) return mintOk()
       if (url.startsWith('/api/_data/_sync/changes')) return frame([], 'c1')
@@ -173,10 +173,10 @@ describe('broker realtime relay', () => {
     await tick(20)
     s.sock.emit({ events: [EVENT], cursor: 'c2' })
     const evts = await until('event', () => {
-      const m = typed(s.received, 'glance:db-event')
+      const m = typed(s.received, 'postplan:db-event')
       return m.length > 0 ? m : false
     })
-    expect(evts[0]).toEqual({ type: 'glance:db-event', events: [EVENT], cursor: 'c2' })
+    expect(evts[0]).toEqual({ type: 'postplan:db-event', events: [EVENT], cursor: 'c2' })
     expect('id' in evts[0]).toBe(false)
     // The SDK settles ANY numbered frame as a reply — a pushed event must not be one.
     expect(replied(s.received, 42)).toBeUndefined()
@@ -189,15 +189,15 @@ describe('broker realtime relay', () => {
     const s = await subscribed((url) => (url.startsWith('/api/data-token/') ? mintOk() : frame([], 'c1')))
     s.sock.emit({ channel: 'db', events: [EVENT], cursor: 'c2' })
     const evts = await until('event', () => {
-      const m = typed(s.received, 'glance:db-event')
+      const m = typed(s.received, 'postplan:db-event')
       return m.length > 0 ? m : false
     })
-    expect(evts[0]).toEqual({ type: 'glance:db-event', events: [EVENT], cursor: 'c2' })
+    expect(evts[0]).toEqual({ type: 'postplan:db-event', events: [EVENT], cursor: 'c2' })
     expect('channel' in evts[0]).toBe(false)
     s.broker.dispose()
   })
 
-  test('a new glance:db-hello re-establishes subscriptions and resumes from the stored cursor', async () => {
+  test('a new postplan:db-hello re-establishes subscriptions and resumes from the stored cursor', async () => {
     const changes: string[] = []
     const s = await subscribed((url) => {
       if (url.startsWith('/api/data-token/')) return mintOk()
@@ -205,12 +205,12 @@ describe('broker realtime relay', () => {
       return frame([], 'c1')
     })
     s.sock.emit({ events: [EVENT], cursor: 'c2' })
-    await until('event', () => typed(s.received, 'glance:db-event').length > 0)
+    await until('event', () => typed(s.received, 'postplan:db-event').length > 0)
 
     // In-site navigation: the iframe document (and all its module state, including the cursor)
     // is destroyed and a fresh SDK says hello over a new port.
     const h2 = hello(s.broker)
-    await until('ready#2', () => typed(h2.received, 'glance:db-ready').length > 0)
+    await until('ready#2', () => typed(h2.received, 'postplan:db-ready').length > 0)
     h2.port.postMessage({ id: 1, op: 'subscribe' })
     await until('subscribe reply#2', () => replied(h2.received, 1))
 
@@ -251,7 +251,7 @@ describe('broker realtime relay', () => {
   test('ATTACK: an unknown op is rejected by validate() and never opens a socket', async () => {
     const b = makeBroker(mintOk)
     const h = hello(b.broker)
-    await until('ready', () => typed(h.received, 'glance:db-ready').length > 0)
+    await until('ready', () => typed(h.received, 'postplan:db-ready').length > 0)
     h.port.postMessage({ id: 1, op: 'connect' })
     h.port.postMessage({ id: 2, op: 'subscribe_all' })
     h.port.postMessage({ id: 3, op: 'unsubscribe' }) // control: a REAL stream op is accepted
@@ -331,7 +331,7 @@ describe('broker realtime relay', () => {
     second.onopen?.()
     // The token is minutes from expiry: the redial must reuse it, not mint a fresh one.
     expect(s.calls.filter((c) => c.url.startsWith('/api/data-token/'))).toHaveLength(1)
-    expect(second.protocols).toEqual(['glance.db.v1', 'tok-1'])
+    expect(second.protocols).toEqual(['postplan.db.v1', 'tok-1'])
     s.broker.dispose()
   })
 

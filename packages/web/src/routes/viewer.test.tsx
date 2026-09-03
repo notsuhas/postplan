@@ -2,9 +2,9 @@
 // else touches (viewer.tsx is otherwise an intentionally-untested shell; see prefetchArbiter.ts etc.
 // for where the actual logic lives):
 //
-//   1. the glance:paint post is gated on railOpen — real anchors when the panel is open, an EMPTY
+//   1. the postplan:paint post is gated on railOpen — real anchors when the panel is open, an EMPTY
 //      list when it isn't, which is what makes the on-page highlights appear and disappear with it.
-//   2. a glance:anchor-click from the iframe reveals that thread in the rail, every time.
+//   2. a postplan:anchor-click from the iframe reveals that thread in the rail, every time.
 //   3. adding a comment OPENS the rail (and shows no toast standing in for it).
 //
 // Sidebar and command palette are stubbed to `null`: this test is scoped to that wiring, not a
@@ -110,9 +110,9 @@ function armIframe(container: HTMLElement) {
   // site's content origin, or the message is dropped.
   const send = (data: unknown) =>
     window.dispatchEvent(new MessageEvent('message', { data, origin: CONTENT_ORIGIN, source: iframe.contentWindow as unknown as Window }))
-  const paints = () => posted.filter((m) => (m as { type?: string }).type === 'glance:paint') as { anchors: { id: string }[] }[]
+  const paints = () => posted.filter((m) => (m as { type?: string }).type === 'postplan:paint') as { anchors: { id: string }[] }[]
   const lastPaintIds = () => (paints().at(-1)?.anchors ?? []).map((a) => a.id).sort()
-  const pings = () => posted.filter((m) => (m as { type?: string }).type === 'glance:ping')
+  const pings = () => posted.filter((m) => (m as { type?: string }).type === 'postplan:ping')
   return { iframe, send, paints, lastPaintIds, pings }
 }
 
@@ -185,7 +185,7 @@ describe('viewer wiring — the paint is gated on railOpen (the on-page highligh
     const { iframe, send, paints, lastPaintIds } = armIframe(container)
     loadIframe(iframe)
 
-    act(() => send({ type: 'glance:ready', filePath: 'index.html' })) // applies THREADS (t1, t2)
+    act(() => send({ type: 'postplan:ready', filePath: 'index.html' })) // applies THREADS (t1, t2)
 
     expect(container.querySelector('aside')).toBeNull() // rail closed
     await waitFor(() => expect(paints().length).toBeGreaterThan(0))
@@ -199,7 +199,7 @@ describe('viewer wiring — the paint is gated on railOpen (the on-page highligh
   })
 
   // #27, the inverse race of the ?review=1 one below: on a warm-cache load the IFRAME can finish
-  // first, so its one boot glance:ready is posted before the viewer's listener exists — silently
+  // first, so its one boot postplan:ready is posted before the viewer's listener exists — silently
   // lost, filePath stays null, and the rail never loads for the initially open page. The listener
   // effect therefore pings the frame right after attaching; an already-booted client re-announces.
   // The fake contentWindow is armed after mount, so the ping observed here is the one from the
@@ -210,7 +210,7 @@ describe('viewer wiring — the paint is gated on railOpen (the on-page highligh
     const { iframe, send, pings } = armIframe(container)
     loadIframe(iframe)
 
-    act(() => send({ type: 'glance:ready', filePath: 'index.html' })) // re-runs the listener effect via `threads`
+    act(() => send({ type: 'postplan:ready', filePath: 'index.html' })) // re-runs the listener effect via `threads`
 
     await waitFor(() => expect(pings().length).toBeGreaterThan(0))
   })
@@ -225,7 +225,7 @@ describe('viewer wiring — the paint is gated on railOpen (the on-page highligh
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
     const { iframe, send, lastPaintIds } = armIframe(container)
 
-    act(() => send({ type: 'glance:ready', filePath: 'index.html' }))
+    act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
     await waitFor(() => expect(container.querySelector('aside')).not.toBeNull()) // rail open, not loaded yet
 
     loadIframe(iframe)
@@ -248,7 +248,7 @@ describe('viewer wiring — a click on a painted anchor reveals its thread', () 
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
     const { iframe, send } = armIframe(container)
     loadIframe(iframe)
-    act(() => send({ type: 'glance:ready', filePath: 'index.html' }))
+    act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
     await waitFor(() => expect(document.getElementById('thread-t1')).not.toBeNull())
 
     for (const _round of [1, 2]) {
@@ -256,7 +256,7 @@ describe('viewer wiring — a click on a painted anchor reveals its thread', () 
       fireEvent.click(screen.getByRole('button', { name: 'resolved' }))
       await waitFor(() => expect(document.getElementById('thread-t1')).toBeNull())
 
-      act(() => send({ type: 'glance:anchor-click', id: 't1' }))
+      act(() => send({ type: 'postplan:anchor-click', id: 't1' }))
 
       await waitFor(() => expect(document.getElementById('thread-t1')).not.toBeNull())
     }
@@ -270,9 +270,9 @@ describe('viewer wiring — a click on a painted anchor reveals its thread', () 
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
     const { iframe, send } = armIframe(container)
     loadIframe(iframe)
-    act(() => send({ type: 'glance:ready', filePath: 'index.html' }))
+    act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
 
-    act(() => send({ type: 'glance:anchor-click', id: 'ghost' }))
+    act(() => send({ type: 'postplan:anchor-click', id: 'ghost' }))
 
     expect(container.querySelector('aside')).toBeNull()
   })
@@ -291,11 +291,11 @@ describe('viewer wiring — adding a comment opens the rail', () => {
       await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
       const { iframe, send } = armIframe(container)
       loadIframe(iframe)
-      act(() => send({ type: 'glance:ready', filePath: 'index.html' })) // gives submitThread its filePath
+      act(() => send({ type: 'postplan:ready', filePath: 'index.html' })) // gives submitThread its filePath
       expect(container.querySelector('aside')).toBeNull() // rail closed
 
       // Select text in the page → chip → composer, the real in-place comment path.
-      act(() => send({ type: 'glance:select', quote: 'the quoted sentence', rect: { top: 10, left: 10, width: 50, height: 12 } }))
+      act(() => send({ type: 'postplan:select', quote: 'the quoted sentence', rect: { top: 10, left: 10, width: 50, height: 12 } }))
       fireEvent.click(await screen.findByRole('button', { name: 'Comment on selection' }))
       fireEvent.change(screen.getByRole('textbox'), { target: { value: 'this paragraph contradicts the last' } })
       await act(async () => {
@@ -325,13 +325,13 @@ describe('viewer wiring — C on a selection opens the composer (#117)', () => {
       await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
       const { iframe, send } = armIframe(container)
       loadIframe(iframe)
-      act(() => send({ type: 'glance:ready', filePath: 'index.html' }))
+      act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
 
-      act(() => send({ type: 'glance:select', quote: 'the quoted sentence', rect: { top: 10, left: 10, width: 50, height: 12 } }))
+      act(() => send({ type: 'postplan:select', quote: 'the quoted sentence', rect: { top: 10, left: 10, width: 50, height: 12 } }))
       expect(await screen.findByRole('button', { name: 'Comment on selection' })).not.toBeNull()
       expect(screen.queryByRole('textbox')).toBeNull() // a chip only — select never opens a composer
 
-      act(() => send({ type: 'glance:comment-key' }))
+      act(() => send({ type: 'postplan:comment-key' }))
       expect(await screen.findByRole('textbox')).not.toBeNull()
     } finally {
       list.mockRestore()
@@ -355,7 +355,7 @@ describe('viewer wiring — a page comment can be written from a non-audio view 
       await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
       const { iframe, send } = armIframe(container)
       loadIframe(iframe)
-      act(() => send({ type: 'glance:ready', filePath: 'index.html' })) // gives submitThread its filePath
+      act(() => send({ type: 'postplan:ready', filePath: 'index.html' })) // gives submitThread its filePath
 
       // No text selection anywhere in this test — that is the point of a page comment.
       fireEvent.click(await screen.findByRole('button', { name: 'Add comment' }))
@@ -416,9 +416,9 @@ describe('viewer wiring — rail toggle (C2b: the rail is just a panel, not a re
     const { container } = renderViewer('/sp/site')
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
     const { send } = armIframe(container)
-    act(() => send({ type: 'glance:ready', filePath: 'index.html' }))
+    act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
 
-    act(() => send({ type: 'glance:select', quote: 'hello', rect: { top: 5, left: 5, width: 10, height: 10 } }))
+    act(() => send({ type: 'postplan:select', quote: 'hello', rect: { top: 5, left: 5, width: 10, height: 10 } }))
     const chip = await screen.findByRole('button', { name: 'Comment on selection' })
     fireEvent.click(chip) // 'activate' — opens the composer over this quote
     await screen.findByText((t) => t.includes('hello'))
@@ -459,7 +459,7 @@ describe('viewer wiring — pushed comment events (S9)', () => {
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
     const armed = armIframe(container)
     loadIframe(armed.iframe)
-    act(() => armed.send({ type: 'glance:ready', filePath: 'index.html' }))
+    act(() => armed.send({ type: 'postplan:ready', filePath: 'index.html' }))
     await waitFor(() => expect(document.getElementById('thread-t1')).not.toBeNull())
     expect(list).not.toHaveBeenCalled()
     const socket = await dialledSocket()
@@ -555,7 +555,7 @@ describe('viewer wiring — pushed comment events (S9)', () => {
     const list = spyOn(comments, 'list').mockResolvedValue([mkThread({ id: 'p2a', filePath: 'page2.html' })])
     try {
       const { socket, send } = await mounted(list)
-      act(() => send({ type: 'glance:ready', filePath: 'page2.html' })) // in-iframe nav → refetch, settled
+      act(() => send({ type: 'postplan:ready', filePath: 'page2.html' })) // in-iframe nav → refetch, settled
       await waitFor(() => expect(document.getElementById('thread-p2a')).not.toBeNull())
 
       await pushFrame(socket, { type: 'thread.created', siteId: 's1', filePath: 'index.html', thread: mkThread({ id: 'old1' }) })
@@ -592,7 +592,7 @@ describe('viewer wiring — pushed comment events (S9)', () => {
     try {
       const { socket, send } = await mounted(list)
 
-      act(() => send({ type: 'glance:ready', filePath: 'page2.html' })) // in-iframe nav → refetch
+      act(() => send({ type: 'postplan:ready', filePath: 'page2.html' })) // in-iframe nav → refetch
       await waitFor(() => expect(reads).toHaveLength(1))
       expect(reads[0]!.path).toBe('page2.html')
 
@@ -656,7 +656,7 @@ describe('viewer wiring — pushed comment events (S9)', () => {
     const list = spyOn(comments, 'list').mockResolvedValue([mkThread({ id: 'p2a', filePath: 'page2.html' })])
     try {
       const { socket, send } = await mounted(list)
-      act(() => send({ type: 'glance:ready', filePath: 'page2.html' }))
+      act(() => send({ type: 'postplan:ready', filePath: 'page2.html' }))
       await waitFor(() => expect(list).toHaveBeenCalledTimes(1)) // the navigation's own read
 
       await reconnect(socket)
@@ -717,7 +717,7 @@ describe('viewer wiring — pushed comment events (S9)', () => {
       await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
       const { iframe, send } = armIframe(container)
       loadIframe(iframe)
-      act(() => send({ type: 'glance:ready', filePath: 'index.html' }))
+      act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
       await waitFor(() => expect(document.getElementById('thread-t1')).not.toBeNull())
       await dialledSocket() // dialled, never opened — the redial gap, or realtime simply unavailable
 
@@ -782,7 +782,7 @@ describe('viewer wiring — pushed comment events (S9)', () => {
       await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
       const { iframe, send } = armIframe(container)
       loadIframe(iframe)
-      act(() => send({ type: 'glance:ready', filePath: 'index.html' }))
+      act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
       await waitFor(() => expect(document.getElementById('thread-t1')).not.toBeNull())
       await dialledSocket() // dialled, never opened
 

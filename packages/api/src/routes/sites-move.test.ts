@@ -8,12 +8,12 @@ import { sites } from './sites'
 // Move endpoint, mounted the way index.ts mounts it (requireSameOrigin global + sites under
 // /api/sites) so CSRF, auth and ownership are exercised end to end.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 async function setup() {
   const db = makeDb()
   const kv = makeKv()
-  const env = { APP_URL, SESSION_SECRET: 's', GLANCE_SESSIONS: kv } as unknown as AppEnv['Bindings']
+  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {

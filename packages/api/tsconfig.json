@@ -15,7 +15,7 @@
     "src/annotate/locator.ts",
     "src/annotate/reflow.ts",
     "src/annotate/selection.ts",
-    "src/glancedb/client.ts",
+    "src/postplandb/client.ts",
     "scripts/**"
   ]
 }

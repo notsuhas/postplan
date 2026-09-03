@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"glance/internal/argparse"
-	"glance/internal/digest"
+	"postplan/internal/argparse"
+	"postplan/internal/digest"
 	"io"
 	"net/url"
 )
@@ -16,7 +16,7 @@ func (c *client) comments(argv []string) error {
 	}
 	space, name, err := splitSpaceSlug(target)
 	if err != nil {
-		return fmt.Errorf("Usage: glance comments <space/slug> [--file <path>] [--open] [--json]")
+		return fmt.Errorf("Usage: postplan comments <space/slug> [--file <path>] [--open] [--json]")
 	}
 	if err := c.requireAuth(); err != nil {
 		return err

@@ -8,19 +8,19 @@ import (
 	"strings"
 	"testing"
 
-	"glance/internal/config"
+	"postplan/internal/config"
 )
 
 func TestDispatchTokenWiring(t *testing.T) {
-	// An authed command must send GLANCE_TOKEN when it is set, so a CI job can deploy with an
+	// An authed command must send POSTPLAN_TOKEN when it is set, so a CI job can deploy with an
 	// API key it never wrote to disk. This is the whole point of the env override.
-	t.Run("an authed command sends GLANCE_TOKEN over the stored token", func(t *testing.T) {
+	t.Run("an authed command sends POSTPLAN_TOKEN over the stored token", func(t *testing.T) {
 		srv, reqs := recordingServer(t, func(*capturedReq) (int, string) { return 200, "[]" })
 		t.Setenv("HOME", t.TempDir())
 		if err := config.Write(config.Config{ApiUrl: srv.URL, Token: "stored-session"}); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("GLANCE_TOKEN", "glk_from-ci")
+		t.Setenv("POSTPLAN_TOKEN", "glk_from-ci")
 
 		if err := dispatch("list", nil); err != nil {
 			t.Fatalf("dispatch(list): %v", err)
@@ -33,17 +33,17 @@ func TestDispatchTokenWiring(t *testing.T) {
 		}
 	})
 
-	// logout is the exception, and it matters: it is a session verb. If GLANCE_TOKEN shadowed the
+	// logout is the exception, and it matters: it is a session verb. If POSTPLAN_TOKEN shadowed the
 	// stored token here, logout would POST an API key, the server would 400 it (a key is revoked
 	// from the keys screen), and the CLI would still delete config.json — the user's real session
 	// token gone locally but still valid server-side.
-	t.Run("logout sends the STORED token even when GLANCE_TOKEN is set", func(t *testing.T) {
+	t.Run("logout sends the STORED token even when POSTPLAN_TOKEN is set", func(t *testing.T) {
 		srv, reqs := recordingServer(t, func(*capturedReq) (int, string) { return 200, `{"ok":true}` })
 		t.Setenv("HOME", t.TempDir())
 		if err := config.Write(config.Config{ApiUrl: srv.URL, Token: "stored-session"}); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("GLANCE_TOKEN", "glk_from-ci")
+		t.Setenv("POSTPLAN_TOKEN", "glk_from-ci")
 
 		if err := dispatch("logout", nil); err != nil {
 			t.Fatalf("dispatch(logout): %v", err)
@@ -58,15 +58,15 @@ func TestDispatchTokenWiring(t *testing.T) {
 }
 
 // The env override has to be resolvable as a WHOLE credential. Before this, the token came from
-// the env but the instance URL only from ~/.glance/config.json, so a CI container with both vars
+// the env but the instance URL only from ~/.postplan/config.json, so a CI container with both vars
 // exported and no config file passed requireAuth() on the non-empty token and then failed every
 // request with `unsupported protocol scheme ""`.
 
 func TestDispatchEnvOnlyNeedsNoConfigFile(t *testing.T) {
 	srv, reqs := recordingServer(t, func(*capturedReq) (int, string) { return 200, "[]" })
 	t.Setenv("HOME", t.TempDir()) // no config.json at all
-	t.Setenv("GLANCE_API_URL", srv.URL)
-	t.Setenv("GLANCE_TOKEN", "glk_from-ci")
+	t.Setenv("POSTPLAN_API_URL", srv.URL)
+	t.Setenv("POSTPLAN_TOKEN", "glk_from-ci")
 
 	if err := dispatch("list", nil); err != nil {
 		t.Fatalf("dispatch(list) with env-only credentials: %v", err)
@@ -84,8 +84,8 @@ func TestDispatchEnvOnlyNeedsNoConfigFile(t *testing.T) {
 
 func TestDispatchWithNoCredentialsStillSaysNotLoggedIn(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("GLANCE_API_URL", "")
-	t.Setenv("GLANCE_TOKEN", "")
+	t.Setenv("POSTPLAN_API_URL", "")
+	t.Setenv("POSTPLAN_TOKEN", "")
 
 	err := dispatch("list", nil)
 	if err == nil {

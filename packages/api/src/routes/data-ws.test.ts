@@ -14,8 +14,8 @@ import { dataApi } from './data'
 // the room a caller lands in must be derived from the verified token — never from the URL.
 // The DO itself is a recording fake; its own behaviour is pinned in realtime/site-room.test.ts.
 
-const HMAC = 'glance-test-ws'
-const WS_PROTOCOL = 'glance.db.v1'
+const HMAC = 'postplan-test-ws'
+const WS_PROTOCOL = 'postplan.db.v1'
 const SOCKET = '/api/_data/_sync/socket'
 
 function mount(db: HarnessDb) {
@@ -59,7 +59,7 @@ type Room = ReturnType<typeof recordingRoom>
 const envWith = (room: Room) =>
   ({ DATA_TOKEN_SECRET: HMAC, CONTENT_URL: 'https://content.example.com', SITE_ROOM: room.ns }) as never
 
-/** A deploy that never enabled glance.db: the secret is absent, so the whole surface is inert. */
+/** A deploy that never enabled postplan.db: the secret is absent, so the whole surface is inert. */
 const envNoSecret = (room: Room) => ({ CONTENT_URL: 'https://content.example.com', SITE_ROOM: room.ns }) as never
 
 /** The credential channel a browser actually has: `new WebSocket(url, [sentinel, token])`. */

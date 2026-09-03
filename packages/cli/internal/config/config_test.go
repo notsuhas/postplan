@@ -45,7 +45,7 @@ func TestConfigTokenFilePrivate(t *testing.T) {
 func TestApiBasePrecedence(t *testing.T) {
 	t.Run("env-wins", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		t.Setenv("GLANCE_API_URL", "https://env.example")
+		t.Setenv("POSTPLAN_API_URL", "https://env.example")
 		_ = Write(Config{ApiUrl: "https://cfg.example"})
 		if got := APIBase(); got != "https://env.example" {
 			t.Fatalf("APIBase = %q", got)
@@ -54,7 +54,7 @@ func TestApiBasePrecedence(t *testing.T) {
 
 	t.Run("blank-env-falls-through-to-config", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		t.Setenv("GLANCE_API_URL", "   ") // blank -> falls through (|| not ??)
+		t.Setenv("POSTPLAN_API_URL", "   ") // blank -> falls through (|| not ??)
 		_ = Write(Config{ApiUrl: "https://cfg.example"})
 		if got := APIBase(); got != "https://cfg.example" {
 			t.Fatalf("APIBase = %q", got)
@@ -63,7 +63,7 @@ func TestApiBasePrecedence(t *testing.T) {
 
 	t.Run("default-when-nothing-set", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		t.Setenv("GLANCE_API_URL", "")
+		t.Setenv("POSTPLAN_API_URL", "")
 		if got := APIBase(); got != "http://localhost:8787" {
 			t.Fatalf("APIBase = %q", got)
 		}
@@ -73,7 +73,7 @@ func TestApiBasePrecedence(t *testing.T) {
 func TestApiTokenPrecedence(t *testing.T) {
 	t.Run("env-wins", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		t.Setenv("GLANCE_TOKEN", "env-tok")
+		t.Setenv("POSTPLAN_TOKEN", "env-tok")
 		_ = Write(Config{ApiUrl: "https://cfg.example", Token: "cfg-tok"})
 		if got := APIToken(); got != "env-tok" {
 			t.Fatalf("APIToken = %q", got)
@@ -82,7 +82,7 @@ func TestApiTokenPrecedence(t *testing.T) {
 
 	t.Run("blank-env-falls-through-to-config", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		t.Setenv("GLANCE_TOKEN", "   ") // blank -> falls through (|| not ??)
+		t.Setenv("POSTPLAN_TOKEN", "   ") // blank -> falls through (|| not ??)
 		_ = Write(Config{ApiUrl: "https://cfg.example", Token: "cfg-tok"})
 		if got := APIToken(); got != "cfg-tok" {
 			t.Fatalf("APIToken = %q", got)
@@ -91,7 +91,7 @@ func TestApiTokenPrecedence(t *testing.T) {
 
 	t.Run("env-alone-with-no-config", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		t.Setenv("GLANCE_TOKEN", "env-tok")
+		t.Setenv("POSTPLAN_TOKEN", "env-tok")
 		if got := APIToken(); got != "env-tok" {
 			t.Fatalf("APIToken = %q", got)
 		}
@@ -99,7 +99,7 @@ func TestApiTokenPrecedence(t *testing.T) {
 
 	t.Run("empty-when-nothing-set", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		t.Setenv("GLANCE_TOKEN", "")
+		t.Setenv("POSTPLAN_TOKEN", "")
 		if got := APIToken(); got != "" {
 			t.Fatalf("APIToken = %q", got)
 		}

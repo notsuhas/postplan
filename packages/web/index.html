@@ -7,14 +7,14 @@
       // Apply the saved theme before first paint (no flash). Default: dark.
       (function () {
         try {
-          var t = localStorage.getItem('glance-theme')
+          var t = localStorage.getItem('postplan-theme')
           document.documentElement.classList.toggle('dark', t !== 'light')
         } catch (e) {
           document.documentElement.classList.add('dark')
         }
       })()
     </script>
-    <title>Glance — Artifacts for every agent</title>
+    <title>Postplan — Artifacts for every agent</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

@@ -21,7 +21,7 @@ import { TOKEN_HEADER, WS_PROTOCOL } from '../realtime/protocol'
 import { isUpgrade, reissueUpgrade, subprotocols } from '../realtime/upgrade'
 import type { AppEnv, Bindings, SessionUser } from '../types'
 
-// The shared-backend data plane (`glance.db`). Two surfaces:
+// The shared-backend data plane (`postplan.db`). Two surfaces:
 //   • dataApi  (this file → mounted at /api/_data, BEFORE the /api/* same-origin+cookie guards):
 //     bearer-token-only, exact-origin CORS, its own per-request DB — callable cross-origin from
 //     the content origin, never touching the app session cookie.
@@ -59,7 +59,7 @@ type DataCtx = Context<DataEnv>
 // read-your-write with no client-side bookmark threading (the SDK/broker never see D1 headers).
 // Later queries in the request still ride replicas consistent with that anchor.
 function getDb(c: DataCtx): DrizzleD1Database {
-  return c.get('db') ?? sessionDb(c.env.GLANCE_DB, 'first-primary')
+  return c.get('db') ?? sessionDb(c.env.POSTPLAN_DB, 'first-primary')
 }
 
 export const dataApi = new Hono<DataEnv>()
@@ -492,7 +492,7 @@ function toDoc(row: DocumentRow) {
 // only — they never mint write/read_all. This is deliberate: an editor can plant JS in the site, and
 // when the OWNER opens it that script would run with the owner's caps. Do NOT thread the editor's
 // share-role in here to "grant" them write — that would hand every editor read_all/delete over the
-// owner's glance.db docs. Signed off as accepted (editor = semi-trusted, git-collaborator model);
+// owner's postplan.db docs. Signed off as accepted (editor = semi-trusted, git-collaborator model);
 // if that changes, gate on sites.lastReplacedBy (downgrade to viewer until the owner re-deploys).
 // `dataCaps.editor.pin` in data.test.ts locks this.
 export function dataCapsFor(user: Pick<SessionUser, 'id'>, site: Pick<Site, 'ownerId'>): DataCapability[] {

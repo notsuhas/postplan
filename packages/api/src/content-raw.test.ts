@@ -4,7 +4,7 @@ import contentApp from './content'
 import { signToken } from './lib/token'
 import { makeDb, makeR2, seedFile, seedSite, seedSpace, seedUser } from './test/harness'
 
-// Phase 3 / S12 — raw source mode. `glance read --pull` needs the .md SOURCE to round-trip a site,
+// Phase 3 / S12 — raw source mode. `postplan read --pull` needs the .md SOURCE to round-trip a site,
 // but a bare GET of a .md renders it to HTML. On the gated path, ?raw=1 streams the stored bytes
 // verbatim (no markdown render, no annotate injection).
 
@@ -20,7 +20,7 @@ function setup() {
     await next()
   })
   app.route('/', contentApp)
-  return { app, db, r2, env: { APP_URL: 'https://glance.example.com', CONTENT_TOKEN_SECRET: secret, GLANCE_FILES: r2 } }
+  return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
 }
 
 async function gatedMd(db: ReturnType<typeof makeDb>, r2: ReturnType<typeof makeR2>) {

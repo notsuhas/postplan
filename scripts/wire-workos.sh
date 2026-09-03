@@ -6,8 +6,8 @@
 #
 #   WORKOS_API_KEY=sk_… WORKOS_CLIENT_ID=client_… scripts/wire-workos.sh
 #
-# Unset either one and glance stays bootstrap-only (the routes 404) — this script
-# is the opt-in. No WORKOS_COOKIE_PASSWORD: this port uses glance's own KV session,
+# Unset either one and postplan stays bootstrap-only (the routes 404) — this script
+# is the opt-in. No WORKOS_COOKIE_PASSWORD: this port uses postplan's own KV session,
 # not WorkOS sealed sessions.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

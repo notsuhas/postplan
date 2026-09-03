@@ -11,7 +11,7 @@ import { ASK_MODEL, ask } from './ask'
 function setup() {
   const db = makeDb()
   const kv = makeKv()
-  const env = { APP_URL, SESSION_SECRET: 's', GLANCE_SESSIONS: kv } as unknown as AppEnv['Bindings']
+  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {

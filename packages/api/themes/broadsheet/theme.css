@@ -1,21 +1,21 @@
-/* Glance theme: Broadsheet — a newspaper front page. Cream paper, Georgia serif, masthead
+/* Postplan theme: Broadsheet — a newspaper front page. Cream paper, Georgia serif, masthead
  * headline between double rules, a drop cap on the opening paragraph, fine editorial rules.
  * Distinct from Academic (LaTeX/scientific): this is journalistic. Light ground → dark text,
  * inherently safe on author-painted surfaces. Classless: element selectors only. */
 :root {
-  --glance-bg: #faf7f0;
-  --glance-fg: #1c1b18;
-  --glance-muted: #5f5b52;
-  --glance-rule: #1c1b18;
-  --glance-fine: #c9c4b6;
+  --postplan-bg: #faf7f0;
+  --postplan-fg: #1c1b18;
+  --postplan-muted: #5f5b52;
+  --postplan-rule: #1c1b18;
+  --postplan-fine: #c9c4b6;
   color-scheme: light;
 }
 html {
-  background: var(--glance-bg);
+  background: var(--postplan-bg);
 }
 body {
-  background: var(--glance-bg);
-  color: var(--glance-fg);
+  background: var(--postplan-bg);
+  color: var(--postplan-fg);
   font-family: Georgia, 'Times New Roman', serif;
   line-height: 1.6;
 }
@@ -26,22 +26,22 @@ h1 {
   font-size: 2.6rem;
   line-height: 1.15;
   letter-spacing: -0.01em;
-  border-top: 3px solid var(--glance-rule);
-  border-bottom: 1px solid var(--glance-rule);
+  border-top: 3px solid var(--postplan-rule);
+  border-bottom: 1px solid var(--postplan-rule);
   padding: 0.5em 0 0.4em;
   position: relative;
 }
 h1::after {
   content: '';
   display: block;
-  border-bottom: 1px solid var(--glance-rule);
+  border-bottom: 1px solid var(--postplan-rule);
   position: absolute;
   left: 0; right: 0; bottom: 3px;
 }
 h2 {
   font-size: 1.35rem;
   font-weight: 700;
-  border-bottom: 1px solid var(--glance-fine);
+  border-bottom: 1px solid var(--postplan-fine);
   padding-bottom: 0.2em;
 }
 h3 { font-size: 1.05rem; font-style: italic; font-weight: 700; }
@@ -54,15 +54,15 @@ h2:first-of-type + p::first-letter {
   font-weight: 700;
 }
 p { text-align: justify; hyphens: auto; }
-small { color: var(--glance-muted); font-style: italic; }
+small { color: var(--postplan-muted); font-style: italic; }
 strong, b { font-weight: 700; }
 mark { background: #f3e9c7; padding: 0 0.15em; }
-a { color: var(--glance-fg); text-decoration: underline; text-decoration-color: var(--glance-muted); text-underline-offset: 2px; }
-a:hover { text-decoration-color: var(--glance-fg); }
+a { color: var(--postplan-fg); text-decoration: underline; text-decoration-color: var(--postplan-muted); text-underline-offset: 2px; }
+a:hover { text-decoration-color: var(--postplan-fg); }
 hr {
   border: 0;
-  border-top: 1px solid var(--glance-rule);
-  border-bottom: 1px solid var(--glance-rule);
+  border-top: 1px solid var(--postplan-rule);
+  border-bottom: 1px solid var(--postplan-rule);
   height: 3px;
   margin: 2rem 0;
 }
@@ -73,7 +73,7 @@ blockquote {
   font-size: 1.2rem;
   font-style: italic;
   text-align: center;
-  color: var(--glance-fg);
+  color: var(--postplan-fg);
 }
 blockquote::before { content: '“'; font-size: 1.6em; line-height: 0; vertical-align: -0.3em; margin-right: 0.05em; }
 code, kbd, samp, pre {
@@ -83,20 +83,20 @@ code, kbd, samp, pre {
 code, kbd, samp { background: #f0ece0; padding: 0.08em 0.3em; }
 pre {
   background: #f0ece0;
-  border-top: 1px solid var(--glance-rule);
-  border-bottom: 1px solid var(--glance-rule);
+  border-top: 1px solid var(--postplan-rule);
+  border-bottom: 1px solid var(--postplan-rule);
   padding: 1rem;
   overflow: auto;
 }
 pre code { background: none; padding: 0; }
 /* Financial-pages table: heavy top rule, small-caps heads, fine row rules. */
-table { border-collapse: collapse; border-top: 2px solid var(--glance-rule); }
+table { border-collapse: collapse; border-top: 2px solid var(--postplan-rule); }
 th { font-variant: small-caps; letter-spacing: 0.04em; font-size: 0.95em; text-align: left; }
-th, td { border-bottom: 1px solid var(--glance-fine); padding: 0.4rem 0.9rem 0.4rem 0; }
-thead th { border-bottom: 1px solid var(--glance-rule); }
+th, td { border-bottom: 1px solid var(--postplan-fine); padding: 0.4rem 0.9rem 0.4rem 0; }
+thead th { border-bottom: 1px solid var(--postplan-rule); }
 button {
-  background: var(--glance-fg);
-  color: var(--glance-bg);
+  background: var(--postplan-fg);
+  color: var(--postplan-bg);
   border: 0;
   border-radius: 0;
   padding: 0.55rem 1.4rem;
@@ -108,18 +108,18 @@ button {
 button:hover { background: #3a382f; }
 input, select, textarea {
   background: #ffffff;
-  color: var(--glance-fg);
-  border: 1px solid var(--glance-muted);
+  color: var(--postplan-fg);
+  border: 1px solid var(--postplan-muted);
   border-radius: 0;
   padding: 0.45rem 0.7rem;
   font-family: inherit;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--glance-fg); outline-offset: 1px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--postplan-fg); outline-offset: 1px; }
 ::selection { background: #e8dfc4; }
 figure { margin: 1.5rem 0; }
-img { border: 1px solid var(--glance-fine); }
-figcaption { color: var(--glance-muted); font-size: 0.85em; font-style: italic; border-bottom: 1px solid var(--glance-fine); padding-bottom: 0.4rem; }
-fieldset { border: 1px solid var(--glance-rule); padding: 1.25rem; }
+img { border: 1px solid var(--postplan-fine); }
+figcaption { color: var(--postplan-muted); font-size: 0.85em; font-style: italic; border-bottom: 1px solid var(--postplan-fine); padding-bottom: 0.4rem; }
+fieldset { border: 1px solid var(--postplan-rule); padding: 1.25rem; }
 legend { font-variant: small-caps; letter-spacing: 0.05em; padding: 0 0.4em; }
 
 /* Reading measure: flowing text caps at ~72ch so a bare full-width document stays readable.

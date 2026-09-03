@@ -35,13 +35,13 @@ async function seedReport(s: Setup, o: { title?: string | null; status?: 'active
 const get = (s: Setup, path: string, render: (card: OgCard) => Promise<Response>) =>
   s.app.request(path, {}, { ...(s.env as object), OG_RENDER: render } as Parameters<typeof s.app.request>[2])
 
-describe('GET /_glance/og/:space/:site.png', () => {
+describe('GET /_postplan/og/:space/:site.png', () => {
   test('a correctly signed URL renders the card for that site', async () => {
     const s = setup()
     await seedReport(s)
     const { render, cards } = fakeRender()
     const sig = await signOgSig(SECRET, 'acme', 'report')
-    const res = await get(s, `/_glance/og/acme/report.png?sig=${sig}`, render)
+    const res = await get(s, `/_postplan/og/acme/report.png?sig=${sig}`, render)
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('image/png')
     expect(res.headers.get('cache-control')).toContain('public')
@@ -52,8 +52,8 @@ describe('GET /_glance/og/:space/:site.png', () => {
     const s = setup()
     await seedReport(s)
     const { render, cards } = fakeRender()
-    expect((await get(s, '/_glance/og/acme/report.png', render)).status).toBe(404)
-    expect((await get(s, '/_glance/og/acme/report.png?sig=deadbeef', render)).status).toBe(404)
+    expect((await get(s, '/_postplan/og/acme/report.png', render)).status).toBe(404)
+    expect((await get(s, '/_postplan/og/acme/report.png?sig=deadbeef', render)).status).toBe(404)
     expect(cards).toHaveLength(0)
   })
 
@@ -63,7 +63,7 @@ describe('GET /_glance/og/:space/:site.png', () => {
     const { render, cards } = fakeRender()
     // Valid for acme/other-site — replayed against acme/report it must fail.
     const stolen = await signOgSig(SECRET, 'acme', 'other-site')
-    expect((await get(s, `/_glance/og/acme/report.png?sig=${stolen}`, render)).status).toBe(404)
+    expect((await get(s, `/_postplan/og/acme/report.png?sig=${stolen}`, render)).status).toBe(404)
     expect(cards).toHaveLength(0)
   })
 
@@ -72,12 +72,12 @@ describe('GET /_glance/og/:space/:site.png', () => {
     await seedReport(missing)
     const { render, cards } = fakeRender()
     const gone = await signOgSig(SECRET, 'acme', 'deleted-site')
-    expect((await get(missing, `/_glance/og/acme/deleted-site.png?sig=${gone}`, render)).status).toBe(404)
+    expect((await get(missing, `/_postplan/og/acme/deleted-site.png?sig=${gone}`, render)).status).toBe(404)
 
     const archived = setup()
     await seedReport(archived, { status: 'archived' })
     const sig = await signOgSig(SECRET, 'acme', 'report')
-    expect((await get(archived, `/_glance/og/acme/report.png?sig=${sig}`, render)).status).toBe(404)
+    expect((await get(archived, `/_postplan/og/acme/report.png?sig=${sig}`, render)).status).toBe(404)
     expect(cards).toHaveLength(0)
   })
 
@@ -86,7 +86,7 @@ describe('GET /_glance/og/:space/:site.png', () => {
     await seedReport(s, { title: null })
     const { render, cards } = fakeRender()
     const sig = await signOgSig(SECRET, 'acme', 'report')
-    await get(s, `/_glance/og/acme/report.png?sig=${sig}`, render)
+    await get(s, `/_postplan/og/acme/report.png?sig=${sig}`, render)
     expect(cards[0]?.title).toBe('report')
   })
 })

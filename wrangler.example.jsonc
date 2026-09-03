@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "glance",
+  "name": "postplan",
   "main": "packages/api/src/index.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -9,15 +9,15 @@
   // hostname resolves to this worker only. Sibling of the content domain below — SEPARATE
   // hostnames, because the content origin exists so untrusted uploaded HTML can never reach
   // this origin's session cookie.
-  "routes": [{ "pattern": "glance.example.com", "custom_domain": true }],
+  "routes": [{ "pattern": "postplan.example.com", "custom_domain": true }],
   "observability": { "enabled": true },
   // Non-secret config. Secrets (WORKOS_API_KEY/CLIENT_ID, SESSION_SECRET, and the optional
-  // DATA_TOKEN_SECRET for the glance.db shared backend) via `wrangler secret put`.
+  // DATA_TOKEN_SECRET for the postplan.db shared backend) via `wrangler secret put`.
   // setup.sh wires the suhas-test sentinel from the live workers.dev URL on deploy.
   "vars": {
-    "APP_URL": "https://glance.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
-    "CONTENT_URL": "https://glance-content.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
-    "ADMIN_EMAILS": "", // EDIT: optional extra admins, comma-separated (SUPERADMIN_EMAIL is always one)
+    "APP_URL": "https://postplan.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
+    "CONTENT_URL": "https://postplan-content.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
+    "SUPERADMIN_EMAILS": "", // EDIT: optional extra superadmins, comma-separated (SUPERADMIN_EMAIL is always one)
     "SUPERADMIN_EMAIL": "you@yourcompany.com" // EDIT: replace with your own (see README)
   },
   // Main worker serves the React SPA as static assets. run_worker_first forces
@@ -32,21 +32,21 @@
   },
   "d1_databases": [
     {
-      "binding": "GLANCE_DB",
-      "database_name": "glance-db",
+      "binding": "POSTPLAN_DB",
+      "database_name": "postplan-db",
       "database_id": "YOUR_D1_DATABASE_ID", // EDIT: replace with your own (see README)
       "migrations_dir": "packages/api/drizzle"
     }
   ],
-  // One hibernating Durable Object per site, fanning out glance.db change events to subscribed
+  // One hibernating Durable Object per site, fanning out postplan.db change events to subscribed
   // pages (src/realtime/site-room.ts, re-exported from src/index.ts so class_name resolves).
   // new_sqlite_classes, NOT new_classes: KV-backed Durable Objects are not on the free plan.
   "durable_objects": {
     "bindings": [{ "name": "SITE_ROOM", "class_name": "SiteRoom" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SiteRoom"] }],
-  "r2_buckets": [{ "binding": "GLANCE_FILES", "bucket_name": "glance-files" }],
-  "kv_namespaces": [{ "binding": "GLANCE_SESSIONS", "id": "YOUR_KV_NAMESPACE_ID" }], // EDIT: replace with your own (see README)
+  "r2_buckets": [{ "binding": "POSTPLAN_FILES", "bucket_name": "postplan-files" }],
+  "kv_namespaces": [{ "binding": "POSTPLAN_SESSIONS", "id": "YOUR_KV_NAMESPACE_ID" }], // EDIT: replace with your own (see README)
   // Workers AI: server-side voice-comment transcription (Whisper). Optional at runtime (AI?: Ai) —
   // a deploy/dev without it degrades to a transcript placeholder, never an error. Workers AI has NO
   // local simulator, so `remote: true` proxies inference to the real account; accountless local dev

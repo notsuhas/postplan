@@ -1,55 +1,55 @@
 #!/bin/sh
 set -eu
 
-REPO="plivo-labs/glance"
-INSTALL_DIR="${GLANCE_INSTALL_DIR:-$HOME/.local/bin}"
+REPO="notsuhas/postplan"
+INSTALL_DIR="${POSTPLAN_INSTALL_DIR:-$HOME/.local/bin}"
 
 main() {
     platform="$(detect_platform)"
     arch="$(detect_arch)"
-    artifact="glance-${arch}-${platform}"
+    artifact="postplan-${arch}-${platform}"
 
     version="$(latest_version)"
     if [ -z "$version" ]; then
         err "could not determine latest version — has a release been published?"
     fi
-    say "Installing glance $version ($arch-$platform)"
+    say "Installing postplan $version ($arch-$platform)"
 
     tmpdir="$(mktemp -d)"
     trap 'rm -rf "$tmpdir"' EXIT
 
     url="https://github.com/${REPO}/releases/download/${version}/${artifact}"
     say "Downloading ${url}.gz"
-    download "${url}.gz" "$tmpdir/glance.gz"
-    download "${url}.sha256" "$tmpdir/glance.sha256"
-    decompress "$tmpdir/glance.gz"
-    verify_checksum "$tmpdir/glance" "$tmpdir/glance.sha256"
+    download "${url}.gz" "$tmpdir/postplan.gz"
+    download "${url}.sha256" "$tmpdir/postplan.sha256"
+    decompress "$tmpdir/postplan.gz"
+    verify_checksum "$tmpdir/postplan" "$tmpdir/postplan.sha256"
 
     mkdir -p "$INSTALL_DIR"
-    mv "$tmpdir/glance" "$INSTALL_DIR/glance"
-    chmod +x "$INSTALL_DIR/glance"
-    say "Installed glance to $INSTALL_DIR/glance"
+    mv "$tmpdir/postplan" "$INSTALL_DIR/postplan"
+    chmod +x "$INSTALL_DIR/postplan"
+    say "Installed postplan to $INSTALL_DIR/postplan"
 
     if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
         warn "$INSTALL_DIR is not in your PATH"
         add_to_path "$INSTALL_DIR"
     fi
 
-    if [ -n "${GLANCE_API_URL:-}" ]; then
-        seed_config "$GLANCE_API_URL"
+    if [ -n "${POSTPLAN_API_URL:-}" ]; then
+        seed_config "$POSTPLAN_API_URL"
     fi
 
     install_skill
 
     say ""
-    say "Done! Run 'glance login' to get started."
+    say "Done! Run 'postplan login' to get started."
 }
 
-# Install the glance-cli skill so AI agents (Claude Code, …) know how to drive the CLI. Uses the
+# Install the postplan-cli skill so AI agents (Claude Code, …) know how to drive the CLI. Uses the
 # freshly-installed binary — NO Node/npx needed (the binary audience usually has neither). Never
 # fatal: the binary is what matters; a skill hiccup must not abort the install.
 install_skill() {
-    "$INSTALL_DIR/glance" skill install || warn "Skill install skipped — add later with: glance skill install"
+    "$INSTALL_DIR/postplan" skill install || warn "Skill install skipped — add later with: postplan skill install"
 }
 
 detect_platform() {
@@ -146,7 +146,7 @@ add_to_path() {
     if [ -n "$profile" ]; then
         if ! grep -qF "$dir" "$profile" 2>/dev/null; then
             echo "" >> "$profile"
-            echo "# Added by glance installer" >> "$profile"
+            echo "# Added by postplan installer" >> "$profile"
             echo "export PATH=\"${dir}:\$PATH\"" >> "$profile"
             say "Added $dir to PATH in $profile — restart your shell or run: source $profile"
         fi
@@ -155,23 +155,23 @@ add_to_path() {
     fi
 }
 
-# Seed the CLI's own config so `glance login` targets this instance immediately — even in the shell
-# that ran the installer (the CLI reads ~/.glance/config.json before any profile export is sourced).
+# Seed the CLI's own config so `postplan login` targets this instance immediately — even in the shell
+# that ran the installer (the CLI reads ~/.postplan/config.json before any profile export is sourced).
 # Never clobber an existing config: it may already hold a login token.
 seed_config() {
     url="$1"
-    cfg="$HOME/.glance/config.json"
+    cfg="$HOME/.postplan/config.json"
     if [ -f "$cfg" ]; then
         say "Existing config left as-is: $cfg"
         return 0
     fi
-    mkdir -p "$HOME/.glance"
+    mkdir -p "$HOME/.postplan"
     printf '{\n  "apiUrl": "%s"\n}\n' "$url" > "$cfg"
     say "Configured instance: $url"
 }
 
-say()  { printf "  \033[1;32mglance\033[0m: %s\n" "$*"; }
-warn() { printf "  \033[1;33mglance\033[0m: %s\n" "$*"; }
-err()  { printf "  \033[1;31mglance\033[0m: %s\n" "$*" >&2; exit 1; }
+say()  { printf "  \033[1;32mpostplan\033[0m: %s\n" "$*"; }
+warn() { printf "  \033[1;33mpostplan\033[0m: %s\n" "$*"; }
+err()  { printf "  \033[1;31mpostplan\033[0m: %s\n" "$*" >&2; exit 1; }
 
 main

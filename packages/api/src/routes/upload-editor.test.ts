@@ -10,7 +10,7 @@ import { upload } from './upload'
 // neither own nor are a space member of; a plain 'viewer' or a stranger may not. Editor replaces are
 // content-only (no visibility change), blocked on archived sites, and CAS-guarded on contentVersion.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 const html = (s: string) => new File([s], 'index.html', { type: 'text/html' })
 
 async function fx() {
@@ -29,7 +29,7 @@ async function fx() {
   await seedUserShare(db, site, 'ed', 'editor')
   await seedUserShare(db, site, 'vw', 'viewer')
 
-  const env = { APP_URL, SESSION_SECRET: 's', GLANCE_SESSIONS: kv, GLANCE_FILES: r2 } as unknown as AppEnv['Bindings']
+  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv, POSTPLAN_FILES: r2 } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
     c.set('db', db)

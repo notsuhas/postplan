@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// pullMarker (.glance/pull.json) records where a `read --pull` tree came from, so a later `deploy`
+// pullMarker (.postplan/pull.json) records where a `read --pull` tree came from, so a later `deploy`
 // of that tree targets the same site and passes the pulled contentVersion as the CAS token.
 type pullMarker struct {
 	Space          string `json:"space"`
@@ -17,7 +17,7 @@ type pullMarker struct {
 }
 
 const (
-	pullMarkerDir  = ".glance"
+	pullMarkerDir  = ".postplan"
 	pullMarkerFile = "pull.json"
 )
 

@@ -18,7 +18,7 @@ import type { AppEnv } from '../types'
 import type { ApiKeyGrants } from '../lib/api-key'
 import { makeDb, makeKv, makeR2, seedApiKey, seedUser } from './harness'
 
-export const APP_URL = 'https://glance.example.com'
+export const APP_URL = 'https://postplan.example.com'
 
 /** App + env + mocks, production-shaped. Destructure what the test needs. */
 export function makeRouteApp() {
@@ -30,8 +30,8 @@ export function makeRouteApp() {
     SESSION_SECRET: 's',
     CONTENT_URL: 'https://content.example.com',
     CONTENT_TOKEN_SECRET: 'content-secret',
-    GLANCE_SESSIONS: kv,
-    GLANCE_FILES: r2,
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
   } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)

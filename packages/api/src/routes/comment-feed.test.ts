@@ -109,8 +109,8 @@ describe('comment feed route — C4.6 root-app composition', () => {
       APP_URL,
       CONTENT_URL: 'https://content.example.com',
       // Minimal binding shape withDb needs; the request 401s before any query runs.
-      GLANCE_DB: { withSession: () => ({ getBookmark: () => null }) },
-      GLANCE_SESSIONS: makeKv(),
+      POSTPLAN_DB: { withSession: () => ({ getBookmark: () => null }) },
+      POSTPLAN_SESSIONS: makeKv(),
     } as unknown as AppEnv['Bindings']
 
     const res = await worker.fetch(new Request(`${APP_URL}${FEED_URL}`), env)

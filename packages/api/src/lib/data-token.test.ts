@@ -3,8 +3,8 @@ import { verifyDataToken as verify, signDataToken } from './data-token'
 import { b64urlDecode, b64urlEncode, hmacSign } from './hmac'
 import { signToken } from './token'
 
-const HMAC_A = 'glance-test-aaa'
-const HMAC_B = 'glance-test-bbb'
+const HMAC_A = 'postplan-test-aaa'
+const HMAC_B = 'postplan-test-bbb'
 
 describe('data-token', () => {
   test('round-trips claims and recovers siteId/viewerId/caps', async () => {

@@ -33,7 +33,7 @@ describe('docs/api-keys', () => {
   test('documents the env var the CLI actually reads, and the create-not-delete limit', async () => {
     renderDocs()
     const text = (await screen.findByRole('heading', { name: 'API Keys' })).closest('div')?.parentElement?.textContent
-    expect(text).toContain('GLANCE_TOKEN')
+    expect(text).toContain('POSTPLAN_TOKEN')
     expect(text?.toLowerCase()).toContain('delete')
   })
 

@@ -13,9 +13,9 @@ function setup() {
   const db = makeDb()
   const kv = makeKv()
   const env = {
-    APP_URL: 'https://glance.example.com',
+    APP_URL: 'https://postplan.example.com',
     SESSION_SECRET: 'sess-secret',
-    GLANCE_SESSIONS: kv,
+    POSTPLAN_SESSIONS: kv,
   } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {

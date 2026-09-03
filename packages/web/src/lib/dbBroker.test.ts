@@ -5,7 +5,7 @@ import { createDbBroker } from './dbBroker'
 // the request surface (op/param smuggling), and the token lifecycle (401 re-mint). Ports are
 // real MessageChannels; window events are plain event-shaped objects, like parseIntent.test.ts.
 
-const CONTENT = 'https://glance-content.example.com'
+const CONTENT = 'https://postplan-content.example.com'
 const iframeWin = {} as Window
 const otherWin = {} as Window
 const SITE = { spaceSlug: 'sam', siteSlug: 'demo' }
@@ -52,7 +52,7 @@ function hello(broker: { onWindowMessage: (e: MessageEvent) => void }, over: { o
   broker.onWindowMessage({
     origin: over.origin ?? CONTENT,
     source: (over.source ?? iframeWin) as Window,
-    data: { type: 'glance:db-hello' },
+    data: { type: 'postplan:db-hello' },
     ports: [ch.port2],
   } as unknown as MessageEvent)
   return { port: ch.port1, received, waitFor }
@@ -64,7 +64,7 @@ describe('handshake', () => {
   test('valid hello → ready, after minting for the bound site', async () => {
     const { broker, calls } = makeBroker(mintOk)
     const h = hello(broker)
-    await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'glance:db-ready'))
+    await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'postplan:db-ready'))
     expect(calls[0].url).toBe('/api/data-token/sam/demo')
     expect(calls[0].init?.method).toBe('POST')
   })
@@ -88,8 +88,8 @@ describe('handshake', () => {
   test('disabled instance (mint 404) → db-error naming the cause, no retry loop', async () => {
     const { broker } = makeBroker(() => new Response('{"error":"not found"}', { status: 404 }))
     const h = hello(broker)
-    await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'glance:db-error'))
-    const err = h.received.find((x) => (x as { type?: string }).type === 'glance:db-error') as { error: string }
+    await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'postplan:db-error'))
+    const err = h.received.find((x) => (x as { type?: string }).type === 'postplan:db-error') as { error: string }
     expect(err.error).toContain('not enabled')
   })
 })
@@ -98,7 +98,7 @@ describe('request surface', () => {
   async function ready(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
     const { broker, calls } = makeBroker(handler)
     const h = hello(broker)
-    await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'glance:db-ready'))
+    await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'postplan:db-ready'))
     return { ...h, calls }
   }
 

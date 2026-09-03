@@ -6,7 +6,7 @@ import type { AppEnv } from '../types'
 
 // Spaces routes mounted the way index.ts mounts them (requireSameOrigin global + spaces under
 // /api/spaces — via the shared route-fixtures app) so CSRF, auth and ownership are exercised
-// end to end. GLANCE_FILES is a real R2 mock so the delete path's object purge is observable.
+// end to end. POSTPLAN_FILES is a real R2 mock so the delete path's object purge is observable.
 
 const invite = (app: Hono<AppEnv>, env: AppEnv['Bindings'], slug: string, id: string, body: unknown) =>
   app.request(`/api/spaces/${slug}/members`, { method: 'POST', headers: auth(id), body: JSON.stringify(body) }, env)

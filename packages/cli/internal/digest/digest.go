@@ -36,7 +36,7 @@ type Thread struct {
 }
 
 // The anchor context line for a thread: an element's tag + preview, or a text quote. Empty for a
-// page/anchorless thread. Keeps `glance comments` useful for element anchors too.
+// page/anchorless thread. Keeps `postplan comments` useful for element anchors too.
 func AnchorLine(t Thread) string {
 	if t.AnchorType != nil && *t.AnchorType == "element" && t.Anchor != nil {
 		label := t.Anchor.Preview

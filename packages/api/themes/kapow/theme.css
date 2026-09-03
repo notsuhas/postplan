@@ -1,9 +1,9 @@
-/* Glance theme: Kapow — a four-color comic page on aged newsprint. Every element plays an
+/* Postplan theme: Kapow — a four-color comic page on aged newsprint. Every element plays an
  * in-universe role: blockquote = speech bubble, figcaption/summary = yellow caption box,
  * mark = sound-effect chip, hr = panel gutter, tables/images = inked panels.
  * Light ground → dark text, inherently safe on author-painted surfaces.
  * Classless: element selectors only. */
-/* Fonts are VENDORED and served first-party (/_glance/theme/fonts/*, issue #155). Split by
+/* Fonts are VENDORED and served first-party (/_postplan/theme/fonts/*, issue #155). Split by
  * unicode-range so latin-ext is only fetched for pages that use those glyphs (Comic Neue has
  * no latin-ext subset upstream — those glyphs fall back to the system stack). */
 @font-face {
@@ -11,7 +11,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/_glance/theme/fonts/bangers-latin.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/bangers-latin.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -19,7 +19,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/_glance/theme/fonts/bangers-latin-ext.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/bangers-latin-ext.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
@@ -27,7 +27,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/_glance/theme/fonts/comic-neue-400-latin.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/comic-neue-400-latin.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -35,32 +35,32 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/_glance/theme/fonts/comic-neue-700-latin.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/comic-neue-700-latin.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
-  --glance-paper: #f6eee3;
-  --glance-ink: #14100c;
-  --glance-red: #ed1c24;
-  --glance-yellow: #ffde00;
-  --glance-caption: #fff48c;
-  --glance-cyan: #00aeef;
-  --glance-panel-shadow: 6px 6px 0 #14100c;
+  --postplan-paper: #f6eee3;
+  --postplan-ink: #14100c;
+  --postplan-red: #ed1c24;
+  --postplan-yellow: #ffde00;
+  --postplan-caption: #fff48c;
+  --postplan-cyan: #00aeef;
+  --postplan-panel-shadow: 6px 6px 0 #14100c;
   color-scheme: light;
 }
 html {
-  background: var(--glance-paper);
+  background: var(--postplan-paper);
 }
 body {
   /* Ben-Day halftone: two offset low-alpha red dot grids over newsprint. */
-  background-color: var(--glance-paper);
+  background-color: var(--postplan-paper);
   background-image:
     radial-gradient(circle at center, rgba(237, 28, 36, 0.12) 1.5px, transparent 0),
     radial-gradient(circle at center, rgba(237, 28, 36, 0.12) 1.5px, transparent 0);
   background-size: 9px 9px;
   background-position: 0 0, 4.5px 4.5px;
-  color: var(--glance-ink);
+  color: var(--postplan-ink);
   font-family: 'Comic Neue', 'Comic Sans MS', cursive;
   font-size: 1.05rem;
   line-height: 1.55;
@@ -70,42 +70,42 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 400;
   letter-spacing: 2px;
   line-height: 1.05;
-  color: var(--glance-ink);
+  color: var(--postplan-ink);
 }
 /* The action word: yellow fill, inked outline, a slight tilt. */
 h1 {
   font-size: 3.4rem;
-  color: var(--glance-yellow);
+  color: var(--postplan-yellow);
   -webkit-text-stroke: 2px #14100c;
-  text-shadow: 3px 3px 0 var(--glance-red);
+  text-shadow: 3px 3px 0 var(--postplan-red);
   transform: rotate(-2deg);
 }
-h2 { font-size: 2.2rem; color: var(--glance-red); -webkit-text-stroke: 1px #14100c; }
+h2 { font-size: 2.2rem; color: var(--postplan-red); -webkit-text-stroke: 1px #14100c; }
 h3 { font-size: 1.6rem; }
 small { color: #5c5347; }
 strong, b { font-weight: 700; }
-em, i { color: var(--glance-red); }
+em, i { color: var(--postplan-red); }
 /* Sound-effect chip. */
 mark {
-  background: var(--glance-yellow);
-  border: 2px solid var(--glance-ink);
+  background: var(--postplan-yellow);
+  border: 2px solid var(--postplan-ink);
   font-family: 'Bangers', cursive;
   letter-spacing: 1px;
   padding: 0 0.3em;
   display: inline-block;
   transform: skew(-5deg);
 }
-a { color: var(--glance-cyan); font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
-a:hover { color: var(--glance-red); }
+a { color: var(--postplan-cyan); font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+a:hover { color: var(--postplan-red); }
 /* Panel gutter. */
-hr { border: 0; border-top: 6px solid var(--glance-ink); }
+hr { border: 0; border-top: 6px solid var(--postplan-ink); }
 /* The speech bubble, tail and all. */
 blockquote {
   position: relative;
   margin: 1.5rem 0.5rem 2.2rem;
   padding: 1rem 1.4rem;
   background: #ffffff;
-  border: 3px solid var(--glance-ink);
+  border: 3px solid var(--postplan-ink);
   border-radius: 30px;
   font-weight: 700;
 }
@@ -115,7 +115,7 @@ blockquote::after {
   bottom: -21px;
   left: 14%;
   border: 12px solid transparent;
-  border-top: 20px solid var(--glance-ink);
+  border-top: 20px solid var(--postplan-ink);
   border-bottom: 0;
 }
 blockquote::before {
@@ -132,11 +132,11 @@ code, kbd, samp, pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, 'Courier New', monospace;
   font-size: 0.85em;
 }
-code, kbd, samp { background: #ffffff; border: 2px solid var(--glance-ink); padding: 0.08em 0.3em; }
+code, kbd, samp { background: #ffffff; border: 2px solid var(--postplan-ink); padding: 0.08em 0.3em; }
 pre {
   background: #ffffff;
-  border: 3px solid var(--glance-ink);
-  box-shadow: var(--glance-panel-shadow);
+  border: 3px solid var(--postplan-ink);
+  box-shadow: var(--postplan-panel-shadow);
   padding: 1rem;
   overflow: auto;
 }
@@ -145,48 +145,48 @@ pre code { background: none; border: 0; padding: 0; }
 table {
   border-collapse: collapse;
   background: #ffffff;
-  border: 3px solid var(--glance-ink);
-  box-shadow: var(--glance-panel-shadow);
+  border: 3px solid var(--postplan-ink);
+  box-shadow: var(--postplan-panel-shadow);
 }
-th { background: var(--glance-yellow); font-family: 'Bangers', cursive; font-weight: 400; letter-spacing: 1.5px; font-size: 1.1em; }
-th, td { border: 2px solid var(--glance-ink); padding: 0.45rem 0.9rem; text-align: left; }
+th { background: var(--postplan-yellow); font-family: 'Bangers', cursive; font-weight: 400; letter-spacing: 1.5px; font-size: 1.1em; }
+th, td { border: 2px solid var(--postplan-ink); padding: 0.45rem 0.9rem; text-align: left; }
 img, figure { background: #ffffff; }
-img { border: 3px solid var(--glance-ink); box-shadow: var(--glance-panel-shadow); }
+img { border: 3px solid var(--postplan-ink); box-shadow: var(--postplan-panel-shadow); }
 /* Yellow narration caption. */
 figcaption, summary {
-  background: var(--glance-caption);
-  border: 2px solid var(--glance-ink);
+  background: var(--postplan-caption);
+  border: 2px solid var(--postplan-ink);
   padding: 0.25rem 0.6rem;
   font-style: italic;
   font-weight: 700;
 }
 summary { cursor: pointer; }
 button {
-  background: var(--glance-red);
+  background: var(--postplan-red);
   color: #ffffff;
-  border: 3px solid var(--glance-ink);
+  border: 3px solid var(--postplan-ink);
   border-radius: 0;
-  box-shadow: 4px 4px 0 var(--glance-ink);
+  box-shadow: 4px 4px 0 var(--postplan-ink);
   padding: 0.5rem 1.3rem;
   font-family: 'Bangers', cursive;
   font-size: 1.2rem;
   letter-spacing: 2px;
   cursor: pointer;
 }
-button:hover { background: var(--glance-cyan); }
-button:active { box-shadow: 1px 1px 0 var(--glance-ink); transform: translate(3px, 3px); }
+button:hover { background: var(--postplan-cyan); }
+button:active { box-shadow: 1px 1px 0 var(--postplan-ink); transform: translate(3px, 3px); }
 input, select, textarea {
   background: #ffffff;
-  color: var(--glance-ink);
-  border: 2px solid var(--glance-ink);
+  color: var(--postplan-ink);
+  border: 2px solid var(--postplan-ink);
   border-radius: 6px;
   padding: 0.45rem 0.75rem;
   font-family: inherit;
 }
-input:focus, select:focus, textarea:focus { outline: 3px solid var(--glance-yellow); }
-::selection { background: var(--glance-yellow); }
-fieldset { border: 3px solid var(--glance-ink); background: #ffffff; box-shadow: var(--glance-panel-shadow); padding: 1.25rem; }
-legend { font-family: 'Bangers', cursive; letter-spacing: 1.5px; background: var(--glance-caption); border: 2px solid var(--glance-ink); padding: 0 0.6em; }
+input:focus, select:focus, textarea:focus { outline: 3px solid var(--postplan-yellow); }
+::selection { background: var(--postplan-yellow); }
+fieldset { border: 3px solid var(--postplan-ink); background: #ffffff; box-shadow: var(--postplan-panel-shadow); padding: 1.25rem; }
+legend { font-family: 'Bangers', cursive; letter-spacing: 1.5px; background: var(--postplan-caption); border: 2px solid var(--postplan-ink); padding: 0 0.6em; }
 
 /* Reading measure: flowing text caps at ~72ch so a bare full-width document stays readable. */
 p, ul, ol, dl { max-width: 72ch; }

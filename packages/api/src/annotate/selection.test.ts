@@ -89,7 +89,7 @@ describe('installSelectionCapture — only a COMMITTED selection emits a chip in
 
     expect(emitted.length).toBe(1)
     const msg = emitted[0] as SelectMessage
-    expect(msg.type).toBe('glance:select')
+    expect(msg.type).toBe('postplan:select')
     expect(msg.quote).toBe('Revenue is up.')
     // Captured at commit time, so the parent can re-find THIS occurrence later.
     expect(msg.context.prefix).toBe('Alpha lead in. ')
@@ -109,7 +109,7 @@ describe('installSelectionCapture — only a COMMITTED selection emits a chip in
   })
 
   test('blockText excludes script/style text inside the block', () => {
-    // The realistic glance shape: a single-file page whose wrapper DIV carries inline JS/CSS. Raw
+    // The realistic postplan shape: a single-file page whose wrapper DIV carries inline JS/CSS. Raw
     // textContent would ship that source as the AI's "passage"; the visible-text walk must not.
     const { emitted, select, doc, window } = setup(
       '<div><span>Revenue is up.</span><script>const leaked = "js source"</script><style>.leaked{color:red}</style><span>More prose.</span></div>',
@@ -156,7 +156,7 @@ describe('installSelectionCapture — the clear is a transition, not a state rep
     detach()
     doc.dispatchEvent(new window.Event('pointerup') as unknown as Event)
 
-    expect(emitted.map((m) => m.type)).toEqual(['glance:select', 'glance:select-clear'])
+    expect(emitted.map((m) => m.type)).toEqual(['postplan:select', 'postplan:select-clear'])
   })
 
   test('losing the selection clears ONCE, not on every subsequent selectionchange', () => {
@@ -167,7 +167,7 @@ describe('installSelectionCapture — the clear is a transition, not a state rep
     for (let i = 0; i < 5; i++) doc.dispatchEvent(new window.Event('selectionchange') as unknown as Event)
     doc.dispatchEvent(new window.Event('pointerup') as unknown as Event)
 
-    expect(emitted.map((m) => m.type)).toEqual(['glance:select', 'glance:select-clear'])
+    expect(emitted.map((m) => m.type)).toEqual(['postplan:select', 'postplan:select-clear'])
   })
 
   test('a selectionchange with no chip outstanding emits nothing at all', () => {
@@ -184,7 +184,7 @@ describe('installSelectionCapture — the clear is a transition, not a state rep
     select('Alpha lead in.')
     doc.dispatchEvent(new window.Event('pointerup') as unknown as Event)
 
-    expect(emitted.map((m) => m.type)).toEqual(['glance:select', 'glance:select-clear', 'glance:select'])
+    expect(emitted.map((m) => m.type)).toEqual(['postplan:select', 'postplan:select-clear', 'postplan:select'])
     expect((emitted[2] as SelectMessage).quote).toBe('Alpha lead in.')
   })
 })
@@ -193,17 +193,17 @@ describe('installSelectionCapture — dismissal signals the parent cannot see fo
   test('a pointerdown on the document emits exactly one click-away', () => {
     const { emitted, doc, window } = setup()
     doc.dispatchEvent(new window.Event('pointerdown') as unknown as Event)
-    expect(emitted).toEqual([{ type: 'glance:click-away' }])
+    expect(emitted).toEqual([{ type: 'postplan:click-away' }])
   })
 
   test('an Escape keydown emits exactly one escape; other keys emit neither signal', () => {
     const { emitted, fire } = setup()
     fire('keydown', { key: 'Escape' })
-    expect(emitted).toEqual([{ type: 'glance:escape' }])
+    expect(emitted).toEqual([{ type: 'postplan:escape' }])
 
     fire('keydown', { key: 'x' })
     fire('keydown', { key: 'ArrowRight' })
-    expect(emitted).toEqual([{ type: 'glance:escape' }])
+    expect(emitted).toEqual([{ type: 'postplan:escape' }])
   })
 
   test('an ordinary drag emits click-away BEFORE the select it precedes', () => {
@@ -213,7 +213,7 @@ describe('installSelectionCapture — dismissal signals the parent cannot see fo
     select('Revenue is up.')
     doc.dispatchEvent(new window.Event('pointerup') as unknown as Event)
 
-    expect(emitted.map((m) => m.type)).toEqual(['glance:click-away', 'glance:select'])
+    expect(emitted.map((m) => m.type)).toEqual(['postplan:click-away', 'postplan:select'])
   })
 
   test('after dispose neither signal is emitted', () => {
@@ -239,7 +239,7 @@ describe('installSelectionCapture — C on a live selection (#117)', () => {
     const { emitted, fire } = withSelection(setup())
     fire('keydown', { key: 'c' })
     fire('keydown', { key: 'C', shiftKey: true })
-    expect(emitted).toEqual([{ type: 'glance:comment-key' }, { type: 'glance:comment-key' }])
+    expect(emitted).toEqual([{ type: 'postplan:comment-key' }, { type: 'postplan:comment-key' }])
   })
 
   test('with no selection outstanding, c is just a letter on someone else’s page', () => {
@@ -252,7 +252,7 @@ describe('installSelectionCapture — C on a live selection (#117)', () => {
     const s = withSelection(setup())
     s.collapse() // the clear the parent acts on
     s.fire('keydown', { key: 'c' })
-    expect(s.emitted).toEqual([{ type: 'glance:select-clear' }])
+    expect(s.emitted).toEqual([{ type: 'postplan:select-clear' }])
   })
 
   test('⌘C / ^C stay copy — the most common thing anyone does with a selection', () => {
@@ -285,7 +285,7 @@ describe('installSelectionCapture — A on a live selection (ask AI)', () => {
   test('a emits an ask-key intent', () => {
     const { emitted, fire } = withSelection(setup())
     fire('keydown', { key: 'a' })
-    expect(emitted).toEqual([{ type: 'glance:ask-key' }])
+    expect(emitted).toEqual([{ type: 'postplan:ask-key' }])
   })
 
   test('with no selection outstanding, a emits nothing', () => {

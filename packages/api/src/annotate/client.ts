@@ -1,4 +1,4 @@
-// Annotate-mode client, injected into uploaded HTML when ?glance_annotate=1 (gated sites only).
+// Annotate-mode client, injected into uploaded HTML when ?postplan_annotate=1 (gated sites only).
 // BROWSER code — excluded from the worker tsconfig and bundled to a string by
 // scripts/build-annotate.ts (run `bun run build:annotate` after editing this file).
 //
@@ -16,14 +16,14 @@
 //
 // Two anchor kinds are painted against the RENDERED DOM (the server no longer resolves anchors):
 //   • text    — re-find the stored quote (whitespace-flexible, case-insensitive) and light it in
-//               the `glance-comment` CSS Custom Highlight.
+//               the `postplan-comment` CSS Custom Highlight.
 //   • element — re-resolve the stored CSS selector and lay an outline box over it, tracking
 //               scroll/resize/DOM-mutation. Unresolved selectors draw nothing and are reported
 //               back so the parent can flag them orphaned.
 // A PAINT IS THE HIGHLIGHT: everything the parent sends is lit, and the parent sends anchors only
 // while the comments rail is open (an empty paint on close clears the page). There is no hover
 // command and no per-anchor lit set — badges, and the rect batches that positioned them, are gone.
-// Clicking a painted anchor is what opens its thread in the rail (glance:anchor-click).
+// Clicking a painted anchor is what opens its thread in the rail (postplan:anchor-click).
 
 import { withAnnotateParam } from './linkRewrite'
 import type { TextContext } from '../lib/anchor'
@@ -34,7 +34,7 @@ import { installSelectionCapture, type Rect } from './selection'
 type Boot = { siteId: string; filePath: string; appOrigin: string }
 type PaintAnchor = { id: string; anchorType?: 'text' | 'page' | 'element'; quote?: string; selector?: string; context?: TextContext }
 
-const boot = (window as unknown as { __GLANCE__?: Boot }).__GLANCE__
+const boot = (window as unknown as { __POSTPLAN__?: Boot }).__POSTPLAN__
 
 function toParent(msg: unknown): void {
   if (!boot) return
@@ -57,9 +57,9 @@ const rectOf = (el: Element): Rect => {
 
 installSelectionCapture({ doc: document, getSelection: () => window.getSelection(), emit: toParent })
 
-// --- link navigation: propagate ?glance_annotate=1 across in-iframe navigation -----------
-// content.ts only injects this client when the request carries ?glance_annotate=1 — relative links
-// inside the uploaded page never carry it, so the NEXT page loads without us: no glance:ready, so
+// --- link navigation: propagate ?postplan_annotate=1 across in-iframe navigation -----------
+// content.ts only injects this client when the request carries ?postplan_annotate=1 — relative links
+// inside the uploaded page never carry it, so the NEXT page loads without us: no postplan:ready, so
 // the sidebar misses the navigation and the viewer's filePath goes stale (misattributing subsequent
 // comments). Rewrite the href just before the browser navigates, for every same-origin, plain
 // (no modifier key, no download/new-tab) left click on a link. Capture phase, so the rewrite lands
@@ -92,10 +92,10 @@ const ANCHOR_STYLE =
   'position:fixed;pointer-events:none;box-sizing:border-box;outline:2px solid rgba(255,170,0,.95);background:rgba(255,213,0,.18);border-radius:2px;'
 // The element just pinpointed — a solid blue box that PERSISTS while the composer is open, so you
 // keep seeing what you're commenting on. Element CREATION is gone (RULING, slice C2a) — today's
-// viewer.tsx never sends glance:pending — but this receiver stays for backward compatibility: a
+// viewer.tsx never sends postplan:pending — but this receiver stays for backward compatibility: a
 // browser tab holding an OLD cached parent bundle can still post it against this freshly-served
 // client.ts, and silently drawing the box for it is strictly better than a stale sender getting an
-// unhandled message. Same reasoning as the glance:pinpoint case in parseIntent.ts and the
+// unhandled message. Same reasoning as the postplan:pinpoint case in parseIntent.ts and the
 // e.defaultPrevented check below.
 const PENDING_STYLE =
   'position:fixed;pointer-events:none;box-sizing:border-box;outline:2px solid rgba(59,130,246,.95);background:rgba(59,130,246,.12);border-radius:2px;'
@@ -108,7 +108,7 @@ let elementAnchors: ElementAnchor[] = []
 function ensureOverlayRoot(): HTMLElement {
   if (overlayRoot?.isConnected) return overlayRoot
   const root = document.createElement('div')
-  root.id = '__glance_overlay__'
+  root.id = '__postplan_overlay__'
   root.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483000;'
   document.documentElement.appendChild(root)
   overlayRoot = root
@@ -131,7 +131,7 @@ let lastResolutionKey = ''
 function reposition(): void {
   const root = ensureOverlayRoot()
   repositionPending(root)
-  for (const b of Array.from(root.querySelectorAll('[data-glance-anchor]'))) b.remove()
+  for (const b of Array.from(root.querySelectorAll('[data-postplan-anchor]'))) b.remove()
   if (elementAnchors.length === 0) {
     lastResolutionKey = ''
     return
@@ -146,7 +146,7 @@ function reposition(): void {
     }
     resolved.push(a.id)
     const box = document.createElement('div')
-    box.setAttribute('data-glance-anchor', a.id)
+    box.setAttribute('data-postplan-anchor', a.id)
     box.style.cssText = ANCHOR_STYLE
     place(box, rectOf(el))
     root.appendChild(box)
@@ -154,7 +154,7 @@ function reposition(): void {
   const key = `${resolved.join(',')}|${orphaned.join(',')}`
   if (key !== lastResolutionKey) {
     lastResolutionKey = key
-    toParent({ type: 'glance:pinpoint-resolved', resolved, orphaned })
+    toParent({ type: 'postplan:pinpoint-resolved', resolved, orphaned })
   }
 }
 
@@ -217,8 +217,8 @@ let textAnchors: TextAnchor[] = []
  *  registered". */
 function applyRanges(ranges: Range[]): void {
   if (!supportsHighlight) return
-  if (ranges.length === 0) CSS.highlights.delete('glance-comment')
-  else CSS.highlights.set('glance-comment', new Highlight(...ranges))
+  if (ranges.length === 0) CSS.highlights.delete('postplan-comment')
+  else CSS.highlights.set('postplan-comment', new Highlight(...ranges))
 }
 
 /** Record which anchors exist (for the click hit-test) and light every one of them. The parent
@@ -246,7 +246,7 @@ document.addEventListener(
     if (!id) return
     e.preventDefault()
     e.stopPropagation()
-    toParent({ type: 'glance:anchor-click', id })
+    toParent({ type: 'postplan:anchor-click', id })
   },
   true,
 )
@@ -270,49 +270,49 @@ function focus(target: { quote?: string; selector?: string; context?: TextContex
 }
 
 // Paint/focus commands are trusted ONLY from the parent app origin (the inverse of the hostile-
-// iframe rule: here the parent is the trusted side). A stray `glance:mode` or `glance:highlight`
+// iframe rule: here the parent is the trusted side). A stray `postplan:mode` or `postplan:highlight`
 // from a stale cached bundle (the parent no longer sends either) falls through unmatched below and
 // is ignored.
 window.addEventListener('message', (e: MessageEvent) => {
   if (!boot || e.origin !== boot.appOrigin) return
   const d = e.data as { type?: string; anchors?: PaintAnchor[]; quote?: string; selector?: string; context?: TextContext; href?: string | null }
-  if (d?.type === 'glance:paint' && Array.isArray(d.anchors)) paint(d.anchors)
-  else if (d?.type === 'glance:focus') focus({ quote: d.quote, selector: d.selector, context: d.context })
-  else if (d?.type === 'glance:pending') setPending(typeof d.selector === 'string' ? d.selector : null)
+  if (d?.type === 'postplan:paint' && Array.isArray(d.anchors)) paint(d.anchors)
+  else if (d?.type === 'postplan:focus') focus({ quote: d.quote, selector: d.selector, context: d.context })
+  else if (d?.type === 'postplan:pending') setPending(typeof d.selector === 'string' ? d.selector : null)
   // Print/Save-as-PDF: the viewer iframe is cross-origin, so the parent can't call
   // iframe.contentWindow.print() itself (SecurityError) — it asks, and the page prints in its own
   // realm with the browser's native dialog (the user picks "Save as PDF" there). Full fidelity:
   // the page's own renderer does the layout, including the injected theme stylesheet.
-  else if (d?.type === 'glance:print') window.print()
+  else if (d?.type === 'postplan:print') window.print()
   // Viewer-local theme override: swap (or restore) the theme stylesheet INSIDE the frame — the
   // parent is cross-origin and cannot touch this DOM. Purely cosmetic and per-viewer: no server
   // write, applies instantly, and the parent persists the choice in ITS localStorage. The href is
   // pattern-validated so a compromised parent message can at worst load one of our own theme
   // sheets; null restores the site's server-injected theme (or none).
-  else if (d?.type === 'glance:theme') applyViewTheme(typeof d.href === 'string' ? d.href : null)
-  // The parent's "did I miss your ready?" probe (#27): the boot glance:ready below fires exactly
+  else if (d?.type === 'postplan:theme') applyViewTheme(typeof d.href === 'string' ? d.href : null)
+  // The parent's "did I miss your ready?" probe (#27): the boot postplan:ready below fires exactly
   // once, so on a warm-cache load where this frame finishes before the parent's listener attaches
   // it is lost with nothing to re-fire it. Re-announcing on ping closes that race from this side;
   // the parent's arbiter treats a duplicate ready as a no-op, so answering a redundant ping is free.
-  else if (d?.type === 'glance:ping') toParent({ type: 'glance:ready', filePath: boot.filePath })
+  else if (d?.type === 'postplan:ping') toParent({ type: 'postplan:ready', filePath: boot.filePath })
 })
 
 // The site's server-injected theme href, captured at boot so a viewer override can be undone
-// back to the true default (content.ts stamps the link with id="glance-theme").
-const serverThemeHref = (document.getElementById('glance-theme') as HTMLLinkElement | null)?.getAttribute('href') ?? null
+// back to the true default (content.ts stamps the link with id="postplan-theme").
+const serverThemeHref = (document.getElementById('postplan-theme') as HTMLLinkElement | null)?.getAttribute('href') ?? null
 
 function applyViewTheme(href: string | null): void {
   const target = href ?? serverThemeHref
-  let link = document.getElementById('glance-theme') as HTMLLinkElement | null
+  let link = document.getElementById('postplan-theme') as HTMLLinkElement | null
   if (target === null) {
     link?.remove()
     return
   }
   // Only our own theme sheets, ever — the href travels through postMessage, so validate shape.
-  if (!/^\/_glance\/theme\/[a-z0-9-]+\.css(\?v=[a-z0-9]+)?$/.test(target)) return
+  if (!/^\/_postplan\/theme\/[a-z0-9-]+\.css(\?v=[a-z0-9]+)?$/.test(target)) return
   if (!link) {
     link = document.createElement('link')
-    link.id = 'glance-theme'
+    link.id = 'postplan-theme'
     link.rel = 'stylesheet'
     ;(document.head ?? document.documentElement).appendChild(link)
   }
@@ -333,7 +333,7 @@ let lightbox: HTMLDialogElement | null = null
 function openLightbox(svg: Element): void {
   if (!lightbox?.isConnected) {
     lightbox = document.createElement('dialog')
-    lightbox.className = 'glance-lb'
+    lightbox.className = 'postplan-lb'
     lightbox.append(document.createElement('div'))
     lightbox.addEventListener('click', () => lightbox?.close()) // click anywhere (incl. backdrop) closes
     document.body.append(lightbox)
@@ -355,4 +355,4 @@ document.addEventListener('click', (e) => {
 })
 
 // Boot handshake: tell the parent which file is mounted (intent-only; parent re-validates).
-if (boot) toParent({ type: 'glance:ready', filePath: boot.filePath })
+if (boot) toParent({ type: 'postplan:ready', filePath: boot.filePath })

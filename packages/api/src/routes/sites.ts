@@ -268,7 +268,7 @@ sites.get('/shared', requireAuth, async (c) => {
 // GET /api/sites/team — team-wide upload feed: every team site across all spaces, ordered by last
 // content activity (updatedAt = create or most-recent replace) so a re-deployed site resurfaces and
 // the feed stays live. Visible to any signed-in member (the team tier is already visible team-wide).
-// Capped — this is an at-a-glance activity feed, not a full log.
+// Capped — this is an at-a-postplan activity feed, not a full log.
 sites.get('/team', requireAuth, async (c) => {
   const user = c.get('user')
   const db = c.get('db')
@@ -348,7 +348,7 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
   // FCP hotpath: KV session first (cheap, and the facts batch is keyed on the user id), then
   // EVERYTHING D1 — site row, membership, share reach (S7: direct role + group reach; `role`/
   // canReplace stay bound to the DIRECT role only), and the file manifest — in ONE slug-keyed
-  // db.batch. Cookie (browser viewer) OR CLI Bearer token (`glance read`) — both mint the same
+  // db.batch. Cookie (browser viewer) OR CLI Bearer token (`postplan read`) — both mint the same
   // gated URL.
   const user = await readSessionOrBearer(c)
   const filesStmt = db
@@ -715,7 +715,7 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
 
   // Copy the bytes BEFORE any D1 write: a failed/missing object aborts with nothing committed and
   // every copied key reclaimed, so a fork can never exist pointing at absent bytes.
-  const copied = await copyObjects(c.env.GLANCE_FILES, sourceFiles, crypto.randomUUID())
+  const copied = await copyObjects(c.env.POSTPLAN_FILES, sourceFiles, crypto.randomUUID())
   const newKeys = copied.map((f) => f.storageKey)
 
   const id = crypto.randomUUID()
@@ -740,7 +740,7 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
     ])
   } catch (err) {
     // Don't orphan the objects we just wrote (e.g. a concurrent fork won the (spaceId, slug) unique).
-    await deleteKeys(c.env.GLANCE_FILES, newKeys)
+    await deleteKeys(c.env.POSTPLAN_FILES, newKeys)
     if (isUniqueConstraintError(err)) {
       return c.json({ error: 'a site with this slug already exists in that space', conflict: true }, 409)
     }
@@ -774,7 +774,7 @@ sites.delete('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c
     return c.json({ error: 'forbidden' }, 403)
   }
 
-  await deleteSiteObjects(db, c.env.GLANCE_FILES, site.id)
+  await deleteSiteObjects(db, c.env.POSTPLAN_FILES, site.id)
   await db.delete(sitesTable).where(eq(sitesTable.id, site.id)) // FK cascade removes files rows
 
   return c.json({ ok: true })

@@ -17,7 +17,7 @@ const site = (id: string): SiteSummary => ({
   title: id,
   visibility: 'private',
   status: 'active',
-  url: `https://glance.test/me/${id}`,
+  url: `https://postplan.test/me/${id}`,
   createdAt: '2026-07-01T00:00:00.000Z',
 })
 

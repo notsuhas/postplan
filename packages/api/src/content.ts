@@ -3,7 +3,7 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { type Context, Hono } from 'hono'
 import { sessionDb } from './db/client'
 import { ANNOTATE_CSS, ANNOTATE_JS, ANNOTATE_VERSION } from './annotate/bundle'
-import { GLANCE_DB_JS, GLANCE_DB_VERSION } from './glancedb/bundle'
+import { POSTPLAN_DB_JS, POSTPLAN_DB_VERSION } from './postplandb/bundle'
 import { type NewEvent, files, sites, spaces } from './db/schema'
 import { fireAndForget, recordEvent } from './lib/events'
 import { checkAccess } from './lib/access'
@@ -28,7 +28,7 @@ export { storageCacheKey } from './lib/object-read'
 type ContentEnv = { Bindings: Bindings; Variables: { db?: DrizzleD1Database; caches?: { default: CacheLike } } }
 type Ctx = Context<ContentEnv>
 
-// Content worker (glance-content.<acct>.workers.dev): streams uploaded file bytes from
+// Content worker (postplan-content.<acct>.workers.dev): streams uploaded file bytes from
 // R2. Separate origin so untrusted uploaded HTML/JS can never reach the main app's
 // session cookie. Gated sites carry an HMAC token IN THE PATH (/_t/<token>/...) so
 // relative sub-resources inherit it without cookies — survives 3rd-party-cookie blocking.
@@ -40,7 +40,7 @@ const app = new Hono<ContentEnv>()
 // an accepted posture — a just-uploaded site can already miss transiently (404s are no-store,
 // see notFound), and share revocation propagating within seconds matches KV session semantics.
 function getDb(c: Ctx): DrizzleD1Database {
-  return c.get('db') ?? sessionDb(c.env.GLANCE_DB, 'first-unconstrained')
+  return c.get('db') ?? sessionDb(c.env.POSTPLAN_DB, 'first-unconstrained')
 }
 
 // The edge cache for full-200 object reads. In the Workers runtime this is the global
@@ -56,7 +56,7 @@ function getCache(c: Ctx): CacheLike | null {
 // Full-200 reads of immutable objects live in lib/object-read (cache-fronted, tee'd warm).
 // This shim owns the Hono plumbing: the request-scoped cache/bucket and the waitUntil hook.
 function readStoredObject(c: Ctx, storageKey: string, contentTypeHeader: string) {
-  return readFullObject(getCache(c), c.env.GLANCE_FILES, storageKey, contentTypeHeader, (p) => fireAndForget(c, p))
+  return readFullObject(getCache(c), c.env.POSTPLAN_FILES, storageKey, contentTypeHeader, (p) => fireAndForget(c, p))
 }
 
 // A 404 on the content origin must never be cached. Right after an upload a read can miss
@@ -66,24 +66,24 @@ function notFound(c: Ctx): Response {
   return c.text('404 Not Found', 404, { 'cache-control': 'no-store' })
 }
 
-app.get('/', (c) => c.text('Glance content origin', 200))
+app.get('/', (c) => c.text('Postplan content origin', 200))
 
-// Annotate-mode client assets. Registered BEFORE the /:space/:site/* catch-all so `_glance`
+// Annotate-mode client assets. Registered BEFORE the /:space/:site/* catch-all so `_postplan`
 // isn't captured as a space slug. Long-cache (IMMUTABLE) + content-versioned query (?v=) makes
 // them immutable per build. The bundle is the string produced by scripts/build-annotate.ts.
-app.get('/_glance/annotate.js', (c) =>
+app.get('/_postplan/annotate.js', (c) =>
   c.body(ANNOTATE_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': IMMUTABLE }),
 )
-app.get('/_glance/annotate.css', (c) =>
+app.get('/_postplan/annotate.css', (c) =>
   c.body(ANNOTATE_CSS, 200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': IMMUTABLE }),
 )
-app.get('/_glance/db.js', (c) =>
-  c.body(GLANCE_DB_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': IMMUTABLE }),
+app.get('/_postplan/db.js', (c) =>
+  c.body(POSTPLAN_DB_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': IMMUTABLE }),
 )
 // Design-theme stylesheets (scripts/build-themes.ts). Same contract as annotate.css: content-
 // versioned query (?v=THEMES_VERSION) + IMMUTABLE. Served from THIS origin so the injected
 // <link> is same-origin from the framed page's perspective — no CORS, no CSP widening for HTML.
-app.get('/_glance/theme/:file{[a-z0-9-]+\\.css}', (c) => {
+app.get('/_postplan/theme/:file{[a-z0-9-]+\\.css}', (c) => {
   const css = THEME_CSS[c.req.param('file').replace(/\.css$/, '')]
   if (!css) return notFound(c)
   return c.body(css, 200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': IMMUTABLE })
@@ -93,7 +93,7 @@ app.get('/_glance/theme/:file{[a-z0-9-]+\\.css}', (c) => {
 // 'self'-only. Base64 in the bundle (like the OG wasm, content worker only), decoded once per
 // isolate and cached. Same immutable + ?v= contract as the CSS that references them.
 const fontBytes = new Map<string, ArrayBuffer>()
-app.get('/_glance/theme/fonts/:file{[a-z0-9-]+\\.woff2}', (c) => {
+app.get('/_postplan/theme/fonts/:file{[a-z0-9-]+\\.woff2}', (c) => {
   const file = c.req.param('file')
   const b64 = THEME_FONTS[file]
   if (!b64) return notFound(c)
@@ -112,7 +112,7 @@ app.get('/_glance/theme/fonts/:file{[a-z0-9-]+\\.woff2}', (c) => {
 // as content tokens). It lives on THIS worker so the satori/resvg wasm (lib/og-render.ts) never
 // bloats the main worker bundle. The signature check runs BEFORE any D1 read, and every failure
 // is the same opaque 404 (no existence signal — the enumeration posture of the unfurl itself).
-app.get('/_glance/og/:space/:site{[a-z0-9-]+\\.png}', async (c) => {
+app.get('/_postplan/og/:space/:site{[a-z0-9-]+\\.png}', async (c) => {
   const spaceSlug = c.req.param('space')
   const siteSlug = c.req.param('site').replace(/\.png$/, '')
   const verified = await verifyOgSig(c.env.CONTENT_TOKEN_SECRET, spaceSlug, siteSlug, c.req.query('sig') ?? '')
@@ -234,14 +234,14 @@ async function serve(c: Ctx, spaceSlug: string, siteSlug: string, rest: string, 
   const view = () =>
     trackView(c, db, { type: 'view', action: path, userId, siteId: siteRow.id, siteLabel: `${spaceSlug}/${siteSlug}` })
 
-  // Raw source mode (`glance read --pull`): stream the stored bytes verbatim — NO markdown render,
+  // Raw source mode (`postplan read --pull`): stream the stored bytes verbatim — NO markdown render,
   // NO annotate injection, NOT counted as a view, and NEVER through the cache (a pull must always
   // reflect live R2, and must not warm entries it will never revisit). The pull needs the exact
   // `.md` source (the default path renders it to HTML) so a pull → deploy round-trip is
   // byte-identical. Already token-gated above; served as text/plain + nosniff so a browser can't
   // be tricked into executing pulled bytes.
   if (c.req.query('raw') === '1') {
-    const object = await c.env.GLANCE_FILES.get(storageKey)
+    const object = await c.env.POSTPLAN_FILES.get(storageKey)
     if (!object) return notFound(c)
     return new Response(object.body, {
       status: 200,
@@ -268,7 +268,7 @@ async function serve(c: Ctx, spaceSlug: string, siteSlug: string, rest: string, 
     // CSP forbids scripts outright, so the injected pair runs under a PER-RESPONSE nonce: our two
     // tags are admitted by name and nothing else is (raw HTML in the source is escaped anyway).
     // Nonce'd bytes differ per request, hence no-store and no ETag.
-    const annotate = c.req.query('glance_annotate') === '1'
+    const annotate = c.req.query('postplan_annotate') === '1'
     const nonce = annotate ? crypto.randomUUID().replace(/-/g, '') : null
     const doc = nonce
       ? injectAnnotate(renderMarkdownDoc(path, html), { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL }, nonce)
@@ -282,13 +282,13 @@ async function serve(c: Ctx, spaceSlug: string, siteSlug: string, rest: string, 
     return transformServedHtml(res, selfOrigin, themeHref)
   }
 
-  // Annotate mode: gated HTML + ?glance_annotate=1 → buffer the body and inject the annotate
-  // client + boot payload, plus the glance.db SDK (broker mode — the page gets an API, never a
+  // Annotate mode: gated HTML + ?postplan_annotate=1 → buffer the body and inject the annotate
+  // client + boot payload, plus the postplan.db SDK (broker mode — the page gets an API, never a
   // credential; the app viewer's parent frame answers). Every serve here is already token-gated
   // (anonymous requests 403 above), so the flag always applies to an authed viewer. The RAW
   // bytes come through the cache layer (immutable full read); the INJECTED bytes change per
   // request, so the response DROPS the ETag and is never cached.
-  if (c.req.query('glance_annotate') === '1' && isHtml) {
+  if (c.req.query('postplan_annotate') === '1' && isHtml) {
     const read = await readStoredObject(c, storageKey, mime)
     if (!read) return notFound(c)
     await view()
@@ -367,7 +367,7 @@ async function serveStoredObject(
   if (inm !== undefined) {
     let current = rowEtag
     if (current === null) {
-      const probe = await c.env.GLANCE_FILES.head(storageKey)
+      const probe = await c.env.POSTPLAN_FILES.head(storageKey)
       if (!probe) return notFound(c)
       probedEtag = probe.httpEtag
       current = probe.httpEtag
@@ -386,7 +386,7 @@ async function serveStoredObject(
   const serveFullDirect = async (): Promise<Response> => {
     headers.delete('content-range')
     headers.delete('content-length')
-    const object = await c.env.GLANCE_FILES.get(storageKey)
+    const object = await c.env.POSTPLAN_FILES.get(storageKey)
     if (!object) return notFound(c)
     headers.set('etag', object.httpEtag)
     return new Response(object.body, { headers })
@@ -402,7 +402,7 @@ async function serveStoredObject(
     if (decision.status === 416) {
       // The 416 must still carry the current etag — from D1 when denormalized, else ONE head()
       // probe, zero body bytes (reuse the If-None-Match probe's etag when it already paid).
-      const etag = rowEtag ?? probedEtag ?? (await c.env.GLANCE_FILES.head(storageKey))?.httpEtag
+      const etag = rowEtag ?? probedEtag ?? (await c.env.POSTPLAN_FILES.head(storageKey))?.httpEtag
       if (etag === undefined) return notFound(c)
       // A STALE If-Range means the Range no longer applies at all (RFC 7233 §3.2) → full 200.
       if (ifRange !== undefined && ifRange !== etag) return serveFullDirect()
@@ -411,7 +411,7 @@ async function serveStoredObject(
     }
     if (decision.status === 206) {
       const { start, end } = decision
-      const ranged = await c.env.GLANCE_FILES.get(storageKey, { range: { offset: start, length: end - start + 1 } })
+      const ranged = await c.env.POSTPLAN_FILES.get(storageKey, { range: { offset: start, length: end - start + 1 } })
       if (!ranged) return notFound(c)
       // If-Range is checked against the etag the ranged get itself reports, so the matching
       // (common) case still costs a single R2 op; a stale one falls back to a full 200 (rare).
@@ -425,7 +425,7 @@ async function serveStoredObject(
   if (rangeHeader) {
     // Legacy pre-size-column row (files.size NULL): the full get supplies total + etag first, so
     // a 206 here still costs full + ranged — today's exact shape, kept only for rare old rows.
-    const object = await c.env.GLANCE_FILES.get(storageKey)
+    const object = await c.env.POSTPLAN_FILES.get(storageKey)
     if (!object) return notFound(c)
     headers.set('etag', object.httpEtag)
     const ifRange = c.req.header('if-range')
@@ -436,7 +436,7 @@ async function serveStoredObject(
       if (decision.status === 416) return new Response(null, { status: 416, headers })
       if (decision.status === 206) {
         const { start, end } = decision
-        const ranged = await c.env.GLANCE_FILES.get(storageKey, { range: { offset: start, length: end - start + 1 } })
+        const ranged = await c.env.POSTPLAN_FILES.get(storageKey, { range: { offset: start, length: end - start + 1 } })
         if (!ranged) return notFound(c)
         return new Response(ranged.body, { status: 206, headers })
       }
@@ -500,9 +500,9 @@ export function injectAnnotate(
   const json = JSON.stringify(payload).replace(/</g, '\\u003c')
   const n = nonce ? ` nonce="${nonce}"` : ''
   const tags =
-    `<link rel="stylesheet" href="/_glance/annotate.css?v=${ANNOTATE_VERSION}">` +
-    `<script${n}>window.__GLANCE__=${json}</script>` +
-    `<script${n} src="/_glance/annotate.js?v=${ANNOTATE_VERSION}" defer></script>`
+    `<link rel="stylesheet" href="/_postplan/annotate.css?v=${ANNOTATE_VERSION}">` +
+    `<script${n}>window.__POSTPLAN__=${json}</script>` +
+    `<script${n} src="/_postplan/annotate.js?v=${ANNOTATE_VERSION}" defer></script>`
   // Replacement FUNCTIONS, not strings: `tags` embeds a user-controlled filePath, and `$&`/`$1`/`$$`
   // in a replacement STRING are special (they'd corrupt output). A function's return is used verbatim.
   if (html.includes('</body>')) return html.replace('</body>', () => `${tags}</body>`)
@@ -512,15 +512,15 @@ export function injectAnnotate(
   return html + tags
 }
 
-/** Inject the glance.db SDK (broker mode) into an HTML document. Goes into <head> and loads
- *  SYNCHRONOUSLY — unlike the passive annotate client, page scripts call `glance.db` directly,
+/** Inject the postplan.db SDK (broker mode) into an HTML document. Goes into <head> and loads
+ *  SYNCHRONOUSLY — unlike the passive annotate client, page scripts call `postplan.db` directly,
  *  so the API must exist before any of them run. Boot carries only the app origin (the
  *  postMessage target); the parent decides which site requests bind to — the page can't. */
 export function injectDb(html: string, appOrigin: string): string {
   const json = JSON.stringify({ appOrigin }).replace(/</g, '\\u003c')
   const tags =
-    `<script>window.__GLANCE_DB__=${json}</script>` +
-    `<script src="/_glance/db.js?v=${GLANCE_DB_VERSION}"></script>`
+    `<script>window.__POSTPLAN_DB__=${json}</script>` +
+    `<script src="/_postplan/db.js?v=${POSTPLAN_DB_VERSION}"></script>`
   // Replacement FUNCTIONS so any `$`-sequence inside `tags` is inserted verbatim (and `$1` stays the
   // captured <body> attributes). db.js loads SYNCHRONOUSLY, so anchor it as early as possible.
   if (html.includes('</head>')) return html.replace('</head>', () => `${tags}</head>`)
@@ -549,7 +549,7 @@ export function isExternalHref(href: string, base: string): boolean {
 /** Stylesheet href for a site's stored theme, or null when unthemed. A slug retired from the
  *  registry may still sit on an old row — fail OPEN to unthemed rather than injecting a 404 link. */
 export function themeHrefFor(theme: string | null): string | null {
-  return theme && THEME_CSS[theme] ? `/_glance/theme/${theme}.css?v=${THEMES_VERSION}` : null
+  return theme && THEME_CSS[theme] ? `/_postplan/theme/${theme}.css?v=${THEMES_VERSION}` : null
 }
 
 /** The streamed HTMLRewriter pass every served HTML document goes through — no full-body buffering.
@@ -576,9 +576,9 @@ export function transformServedHtml(res: Response, base: string, themeHref: stri
   })
   if (themeHref) {
     // themeHref is registry-derived (slug is [a-z0-9-]+, version is a hex hash) — no escaping needed.
-    // The id makes the link addressable by the annotate client's glance:theme handler, so a
+    // The id makes the link addressable by the annotate client's postplan:theme handler, so a
     // viewer-local override can swap or restore it without any server round trip.
-    const link = `<link id="glance-theme" rel="stylesheet" href="${themeHref}">`
+    const link = `<link id="postplan-theme" rel="stylesheet" href="${themeHref}">`
     let injected = false
     rewriter.on('head', {
       element(el) {
@@ -616,8 +616,8 @@ export { escapeHtml, markdown } from './lib/markdown'
 // app can still iframe the rendered doc.
 // In annotate mode a `nonce` is supplied: script-src then admits EXACTLY the two injected tags
 // (never 'unsafe-inline' — an unnonced script in the document still can't run), and style-src
-// additionally allows 'self' so /_glance/annotate.css loads alongside the inlined shell styles.
-// A THEMED site widens style-src to 'self' — the injected /_glance/theme/*.css link and its
+// additionally allows 'self' so /_postplan/annotate.css loads alongside the inlined shell styles.
+// A THEMED site widens style-src to 'self' — the injected /_postplan/theme/*.css link and its
 // vendored first-party fonts (issue #155) need nothing beyond the page's own origin.
 function markdownCsp(frameAncestors: string, nonce: string | null = null, themed = false): string {
   const styleSelf = nonce !== null || themed
@@ -651,7 +651,7 @@ function directoryListing(c: Ctx, site: string, paths: string[], dir: string): R
     .join('')
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(
     site,
-  )}${escapeHtml(dir ? `/${dir}` : '')}</title><style>html{color-scheme:light dark}body{max-width:760px;margin:3rem auto;padding:0 1.25rem;font:15px/1.6 -apple-system,system-ui,sans-serif}h1{font-size:1.1rem;margin:0 0 .25rem}p{margin:.25rem 0 1.5rem;color:#6b7280}ul{list-style:none;padding:0;margin:0;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}li+li{border-top:1px solid #e5e7eb}a{display:block;padding:.6rem .9rem;color:#0969da;text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}a:hover{background:#f6f8fa}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}@media(prefers-color-scheme:dark){p{color:#9ca3af}ul{border-color:#30363d}li+li{border-color:#30363d}a:hover{background:#161b22}}</style></head><body><h1>No <code>index.html</code> here</h1><p>Glance serves <code>index.html</code> at ${
+  )}${escapeHtml(dir ? `/${dir}` : '')}</title><style>html{color-scheme:light dark}body{max-width:760px;margin:3rem auto;padding:0 1.25rem;font:15px/1.6 -apple-system,system-ui,sans-serif}h1{font-size:1.1rem;margin:0 0 .25rem}p{margin:.25rem 0 1.5rem;color:#6b7280}ul{list-style:none;padding:0;margin:0;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}li+li{border-top:1px solid #e5e7eb}a{display:block;padding:.6rem .9rem;color:#0969da;text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}a:hover{background:#f6f8fa}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}@media(prefers-color-scheme:dark){p{color:#9ca3af}ul{border-color:#30363d}li+li{border-color:#30363d}a:hover{background:#161b22}}</style></head><body><h1>No <code>index.html</code> here</h1><p>Postplan serves <code>index.html</code> at ${
     dir ? `<code>${escapeHtml(dir)}</code>` : 'the root'
   } — add one to set the landing page, or open a file below.</p><ul>${rows}</ul></body></html>`
   return c.html(html, 200, {

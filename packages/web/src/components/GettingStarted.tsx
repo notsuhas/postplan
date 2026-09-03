@@ -34,8 +34,8 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 }
 
 const PROMPTS = [
-  'Explain this codebase with an HTML dashboard and publish it to glance',
-  'Turn these notes into a polished HTML page and deploy it to glance',
+  'Explain this codebase with an HTML dashboard and publish it to postplan',
+  'Turn these notes into a polished HTML page and deploy it to postplan',
 ]
 
 export function GettingStarted() {
@@ -43,7 +43,7 @@ export function GettingStarted() {
   return (
     <div className="space-y-5">
       <p className="text-muted-foreground text-sm">
-        Glance hosts self-contained HTML your AI builds — ship a page from the terminal, share the link, collect
+        Postplan hosts self-contained HTML your AI builds — ship a page from the terminal, share the link, collect
         comments.
       </p>
       <ol className="space-y-5">
@@ -51,11 +51,11 @@ export function GettingStarted() {
           <CopyRow text={installCommand} copiedMessage="Install command copied" />
           <p className="text-muted-foreground text-xs">
             <Terminal className="mr-1 inline size-3 align-[-1px]" />
-            Also installs the glance skill, so Claude Code knows how to deploy here.
+            Also installs the postplan skill, so Claude Code knows how to deploy here.
           </p>
         </Step>
         <Step n={2} title="Sign in">
-          <CopyRow text="glance login" copiedMessage="Command copied" />
+          <CopyRow text="postplan login" copiedMessage="Command copied" />
         </Step>
         <Step n={3} title="Ask your AI">
           <div className="space-y-2">
@@ -65,7 +65,7 @@ export function GettingStarted() {
           </div>
           <p className="text-muted-foreground text-xs">
             <MessageSquareText className="mr-1 inline size-3 align-[-1px]" />
-            Claude builds the HTML and runs <code className="font-mono">glance deploy</code> for you — or run it
+            Claude builds the HTML and runs <code className="font-mono">postplan deploy</code> for you — or run it
             yourself on any folder.
           </p>
         </Step>

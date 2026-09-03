@@ -37,7 +37,7 @@ afterAll(() => {
 })
 
 function readStored(userId: string): RecentEntry[] {
-  const raw = fakeStorage.getItem(`glance:recents:${userId}`)
+  const raw = fakeStorage.getItem(`postplan:recents:${userId}`)
   return raw ? JSON.parse(raw) : []
 }
 
@@ -172,7 +172,7 @@ describe('siteName', () => {
 })
 
 describe('recordVisit / removeEntry / clear (localStorage-backed, per-user)', () => {
-  test('recordVisit persists under a glance:recents:<userId> key', () => {
+  test('recordVisit persists under a postplan:recents:<userId> key', () => {
     recordVisit('u1', { spaceSlug: 'sam', siteSlug: 'demo', title: 'Demo', filePath: '' })
     const entries = readStored('u1')
     expect(entries).toHaveLength(1)

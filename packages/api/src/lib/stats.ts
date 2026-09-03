@@ -191,7 +191,7 @@ export async function computeWindow(db: DrizzleD1Database, now: Date = new Date(
 // functional for Workers on CUSTOM DOMAINS (and Pages on `*.pages.dev`); `*.workers.dev` is
 // conspicuously absent from that list, and cache ops there are widely reported as silent no-ops —
 // `put` resolves, `match` never hits, and the fix would look applied while changing nothing. This
-// deploy runs on `glance.<subdomain>.workers.dev`, so the Cache API is not a safe bet here. KV is
+// deploy runs on `postplan.<subdomain>.workers.dev`, so the Cache API is not a safe bet here. KV is
 // unambiguously functional on workers.dev, and its TTL is a server-side `expirationTtl` rather
 // than a Cache-Control the runtime may or may not honour. It is also GLOBAL, not per-colo, so one
 // compute serves every region instead of one per colo.

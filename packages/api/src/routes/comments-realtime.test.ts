@@ -13,7 +13,7 @@ import { sites } from './sites'
 // SiteRoom DO exactly like data-ws.test.ts's — the route never inspects a real DO, only whether
 // (and what) it addressed.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 /** A DurableObjectNamespace that records every /broadcast-comment request it receives. */
 function recordingRoom() {
@@ -43,8 +43,8 @@ async function setup(o: { room?: boolean } = { room: true }) {
   const env = {
     APP_URL,
     SESSION_SECRET: 's',
-    GLANCE_SESSIONS: kv,
-    GLANCE_FILES: r2,
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
     ...(o.room === false ? {} : { SITE_ROOM: room.ns }),
   } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()

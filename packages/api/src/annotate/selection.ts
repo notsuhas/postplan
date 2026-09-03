@@ -22,7 +22,7 @@ import { NON_RENDERED_TAGS, selectionContext } from './locator'
 
 export type Rect = { top: number; left: number; width: number; height: number }
 export type SelectMessage = {
-  type: 'glance:select'
+  type: 'postplan:select'
   quote: string
   context: TextContext
   rect: Rect
@@ -31,22 +31,22 @@ export type SelectMessage = {
    *  disambiguate the quote, and the page could be arbitrarily large. Omitted when empty. */
   blockText?: string
 }
-export type ClearMessage = { type: 'glance:select-clear' }
+export type ClearMessage = { type: 'postplan:select-clear' }
 /** The user touched the page — the parent should consider closing whatever popover it has open. The
  *  parent CANNOT see this for itself: clicks inside a cross-origin iframe are invisible to it. */
-export type ClickAwayMessage = { type: 'glance:click-away' }
+export type ClickAwayMessage = { type: 'postplan:click-away' }
 /** Escape pressed inside the iframe, forwarded for the same reason. */
-export type EscapeMessage = { type: 'glance:escape' }
+export type EscapeMessage = { type: 'postplan:escape' }
 /** `C` pressed while a selection is live: "comment on this", the keyboard's route to what clicking
  *  the chip does. Payload-free INTENT, deliberately fired liberally — this realm cannot see whether
  *  the parent still has a chip on screen (it may have dismissed one on click-away or Escape while
  *  the selection survived here), so the parent's reducer is the authority on whether it means
  *  anything. See commentPopover.ts's 'commentKey'. */
-export type CommentKeyMessage = { type: 'glance:comment-key' }
+export type CommentKeyMessage = { type: 'postplan:comment-key' }
 /** `A` pressed while a selection is live: "ask AI about this", the same keyboard route as the
  *  comment key. Payload-free INTENT, fired under the identical gate — this realm can't see whether
  *  the parent still has UI open for the selection, so the parent's reducer is the authority. */
-export type AskKeyMessage = { type: 'glance:ask-key' }
+export type AskKeyMessage = { type: 'postplan:ask-key' }
 
 export type SelectionDeps = {
   doc: Document
@@ -116,7 +116,7 @@ function nearestBlockText(range: Range, doc: Document): string | undefined {
   return collapsed || undefined
 }
 
-/** textContent minus locator.ts's NON_RENDERED_TAGS: glance pages are single-file HTML with inline
+/** textContent minus locator.ts's NON_RENDERED_TAGS: postplan pages are single-file HTML with inline
  *  <script>/<style> in the body, and a wrapper DIV (or the doc.body fallback) reached above would
  *  otherwise ship JS/CSS source as the AI's "passage" — crowding the real paragraph out of the
  *  2000-char cap. Collection stops early once enough raw text is in hand: whitespace collapsing
@@ -160,7 +160,7 @@ export function installSelectionCapture({ doc, getSelection, emit }: SelectionDe
   const clearIfGone = (): void => {
     if (!hadSelection || liveQuote(getSelection())) return
     hadSelection = false
-    emit({ type: 'glance:select-clear' })
+    emit({ type: 'postplan:select-clear' })
   }
 
   /** The selection is committed: hand the parent the chip intent, or retire the chip it has. */
@@ -177,7 +177,7 @@ export function installSelectionCapture({ doc, getSelection, emit }: SelectionDe
     // The text on either side, captured NOW: the quote alone can't say which occurrence of a
     // repeated phrase the user meant, and by paint time the selection is long gone.
     emit({
-      type: 'glance:select',
+      type: 'postplan:select',
       quote,
       context: selectionContext(range, doc),
       rect: { top: box.top, left: box.left, width: box.width, height: box.height },
@@ -193,7 +193,7 @@ export function installSelectionCapture({ doc, getSelection, emit }: SelectionDe
    *  precedes the pointerup that commits, so an ordinary drag emits click-away THEN select, in that
    *  order, and the parent must tolerate it. That is intended — this is a raw signal, and the PARENT
    *  decides whether it should close anything. */
-  const onClickAway = (): void => emit({ type: 'glance:click-away' })
+  const onClickAway = (): void => emit({ type: 'postplan:click-away' })
 
   // keydown, not keyup: Escape must reach the parent BEFORE the page's own handlers act on it. No
   // drag-commit concern here, so nothing is gained by waiting for the key to come back up.
@@ -202,9 +202,9 @@ export function installSelectionCapture({ doc, getSelection, emit }: SelectionDe
   // something to act on and has not been told otherwise. That gate is what keeps this from being a
   // key grabber: with no selection outstanding, `c`/`a` are just letters on someone else's page.
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') emit({ type: 'glance:escape' })
-    else if (hadSelection && bareKey(e, 'c') && !isEditableTarget(e.target)) emit({ type: 'glance:comment-key' })
-    else if (hadSelection && bareKey(e, 'a') && !isEditableTarget(e.target)) emit({ type: 'glance:ask-key' })
+    if (e.key === 'Escape') emit({ type: 'postplan:escape' })
+    else if (hadSelection && bareKey(e, 'c') && !isEditableTarget(e.target)) emit({ type: 'postplan:comment-key' })
+    else if (hadSelection && bareKey(e, 'a') && !isEditableTarget(e.target)) emit({ type: 'postplan:ask-key' })
   }
 
   doc.addEventListener('pointerup', commit)

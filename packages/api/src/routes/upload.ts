@@ -161,7 +161,7 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
   const replace = c.req.query('replace') === 'true'
   const isCreate = !existing
   // An unlisted site is protected only by its URL being unguessable, and the caller-supplied name
-  // is guessable by construction (`glance deploy ./dist` asks for `dist`). Create adds entropy; a
+  // is guessable by construction (`postplan deploy ./dist` asks for `dist`). Create adds entropy; a
   // REPLACE keeps the existing slug, or every link already handed out would break.
   const storedSlug = isCreate ? slugForVisibility(siteSlug, visibility) : siteSlug
   let siteId: string
@@ -245,7 +245,7 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
         plan.slice(i, i + UPLOAD_CONCURRENCY).map(async ({ file, row }) => {
           attempted.push(row.storageKey)
           const contentType = file.type || 'application/octet-stream'
-          const put = await c.env.GLANCE_FILES.put(row.storageKey, file.stream(), { httpMetadata: { contentType } })
+          const put = await c.env.POSTPLAN_FILES.put(row.storageKey, file.stream(), { httpMetadata: { contentType } })
           // Denormalize R2's etag onto the row (keys are immutable, so it's fixed for the row's
           // life) — the content worker answers 304/416 conditionals from D1 with zero R2 ops.
           row.etag = put?.httpEtag ?? null
@@ -253,7 +253,7 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
       )
     }
   } catch (err) {
-    await deleteKeys(c.env.GLANCE_FILES, attempted)
+    await deleteKeys(c.env.POSTPLAN_FILES, attempted)
     throw err
   }
 
@@ -306,7 +306,7 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
         .where(and(eq(sites.id, siteId), eq(sites.contentVersion, expectedVersion as number)))
         .returning({ id: sites.id })
       if (claimed.length === 0) {
-        await deleteKeys(c.env.GLANCE_FILES, newKeys)
+        await deleteKeys(c.env.POSTPLAN_FILES, newKeys)
         return c.json({ error: 'version conflict', conflict: true }, 409)
       }
       // The blurb ships in the SWAP batch, not the claim above: it describes the bytes, so it must
@@ -345,14 +345,14 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
   } catch (err) {
     // D1 write failed (e.g. a concurrent create racing the unique slug) — purge the objects
     // we just uploaded so they don't orphan in R2, then surface the failure.
-    await deleteKeys(c.env.GLANCE_FILES, newKeys)
+    await deleteKeys(c.env.POSTPLAN_FILES, newKeys)
     throw err
   }
 
   // Old objects are safe to purge only after the row swap committed. Hand it to waitUntil so a
   // transient R2 delete failure can't 500 an already-committed replace — the swap is done;
   // reclaiming the old objects is best-effort background cleanup.
-  if (!isCreate && oldKeys.length > 0) await fireAndForget(c, deleteKeys(c.env.GLANCE_FILES, oldKeys))
+  if (!isCreate && oldKeys.length > 0) await fireAndForget(c, deleteKeys(c.env.POSTPLAN_FILES, oldKeys))
 
   return c.json({
     url: `${c.env.APP_URL}/${spaceSlug}/${storedSlug}`,

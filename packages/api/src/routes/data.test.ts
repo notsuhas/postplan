@@ -10,8 +10,8 @@ import { makeDb, seedApiKey, seedMember, seedSite, seedSpace, seedUser } from '.
 import { auth, makeRouteApp, mintUser } from '../test/route-fixtures'
 import { MAX_DOCS_PER_SITE, dataApi, dataCapsFor, dataToken, intersectCaps } from './data'
 
-const HMAC_A = 'glance-test-aaa'
-// getDb() prefers the injected harness db, so GLANCE_DB is never touched; CONTENT_URL drives CORS.
+const HMAC_A = 'postplan-test-aaa'
+// getDb() prefers the injected harness db, so POSTPLAN_DB is never touched; CONTENT_URL drives CORS.
 const ENV = { DATA_TOKEN_SECRET: HMAC_A, CONTENT_URL: 'https://content.example.com' } as never
 
 function mount(db: DrizzleD1Database) {
@@ -91,14 +91,14 @@ async function seedDocs(db: DrizzleD1Database, siteId: string, collection: strin
   for (let i = 0; i < rows.length; i += 12) await db.insert(documents).values(rows.slice(i, i + 12))
 }
 
-describe('glance.db data plane — happy path', () => {
+describe('postplan.db data plane — happy path', () => {
   test('owner can create, read back, and list own documents', async () => {
     const { app, tokens } = await scenario()
-    const id = await create(app, tokens.ownerA, 'posts', { title: 'Hello Glance DB' })
+    const id = await create(app, tokens.ownerA, 'posts', { title: 'Hello Postplan DB' })
 
     const got = await req(app, tokens.ownerA, 'GET', `/posts/${id}`)
     expect(got.status).toBe(200)
-    expect((await got.json()).data.title).toBe('Hello Glance DB')
+    expect((await got.json()).data.title).toBe('Hello Postplan DB')
 
     const list = await req(app, tokens.ownerA, 'GET', '/posts')
     expect(list.status).toBe(200)
@@ -134,7 +134,7 @@ describe('P0-4/P0-3: modify authority is distinct from view authority', () => {
   // editor-share residual-risk pin (confused-deputy, S9): dataCapsFor keys on ownerId ONLY, so a
   // designated editor of someone else's site is indistinguishable from any other non-owner viewer —
   // it can never mint write/read_all. This is the guard: if a future change threads share-role into
-  // cap minting, an editor could read-all/delete the OWNER's glance.db docs. Owner path unchanged.
+  // cap minting, an editor could read-all/delete the OWNER's postplan.db docs. Owner path unchanged.
   test('dataCaps.editor.pin: an editor-share grantee still gets read+create only; owner unchanged', () => {
     expect(dataCapsFor({ id: 'editor', role: 'member' }, { ownerId: 'owner' })).toEqual(['read', 'create'])
     expect(dataCapsFor({ id: 'owner', role: 'member' }, { ownerId: 'owner' })).toEqual([
@@ -395,7 +395,7 @@ describe('auth + validation + inert-when-unconfigured', () => {
 
 describe('mint route — POST /api/data-token/:space/:site', () => {
   // The mint gate mounted the way index.ts wires it: db injection + the router's own requireAuth
-  // (Bearer path through GLANCE_SESSIONS). makeRouteApp doesn't carry dataToken, so mount locally.
+  // (Bearer path through POSTPLAN_SESSIONS). makeRouteApp doesn't carry dataToken, so mount locally.
   async function mintScenario() {
     const { db, kv } = makeRouteApp()
     const app = new Hono<{ Variables: { db: DrizzleD1Database } }>()
@@ -404,7 +404,7 @@ describe('mint route — POST /api/data-token/:space/:site', () => {
       await next()
     })
     app.route('/api/data-token', dataToken)
-    const env = { DATA_TOKEN_SECRET: HMAC_A, GLANCE_SESSIONS: kv } as never
+    const env = { DATA_TOKEN_SECRET: HMAC_A, POSTPLAN_SESSIONS: kv } as never
     await mintUser(db, kv, 'owner')
     await mintUser(db, kv, 'peer')
     const sp = await seedSpace(db, { id: 'sp-m', slug: 'acme', createdBy: 'owner' })

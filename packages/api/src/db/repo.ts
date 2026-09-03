@@ -35,7 +35,7 @@ export async function getUserById(
 /** The same identity read keyed by email. `users.email` is lowercase-canonical by construction (every
  *  write path lowercases), and an external provider may hand us any casing — so the normalization is
  *  the REPO layer's job here, not each caller's. Email is UNIQUE, so this is a single indexed read;
- *  null when nobody with that address has a Glance account. */
+ *  null when nobody with that address has a Postplan account. */
 export async function getUserByEmail(
   db: DrizzleD1Database,
   email: string,

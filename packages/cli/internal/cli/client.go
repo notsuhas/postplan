@@ -12,13 +12,13 @@ import (
 
 // version is stamped at build time via `-ldflags "-X main.version=<tag>"`; the release workflow
 // sets it from the git tag so a released CLI reports its exact version in the User-Agent.
-// Version is stamped by the release build via cmd/glance (-X main.version) and assigned here at
+// Version is stamped by the release build via cmd/postplan (-X main.version) and assigned here at
 // startup. It stays in package main so the existing ldflags path keeps working.
 var Version = "0.0.0-dev"
 
 // Sent on every authenticated request so the server can attribute CLI usage (and segment by
 // version) in its analytics.
-func userAgent() string { return "glance-cli/" + Version }
+func userAgent() string { return "postplan-cli/" + Version }
 
 // client carries the resolved instance URL + token plus the seams tests stub out (output sink,
 // interactive input, sleep, browser opener). One command == one method on *client.
@@ -70,7 +70,7 @@ func (c *client) authed(method, path string, body io.Reader, headers map[string]
 // validates its args first, THEN calls this - so a usage error still beats "Not logged in".
 func (c *client) requireAuth() error {
 	if c.token == "" {
-		return fmt.Errorf("Not logged in. Run `glance login` first.")
+		return fmt.Errorf("Not logged in. Run `postplan login` first.")
 	}
 	return nil
 }

@@ -13,7 +13,7 @@ export type TextAnchor = { id: string; quote?: string; context?: TextContext }
 export type ElementAnchor = { id: string; selector: string }
 export type Point = { x: number; y: number }
 
-/** Every painted text anchor's Range, to paint into the `glance-comment` CSS Custom Highlight.
+/** Every painted text anchor's Range, to paint into the `postplan-comment` CSS Custom Highlight.
  *  A paint IS the highlight now: the parent only sends anchors while the comments rail is open, so
  *  "what is painted" and "what is lit" are the same set and there is no separate hover command to
  *  disagree with it. An anchor whose quote no longer resolves (the page changed under it) silently

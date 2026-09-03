@@ -23,13 +23,13 @@ import { sites } from './sites'
 // Comments routes, mounted the way index.ts mounts them (requireSameOrigin global + comments
 // under /api/sites) so CSRF, auth, access-tier and authz are all exercised end to end.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 async function setup() {
   const db = makeDb()
   const r2 = makeR2()
   const kv = makeKv()
-  const env = { APP_URL, SESSION_SECRET: 's', GLANCE_SESSIONS: kv, GLANCE_FILES: r2 } as unknown as AppEnv['Bindings']
+  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv, POSTPLAN_FILES: r2 } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {
@@ -108,7 +108,7 @@ describe('comments routes — auth / access / authz', () => {
     await seedSiteWithFile(db, r2, owner)
     const res = await app.request(
       url(),
-      { method: 'POST', headers: { cookie: '__Host-glance_session=x', Origin: 'https://evil.com', 'Content-Type': 'application/json' }, body: '{}' },
+      { method: 'POST', headers: { cookie: '__Host-postplan_session=x', Origin: 'https://evil.com', 'Content-Type': 'application/json' }, body: '{}' },
       env,
     )
     expect(res.status).toBe(403)
@@ -477,9 +477,9 @@ describe('comments routes — site-wide list (filePath optional)', () => {
   })
 })
 
-// The endpoint `glance reply` depends on. Not unit-testable through the CLI (token auth needs
+// The endpoint `postplan reply` depends on. Not unit-testable through the CLI (token auth needs
 // OAuth locally), so pin it here via the same cli:<token> KV harness the other routes use.
-describe('comments routes — POST …/:threadId/replies (glance reply)', () => {
+describe('comments routes — POST …/:threadId/replies (postplan reply)', () => {
   const reply = (threadId: string) => url(`/${threadId}/replies`)
 
   test('RR-success: authed reply → 201 {id} and the reply appears in the thread list', async () => {

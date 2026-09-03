@@ -9,7 +9,7 @@ import { THEME_CSS, THEMES_VERSION } from './themes/css'
 import { THEME_FONTS } from './themes/fonts'
 
 // Design themes at serve time: a themed site's HTML gets ONE injected <link> to
-// /_glance/theme/<slug>.css (end of <head> so it wins cascade-order ties), the stored bytes are
+// /_postplan/theme/<slug>.css (end of <head> so it wins cascade-order ties), the stored bytes are
 // never mutated (?raw=1 is verbatim), and the HTML etag folds in the theme identity so a PATCH
 // theme switch can never 304 into the old skin.
 
@@ -19,9 +19,9 @@ function setup() {
   const db = makeDb()
   const r2 = makeR2()
   const env = {
-    APP_URL: 'https://glance.example.com',
+    APP_URL: 'https://postplan.example.com',
     CONTENT_TOKEN_SECRET: tokenKey,
-    GLANCE_FILES: r2,
+    POSTPLAN_FILES: r2,
   } as unknown as Parameters<typeof contentApp.request>[2]
   const app = new Hono()
   app.use('*', async (c, next) => {
@@ -46,26 +46,26 @@ async function themedSite(
   return { uid, siteId, token }
 }
 
-// id="glance-theme" makes the link addressable by the annotate client's glance:theme
+// id="postplan-theme" makes the link addressable by the annotate client's postplan:theme
 // handler (viewer-local override) — pinned here so a rename breaks loudly.
-const themeLink = (slug: string) => `<link id="glance-theme" rel="stylesheet" href="/_glance/theme/${slug}.css?v=${THEMES_VERSION}">`
+const themeLink = (slug: string) => `<link id="postplan-theme" rel="stylesheet" href="/_postplan/theme/${slug}.css?v=${THEMES_VERSION}">`
 
 describe('themeHrefFor', () => {
   test('registry slug → versioned href; null/unknown → null', () => {
-    expect(themeHrefFor('broadsheet')).toBe(`/_glance/theme/broadsheet.css?v=${THEMES_VERSION}`)
+    expect(themeHrefFor('broadsheet')).toBe(`/_postplan/theme/broadsheet.css?v=${THEMES_VERSION}`)
     expect(themeHrefFor(null)).toBeNull()
     // A slug retired from the registry may still sit on an old row — fail OPEN to unthemed.
     expect(themeHrefFor('retired-theme')).toBeNull()
   })
 })
 
-describe('/_glance/theme/fonts/:file.woff2 (issue #155 — vendored, first-party)', () => {
+describe('/_postplan/theme/fonts/:file.woff2 (issue #155 — vendored, first-party)', () => {
   test('serves every bundled font immutable as font/woff2; unknown files 404', async () => {
     const { app, env } = setup()
     const files = Object.keys(THEME_FONTS)
     expect(files.length).toBeGreaterThan(0)
     for (const file of files) {
-      const res = await app.request(`/_glance/theme/fonts/${file}`, {}, env)
+      const res = await app.request(`/_postplan/theme/fonts/${file}`, {}, env)
       expect(res.status).toBe(200)
       expect(res.headers.get('content-type')).toBe('font/woff2')
       expect(res.headers.get('cache-control')).toContain('immutable')
@@ -73,12 +73,12 @@ describe('/_glance/theme/fonts/:file.woff2 (issue #155 — vendored, first-party
       const head = new Uint8Array((await res.arrayBuffer()).slice(0, 4))
       expect(String.fromCharCode(...head)).toBe('wOF2')
     }
-    expect((await app.request('/_glance/theme/fonts/nope.woff2', {}, env)).status).toBe(404)
+    expect((await app.request('/_postplan/theme/fonts/nope.woff2', {}, env)).status).toBe(404)
   })
 
   test('every font URL referenced by theme CSS resolves to a bundled font', () => {
     for (const [slug, css] of Object.entries(THEME_CSS)) {
-      for (const m of css.matchAll(/\/_glance\/theme\/fonts\/([a-z0-9-]+\.woff2)/g)) {
+      for (const m of css.matchAll(/\/_postplan\/theme\/fonts\/([a-z0-9-]+\.woff2)/g)) {
         expect(THEME_FONTS[m[1]], `${slug} references missing font ${m[1]}`).toBeDefined()
       }
       // And no theme may reach out to Google (the whole point of #155).
@@ -88,17 +88,17 @@ describe('/_glance/theme/fonts/:file.woff2 (issue #155 — vendored, first-party
   })
 })
 
-describe('/_glance/theme/:slug.css', () => {
+describe('/_postplan/theme/:slug.css', () => {
   test('serves every registry stylesheet immutable, 404s unknown slugs', async () => {
     const { app, env } = setup()
     for (const slug of Object.keys(THEME_CSS)) {
-      const res = await app.request(`/_glance/theme/${slug}.css`, {}, env)
+      const res = await app.request(`/_postplan/theme/${slug}.css`, {}, env)
       expect(res.status).toBe(200)
       expect(res.headers.get('content-type')).toContain('text/css')
       expect(res.headers.get('cache-control')).toContain('immutable')
       expect(await res.text()).toBe(THEME_CSS[slug])
     }
-    expect((await app.request('/_glance/theme/nope.css', {}, env)).status).toBe(404)
+    expect((await app.request('/_postplan/theme/nope.css', {}, env)).status).toBe(404)
   })
 })
 
@@ -150,9 +150,9 @@ describe('theme injection into served HTML', () => {
     const html = '<html><head></head><body><p>hi</p></body></html>'
     const { token } = await themedSite(db, r2, { path: 'index.html', text: html })
 
-    const body = await (await app.request(`/_t/${token}/sam/site/?glance_annotate=1`, {}, env)).text()
+    const body = await (await app.request(`/_t/${token}/sam/site/?postplan_annotate=1`, {}, env)).text()
     expect(body).toContain(themeLink('broadsheet'))
-    expect(body).toContain('<script src="/_glance/annotate.js')
+    expect(body).toContain('<script src="/_postplan/annotate.js')
   })
 
   test('a row carrying a retired/unknown slug serves unthemed (no dead link)', async () => {

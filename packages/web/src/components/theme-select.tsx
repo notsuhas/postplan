@@ -66,13 +66,13 @@ export function themeLabel(themes: ThemeInfo[], slug: string | null): string {
   return themes.find((t) => t.slug === slug)?.name ?? slug
 }
 
-/** Stylesheet href for a viewer-LOCAL theme override (the glance:theme frame command). Resolves
+/** Stylesheet href for a viewer-LOCAL theme override (the postplan:theme frame command). Resolves
  *  after the catalog loads so the href carries the cache-busting version; null clears back to the
  *  site's own theme. */
 export async function viewThemeHref(slug: string | null): Promise<string | null> {
   if (!slug) return null
   await loadThemes()
-  return `/_glance/theme/${slug}.css${catalogVersion ? `?v=${catalogVersion}` : ''}`
+  return `/_postplan/theme/${slug}.css${catalogVersion ? `?v=${catalogVersion}` : ''}`
 }
 
 /** PATCH a site's theme with the standard success/error toasts. Returns whether it stuck, so the

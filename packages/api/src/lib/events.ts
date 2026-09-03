@@ -24,9 +24,9 @@ export async function fireAndForget(c: Context, write: Promise<unknown>): Promis
   }
 }
 
-// Extract the CLI semver from a `glance-cli/<version>` User-Agent. Returns null for browsers,
+// Extract the CLI semver from a `postplan-cli/<version>` User-Agent. Returns null for browsers,
 // unknown agents, or legacy CLIs that send no version.
 export function parseCliVersion(userAgent: string | undefined): string | null {
-  const match = userAgent?.match(/glance-cli\/(\S+)/)
+  const match = userAgent?.match(/postplan-cli\/(\S+)/)
   return match?.[1] ?? null
 }

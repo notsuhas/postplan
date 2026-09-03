@@ -61,7 +61,7 @@ export function AppShell() {
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
           <Link to="/dashboard" className="flex items-center gap-2 font-mono text-sm font-semibold tracking-tight">
             <BrandMark />
-            glance
+            postplan
           </Link>
           {user && (
             <nav className="ml-2 hidden items-center gap-1 sm:flex">

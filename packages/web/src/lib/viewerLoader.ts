@@ -11,7 +11,7 @@ import type { ViewerSite } from './types'
 
 /** Benign failure sentinel: the prefetch promise NEVER rejects (an unconsumed rejection would
  *  surface as an unhandled-rejection error), it resolves to this instead. */
-export const PREFETCH_FAILED: unique symbol = Symbol('glance:prefetch-failed')
+export const PREFETCH_FAILED: unique symbol = Symbol('postplan:prefetch-failed')
 export type PrefetchResult = Thread[] | typeof PREFETCH_FAILED
 
 export interface ViewerLoaderData {

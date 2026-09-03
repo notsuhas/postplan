@@ -6,7 +6,7 @@ import type { AppEnv } from '../types'
 
 // Viewer metadata endpoint (GET /api/sites/:space/:site) — the source of the gated content URL.
 // It reads the user inline via readSessionOrBearer, so a CLI Bearer token (no cookie) must mint
-// the same `/_t/<token>/…` URL the browser viewer gets — this is what `glance read` relies on.
+// the same `/_t/<token>/…` URL the browser viewer gets — this is what `postplan read` relies on.
 
 const CONTENT_URL = 'https://content.example.com'
 

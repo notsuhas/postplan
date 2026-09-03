@@ -15,9 +15,11 @@ export const admin = new Hono<AppEnv>()
 
 const PAGE_SIZE = 50
 
-// SUPERADMIN_EMAIL plus ADMIN_EMAILS, the addresses that bypass the invite gate entirely.
-function adminEmails(env: AppEnv['Bindings']): string[] {
-  return `${env.SUPERADMIN_EMAIL ?? ''},${env.ADMIN_EMAILS ?? ''}`
+// The superadmin allowlist: SUPERADMIN_EMAIL plus SUPERADMIN_EMAILS. These bypass the invite gate
+// and hold the `superadmin` role. Mirrors lib/workos.ts isAdminEmail, including its fallback to the
+// deprecated ADMIN_EMAILS spelling.
+function superadminEmails(env: AppEnv['Bindings']): string[] {
+  return `${env.SUPERADMIN_EMAIL ?? ''},${env.SUPERADMIN_EMAILS ?? env.ADMIN_EMAILS ?? ''}`
     .toLowerCase()
     .split(',')
     .map((e) => e.trim())
@@ -95,7 +97,7 @@ admin.delete('/sites/:id', async (c) => {
   const id = c.req.param('id')
   const existing = await db.select({ id: sites.id }).from(sites).where(eq(sites.id, id)).limit(1)
   if (existing.length === 0) return c.json({ error: 'site not found' }, 404)
-  await deleteSiteObjects(db, c.env.GLANCE_FILES, id)
+  await deleteSiteObjects(db, c.env.POSTPLAN_FILES, id)
   await db.delete(sites).where(eq(sites.id, id))
   return c.json({ ok: true })
 })
@@ -176,7 +178,7 @@ admin.get('/invites', async (c) => {
     .orderBy(desc(invites.createdAt))
   // Admins bypass the gate and may hold no invite row at all, so the UI would otherwise show an
   // empty list on a fresh instance and imply nobody can sign in.
-  return c.json({ invites: rows, admins: adminEmails(c.env) })
+  return c.json({ invites: rows, admins: superadminEmails(c.env) })
 })
 
 // POST /api/admin/invites — { email }. Idempotent: re-inviting an existing address is a no-op
@@ -188,16 +190,13 @@ admin.post('/invites', async (c) => {
   const email = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
   // Deliberately loose: the IdP is the authority on whether an address is real, and a stricter
   // pattern here would only reject valid addresses it had not heard of.
-  if (!email || !email.includes('@') || email.length > 320) {
+  if (!email?.includes('@') || email.length > 320) {
     return c.json({ error: 'a valid email is required' }, 400)
   }
   if (isAdminEmail(c.env, email)) {
-    return c.json({ error: 'that address is already an admin — it bypasses the invite gate' }, 409)
+    return c.json({ error: 'that address is already a superadmin — it bypasses the invite gate' }, 409)
   }
-  await db
-    .insert(invites)
-    .values({ email, invitedBy: user.email, createdAt: Date.now() })
-    .onConflictDoNothing()
+  await db.insert(invites).values({ email, invitedBy: user.email, createdAt: Date.now() }).onConflictDoNothing()
   return c.json({ ok: true, email }, 201)
 })
 
@@ -220,5 +219,5 @@ admin.delete('/invites/:email', async (c) => {
 })
 
 admin.get('/stats', async (c) =>
-  c.json(await cachedStats(c.env.GLANCE_SESSIONS, c.get('db'), (p) => fireAndForget(c, p))),
+  c.json(await cachedStats(c.env.POSTPLAN_SESSIONS, c.get('db'), (p) => fireAndForget(c, p))),
 )

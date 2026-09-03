@@ -21,7 +21,7 @@ import {
 // what) against the harness fakes. They prove nothing about real hibernation or billing.
 installWorkerSocketGlobals()
 
-const HMAC = 'glance-test-siteroom'
+const HMAC = 'postplan-test-siteroom'
 const ENV = { DATA_TOKEN_SECRET: HMAC } as never
 const VIEWER: DataCapability[] = ['read', 'create']
 const OWNER: DataCapability[] = ['read', 'create', 'write', 'read_all']

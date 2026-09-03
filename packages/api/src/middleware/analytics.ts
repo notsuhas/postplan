@@ -6,12 +6,12 @@ import { fireAndForget, parseCliVersion, recordEvent } from '../lib/events'
 import { bearerToken, readSessionOrBearer } from '../lib/session'
 import type { AppEnv } from '../types'
 
-const SESSION_COOKIE = '__Host-glance_session'
+const SESSION_COOKIE = '__Host-postplan_session'
 
 // A request is a CLI call when it carries a Bearer token and NO session cookie — the exact rule
 // requireAuth uses to tag `authKind` (cookie wins, mirroring readSessionOrBearer). We DERIVE it
 // here instead of reading `authKind` so tracking is independent of requireAuth: routes that
-// authenticate INLINE (the viewer-metadata GET that `glance read` hits — it reads the session
+// authenticate INLINE (the viewer-metadata GET that `postplan read` hits — it reads the session
 // directly to shape its own 404/403 JSON, never running requireAuth) leave `authKind`/`user`
 // unset, so their CLI hits used to go unrecorded.
 function isCliRequest(c: Context<AppEnv>): boolean {
@@ -19,7 +19,7 @@ function isCliRequest(c: Context<AppEnv>): boolean {
 }
 
 // A `glk_`-prefixed Bearer is a D1 API key, not the CLI's own client — its User-Agent was never
-// stamped `glance-cli/<version>` by our CLI, so parsing it as one would pollute the version
+// stamped `postplan-cli/<version>` by our CLI, so parsing it as one would pollute the version
 // stats with garbage. Derived from the raw header (same reason as isCliRequest above).
 function cliVersionOf(c: Context<AppEnv>): string | null {
   if (bearerToken(c)?.startsWith(API_KEY_PREFIX)) return null

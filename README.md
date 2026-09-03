@@ -1,15 +1,29 @@
-# Glance
+# Postplan
+
+> **A fork of [Glance](https://github.com/plivo-labs/glance)** by Plivo Inc. (MIT). Glance is the
+> original — the artifact hosting model, the review loop, the two-origin security design and almost
+> all of this code are theirs. Postplan is a personal instance of it with the auth and visibility
+> model changed:
+>
+> | | Glance | Postplan |
+> |---|---|---|
+> | Sign-in | Google OAuth, own the Cloud project, membership pinned by Workspace domain (`hd`) | WorkOS AuthKit brokers Google — no Google project — membership is an explicit invite allowlist |
+> | Anonymous links | none; every viewer needs an account | `unlisted` tier, with an unguessable slug |
+> | Sessions | 24h browser / 30d CLI | 30d both |
+>
+> Upstream is the project to watch and contribute to. Bugs in the shared code belong there.
+
 
 **Artifacts for every agent — open-source and self-hosted.** Your agent builds a self-contained page, dashboard, or app and ships it to a live URL with one command — from Claude Code, Cursor, Codex, Cline, Aider, or any harness that runs a shell command. Then you review it in the browser and drop comments like a Google Doc, and the agent reads your comments and fixes it.
 
 An open-source alternative to Claude Artifacts — except you host it, you own it, and any agent can drive it. No more screenshotting your agent's output and pasting it back into the chat.
 
 <p align="center">
-  <img src="https://github.com/plivo-labs/glance/releases/download/assets-readme/glance-demo.gif" alt="Glance demo: an agent deploys a folder to a URL, you leave review comments in the browser, and the agent reads the comments and fixes it" width="900">
+  <img src="https://github.com/plivo-labs/glance/releases/download/assets-readme/glance-demo.gif" alt="Postplan demo: an agent deploys a folder to a URL, you leave review comments in the browser, and the agent reads the comments and fixes it" width="900">
 </p>
 
 ```
-  agent builds  →  glance deploy → URL
+  agent builds  →  postplan deploy → URL
        ↑                              ↓
   reads comments, fixes  ←  you comment in the browser
 ```
@@ -37,44 +51,44 @@ scripts/setup.sh      # provisions D1/KV/R2, deploys both workers, sets secrets,
 Pick a space, drop a folder, and your sites are live behind private/members/team visibility:
 
 <p align="center">
-  <img src="https://github.com/plivo-labs/glance/releases/download/assets-readme/dashboard.png" alt="Glance dashboard — deploy panel and your sites" width="900">
+  <img src="https://github.com/plivo-labs/glance/releases/download/assets-readme/dashboard.png" alt="Postplan dashboard — deploy panel and your sites" width="900">
 </p>
 
-Superadmins get usage at a glance — users, sites, storage, page views, comments, and CLI activity.
+Superadmins get usage at a postplan — users, sites, storage, page views, comments, and CLI activity.
 
 ## Audio & voice comments
 
-Glance is also a home for **audio** — and the review loop works by voice.
+Postplan is also a home for **audio** — and the review loop works by voice.
 
 - **Serve & play** — audio files (`mp3/wav/m4a/ogg/flac/aac/webm`) serve with the right MIME type and HTTP Range, and render in a dedicated player (not the sandboxed HTML iframe), with page-anchored comments and a `[m:ss]` timestamp-insert shortcut.
 - **Record → URL** — tap the mic on the dashboard, record (live waveform, pause/resume), name it, and it deploys and opens straight in the player. Uploading a file is still one tap away.
 - **Voice comments** — record a voice note right in the review composer (and in replies). It's stored, transcribed best-effort with Workers AI (Whisper), and shown as a voice card: inline player + transcript + badge. The transcript is the comment body, so the CLI/agent loop still reads everything as text.
 
-Audio sites carry a mic badge across the dashboard, and `glance comments` prefixes voice comments with `[voice]` in the digest.
+Audio sites carry a mic badge across the dashboard, and `postplan comments` prefixes voice comments with `[voice]` in the digest.
 
 ## CLI
 
 ```bash
-curl -fsSL https://glance.your-subdomain.workers.dev/api/install | sh   # installs to ~/.local/bin/glance
-glance login          # device-code flow, opens browser
-glance deploy <path>  # file or folder → publishes to your personal space
+curl -fsSL https://postplan.your-subdomain.workers.dev/api/install | sh   # installs to ~/.local/bin/postplan
+postplan login          # device-code flow, opens browser
+postplan deploy <path>  # file or folder → publishes to your personal space
 ```
 
-The installer bakes in your instance URL and installs the agent skill so coding agents can drive the CLI. Any agent that can run a shell command drives Glance by calling the `glance` CLI directly — it's harness-agnostic.
+The installer bakes in your instance URL and installs the agent skill so coding agents can drive the CLI. Any agent that can run a shell command drives Postplan by calling the `postplan` CLI directly — it's harness-agnostic.
 
 ### Any agent, any harness
 
-The bundled skill teaches your agent to drive Glance. Install it into **any** harness — Claude Code, Cursor, Codex, OpenCode, Amp, and more — with the [skills.sh](https://skills.sh) installer:
+The bundled skill teaches your agent to drive Postplan. Install it into **any** harness — Claude Code, Cursor, Codex, OpenCode, Amp, and more — with the [skills.sh](https://skills.sh) installer:
 
 ```bash
-npx skills add plivo-labs/glance   # installs the glance-cli skill universally (Codex, Cursor, OpenCode, Claude Code …)
+npx skills add notsuhas/postplan   # installs the postplan-cli skill universally (Codex, Cursor, OpenCode, Claude Code …)
 ```
 
-The `curl … /api/install | sh` line above already installs the skill for Claude Code alongside the binary. The skill only wraps the `glance` CLI, so any shell-capable agent works with or without it.
+The `curl … /api/install | sh` line above already installs the skill for Claude Code alongside the binary. The skill only wraps the `postplan` CLI, so any shell-capable agent works with or without it.
 
 | command | what it does |
 |---|---|
-| `login` | device-code flow, saves token to `~/.glance/config.json` |
+| `login` | device-code flow, saves token to `~/.postplan/config.json` |
 | `deploy <path> [--space <slug>] [--name <slug>] [--visibility <v>]` | uploads a file or folder (folders recurse, skip `.git`/`node_modules`) |
 | `list` | your sites, with visibility + URL |
 | `comments <space/slug>` | pull a site's review comments (voice comments show as `[voice]`) |
@@ -83,36 +97,36 @@ The `curl … /api/install | sh` line above already installs the skill for Claud
 | `move <space/slug> <new-space>` | moves a site (keeps files/comments/shares; URL changes) |
 | `upgrade` / `version` / `logout` | self-update · print version · revoke session |
 
-Defaults: `--space` = your personal space · `--name` = file/folder name slugified · `--visibility` = `team` (`private` · `members` also available). Point at another instance with `GLANCE_API_URL=https://… glance <cmd>`.
+Defaults: `--space` = your personal space · `--name` = file/folder name slugified · `--visibility` = `team` (`private` · `members` also available). Point at another instance with `POSTPLAN_API_URL=https://… postplan <cmd>`.
 
-The CLI keeps itself current (once-a-day background check, atomic in-place swap). Opt out with `GLANCE_NO_UPDATE=1`.
+The CLI keeps itself current (once-a-day background check, atomic in-place swap). Opt out with `POSTPLAN_NO_UPDATE=1`.
 
 ## API keys & HTTP API
 
-`glance login` is interactive, so CI mints an **API key** at `/settings/keys` instead and exports it — `GLANCE_TOKEN` takes precedence over the stored config:
+`postplan login` is interactive, so CI mints an **API key** at `/settings/keys` instead and exports it — `POSTPLAN_TOKEN` takes precedence over the stored config:
 
 ```bash
-export GLANCE_TOKEN=glk_...              # shown exactly once at mint
-glance deploy ./dist                     # or call the API directly:
-curl -H "Authorization: Bearer $GLANCE_TOKEN" https://your-instance/api/sites/mine
+export POSTPLAN_TOKEN=glk_...              # shown exactly once at mint
+postplan deploy ./dist                     # or call the API directly:
+curl -H "Authorization: Bearer $POSTPLAN_TOKEN" https://your-instance/api/sites/mine
 ```
 
 A key authenticates the control plane as you and can only ever narrow your own access: it may create and deploy sites, never delete one, and never mint or revoke another key. Full endpoint reference, request/response shapes, grant semantics and the data-token exchange: **[packages/api/API.md](packages/api/API.md)**. In-app: `/docs/api-keys`.
 
 ## Security model
 
-- **Uploaded HTML/JS is untrusted** — served from a separate content origin (`CONTENT_URL`), so app session cookies never reach it. This is why Glance stands up two Workers, not one.
+- **Uploaded HTML/JS is untrusted** — served from a separate content origin (`CONTENT_URL`), so app session cookies never reach it. This is why Postplan stands up two Workers, not one.
 - **Gated links** carry short-lived, single-use HMAC tokens. Every tier requires an authenticated user — there is no public/anonymous access.
 - **Markdown** renders with raw HTML neutralized under a strict CSP, so injected `<script>` is inert.
 
-## Shared backend — `glance.db` (experimental, opt-in)
+## Shared backend — `postplan.db` (experimental, opt-in)
 
 Hosted sites can get browser-callable persistence — no keys, no config. Off by default; an operator enables it per deploy (see [SHARED_BACKEND.md](SHARED_BACKEND.md)).
 
 ```js
-// Injected automatically when the site is opened through the Glance app; every request is
+// Injected automatically when the site is opened through the Postplan app; every request is
 // brokered by the parent frame, so the page never holds a credential.
-const notes = glance.db.collection('notes')
+const notes = postplan.db.collection('notes')
 await notes.create({ text: 'hello' })   // create · list · get · put · delete
 ```
 
@@ -123,7 +137,7 @@ Docs are JSON ≤100KB in named collections. Every viewer can create and read th
 ```
 packages/api   Hono Worker — /api/* + file serving, ships the React app as static assets
 packages/web   Vite + React Router v7
-packages/cli   `glance` CLI (Go) — `cmd/glance` is the binary, `internal/cli` the command surface
+packages/cli   `postplan` CLI (Go) — `cmd/postplan` is the binary, `internal/cli` the command surface
 ```
 
 Local dev: `bun install && bun run db:migrate:local && bun run dev` (main :8787 + content :8788 + vite :5173), then open http://localhost:5173. CI auto-deploys both workers on push to `main`.

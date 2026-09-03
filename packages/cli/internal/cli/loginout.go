@@ -3,7 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"glance/internal/config"
+	"postplan/internal/config"
 	"net/http"
 	"net/url"
 	"os"

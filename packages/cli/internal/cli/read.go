@@ -3,7 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"glance/internal/argparse"
+	"postplan/internal/argparse"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,7 +21,7 @@ func (c *client) read(argv []string) error {
 	}
 	space, name, err := splitSpaceSlug(target)
 	if err != nil {
-		return fmt.Errorf("Usage: glance read <space/slug> [--file <path>]")
+		return fmt.Errorf("Usage: postplan read <space/slug> [--file <path>]")
 	}
 	file, _ := flags["file"].(string)
 	pullDir, doPull := flags["pull"].(string)
@@ -75,7 +75,7 @@ func (c *client) read(argv []string) error {
 
 // pullTree downloads the whole site source into dir: each manifest file is fetched RAW (?raw=1 —
 // the .md source, not its rendered HTML) so a later `deploy` round-trips byte-identically, then a
-// .glance/pull.json marker records the site + version for a versioned redeploy. Dotfiles are written
+// .postplan/pull.json marker records the site + version for a versioned redeploy. Dotfiles are written
 // as-is (the tree is trusted local output). Refuses when the manifest is empty — a plain viewer can't
 // see it, and there's nothing to pull.
 func (c *client) pullTree(space, name, dir, contentURL string, files []string, version int) error {

@@ -73,7 +73,7 @@ const linkShared = (urls: string[], user = 'Usharer') => ({
     message_ts: '1700000000.1',
     unfurl_id: 'C123.1700000000.1.1',
     source: 'conversations_history',
-    links: urls.map((url) => ({ url, domain: 'glance.example.com' })),
+    links: urls.map((url) => ({ url, domain: 'postplan.example.com' })),
   },
 })
 
@@ -147,7 +147,7 @@ describe('POST /api/slack/events — link_shared', () => {
     expect(card).toContain('How the numbers moved')
     expect(card).toContain(url)
     // The thumbnail: a SIGNED image_url on the CONTENT origin (Slack fetches it unauthenticated).
-    expect(card).toMatch(/content\.example\.com\/_glance\/og\/acme\/report\.png\?sig=[0-9a-f]{64}/)
+    expect(card).toMatch(/content\.example\.com\/_postplan\/og\/acme\/report\.png\?sig=[0-9a-f]{64}/)
   })
 
   test('a PRIVATE site the sharer cannot read → no card at all (no title, no existence signal)', async () => {
@@ -180,7 +180,7 @@ describe('POST /api/slack/events — link_shared', () => {
     expect(unfurls).toHaveLength(0)
   })
 
-  test('an unknown Slack user, or one with no Glance account, yields no card', async () => {
+  test('an unknown Slack user, or one with no Postplan account, yields no card', async () => {
     const world = await seedWorld()
     const noEmail = slackFetch({})
     await post(
@@ -219,7 +219,7 @@ describe('POST /api/slack/events — link_shared', () => {
     expect(unfurls).toHaveLength(0)
   })
 
-  test("a mixed-case Slack profile email still matches the (lowercase-canonical) Glance account", async () => {
+  test("a mixed-case Slack profile email still matches the (lowercase-canonical) Postplan account", async () => {
     const world = await seedWorld()
     const { fetchImpl, unfurls } = slackFetch({ Usharer: 'Sharer@X.Com' })
     await post(world.app, envWith(world.env, { SLACK_FETCH: fetchImpl }), linkShared([`${APP_URL}/acme/report`]))

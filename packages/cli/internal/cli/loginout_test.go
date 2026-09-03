@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"glance/internal/config"
+	"postplan/internal/config"
 	"io"
 	"net/http"
 	"net/http/httptest"

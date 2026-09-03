@@ -5,7 +5,7 @@ import type { AppEnv, Credential, SessionUser } from '../types'
 import { API_KEY_PREFIX, apiKeyDb, resolveApiKey, touchApiKeyLastUsed } from './api-key'
 import { fireAndForget } from './events'
 
-const SESSION_COOKIE = '__Host-glance_session'
+const SESSION_COOKIE = '__Host-postplan_session'
 // Browser and CLI both 30d. The session payload is a cached snapshot — readCredential returns
 // it without re-reading `users` — so this is also how stale a demoted role or a deleted user can
 // be, and 24h was the bound on that. On a single-operator instance the demotion it protects
@@ -25,14 +25,14 @@ function cookieOpts() {
 
 export async function createSession(c: Context<AppEnv>, user: SessionUser): Promise<void> {
   const token = crypto.randomUUID()
-  await c.env.GLANCE_SESSIONS.put(`session:${token}`, JSON.stringify(user), { expirationTtl: SESSION_TTL })
+  await c.env.POSTPLAN_SESSIONS.put(`session:${token}`, JSON.stringify(user), { expirationTtl: SESSION_TTL })
   await setSignedCookie(c, SESSION_COOKIE, token, c.env.SESSION_SECRET, { ...cookieOpts(), maxAge: SESSION_TTL })
 }
 
 export async function readSession(c: Context<AppEnv>): Promise<SessionUser | null> {
   const token = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE)
   if (typeof token !== 'string') return null // false = tampered, undefined = missing
-  const raw = await c.env.GLANCE_SESSIONS.get(`session:${token}`)
+  const raw = await c.env.POSTPLAN_SESSIONS.get(`session:${token}`)
   if (!raw) return null
   try {
     return JSON.parse(raw) as SessionUser
@@ -43,7 +43,7 @@ export async function readSession(c: Context<AppEnv>): Promise<SessionUser | nul
 
 export async function destroySession(c: Context<AppEnv>): Promise<void> {
   const token = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE)
-  if (typeof token === 'string') await c.env.GLANCE_SESSIONS.delete(`session:${token}`)
+  if (typeof token === 'string') await c.env.POSTPLAN_SESSIONS.delete(`session:${token}`)
   deleteCookie(c, SESSION_COOKIE, { path: '/', secure: true })
 }
 
@@ -51,23 +51,23 @@ export async function destroySession(c: Context<AppEnv>): Promise<void> {
 
 export async function createCliToken(c: Context<AppEnv>, user: SessionUser): Promise<string> {
   const token = crypto.randomUUID()
-  await c.env.GLANCE_SESSIONS.put(`cli:${token}`, JSON.stringify(user), { expirationTtl: CLI_TTL })
+  await c.env.POSTPLAN_SESSIONS.put(`cli:${token}`, JSON.stringify(user), { expirationTtl: CLI_TTL })
   // Per-user index entry (same TTL) so every token a user holds is enumerable — the revocation
   // surface `revokeUserCliTokens` lists this prefix. Keyed by token so it can be deleted directly.
-  await c.env.GLANCE_SESSIONS.put(`cli_index:${user.id}:${token}`, '', { expirationTtl: CLI_TTL })
+  await c.env.POSTPLAN_SESSIONS.put(`cli_index:${user.id}:${token}`, '', { expirationTtl: CLI_TTL })
   return token
 }
 
-/** Delete a single CLI token and its per-user index entry. `glance logout` sends a Bearer
+/** Delete a single CLI token and its per-user index entry. `postplan logout` sends a Bearer
  *  token and no cookie, so the logout handler calls this to actually revoke the credential
  *  server-side (otherwise it stayed valid for its full 30-day TTL). */
 export async function destroyCliToken(c: Context<AppEnv>, token: string): Promise<void> {
-  const raw = await c.env.GLANCE_SESSIONS.get(`cli:${token}`)
-  await c.env.GLANCE_SESSIONS.delete(`cli:${token}`)
+  const raw = await c.env.POSTPLAN_SESSIONS.get(`cli:${token}`)
+  await c.env.POSTPLAN_SESSIONS.delete(`cli:${token}`)
   if (!raw) return
   try {
     const { id } = JSON.parse(raw) as SessionUser
-    await c.env.GLANCE_SESSIONS.delete(`cli_index:${id}:${token}`)
+    await c.env.POSTPLAN_SESSIONS.delete(`cli_index:${id}:${token}`)
   } catch {
     // Unparseable record: the token itself is gone; the orphaned index entry ages out on its TTL.
   }
@@ -79,18 +79,18 @@ export async function revokeUserCliTokens(c: Context<AppEnv>, userId: string): P
   const prefix = `cli_index:${userId}:`
   let cursor: string | undefined
   do {
-    const page = await c.env.GLANCE_SESSIONS.list({ prefix, cursor })
+    const page = await c.env.POSTPLAN_SESSIONS.list({ prefix, cursor })
     for (const { name } of page.keys) {
       const token = name.slice(prefix.length)
-      await c.env.GLANCE_SESSIONS.delete(`cli:${token}`)
-      await c.env.GLANCE_SESSIONS.delete(name)
+      await c.env.POSTPLAN_SESSIONS.delete(`cli:${token}`)
+      await c.env.POSTPLAN_SESSIONS.delete(name)
     }
     cursor = page.list_complete ? undefined : page.cursor
   } while (cursor)
 }
 
 export async function readCliToken(c: Context<AppEnv>, token: string): Promise<SessionUser | null> {
-  const raw = await c.env.GLANCE_SESSIONS.get(`cli:${token}`)
+  const raw = await c.env.POSTPLAN_SESSIONS.get(`cli:${token}`)
   if (!raw) return null
   try {
     return JSON.parse(raw) as SessionUser

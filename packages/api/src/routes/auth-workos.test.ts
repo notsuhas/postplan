@@ -3,7 +3,7 @@ import type { AppEnv } from '../types'
 import { auth } from './auth'
 
 const base = {
-  APP_URL: 'https://glance.example.com',
+  APP_URL: 'https://postplan.example.com',
   SESSION_SECRET: 'test-session-secret',
   SUPERADMIN_EMAIL: 'you@example.com',
 } as AppEnv['Bindings']

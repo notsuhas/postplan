@@ -127,7 +127,7 @@ function WhatsNewSheet({ data, onOpen }: { data: WhatsNewList; onOpen: () => voi
             <Sparkles className="size-4 text-primary" />
             What's New
           </SheetTitle>
-          <SheetDescription className="sr-only">Recent Glance product updates and release notes.</SheetDescription>
+          <SheetDescription className="sr-only">Recent Postplan product updates and release notes.</SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {data.items.length === 0 ? (

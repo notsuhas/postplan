@@ -13,7 +13,7 @@ import { sites } from './sites'
 // exactly one file row, so deleting either site can never strand the other (the invariant that let
 // us drop reference-counted deletion entirely).
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 async function setup() {
   const db = makeDb()
@@ -24,8 +24,8 @@ async function setup() {
     SESSION_SECRET: 's',
     CONTENT_URL: 'https://content.example.com',
     CONTENT_TOKEN_SECRET: 'ct',
-    GLANCE_SESSIONS: kv,
-    GLANCE_FILES: r2,
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
   } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)

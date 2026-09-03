@@ -7,7 +7,7 @@ import type { Thread } from './comments'
 //   generation; only the LATEST one may settle into state. An older in-flight result — including a
 //   same-path one — is ignored, and a stale REJECTION never clears/toasts over a newer success.
 // - PROVISIONAL prefetch: an HTML prefetch is a guess about the file the iframe will land on. Its
-//   result is held (never painted) until a matching glance:ready confirms the path; a mismatched
+//   result is held (never painted) until a matching postplan:ready confirms the path; a mismatched
 //   ready discards it and orders a fresh fetch; if no ready ever arrives (directory listings emit
 //   none) it is simply never applied. Audio has no iframe/ready → non-provisional, applies on settle.
 // - STALE READY: after a splat navigation the OLD iframe document can still deliver a late ready.
@@ -26,7 +26,7 @@ export type PushFold = (data: Thread[], path: string) => Thread[]
 export interface InFlight {
   gen: number
   path: string
-  /** true = HTML prefetch, held for a matching glance:ready; false = applies on settle. */
+  /** true = HTML prefetch, held for a matching postplan:ready; false = applies on settle. */
   provisional: boolean
 }
 
@@ -37,7 +37,7 @@ export interface ArbiterState {
   expected: string | null
   /** The old document's path at navReset time — a late ready for it is stale, not a navigation. */
   staleHint: string | null
-  /** True once a glance:ready confirmed the iframe's real path. */
+  /** True once a postplan:ready confirmed the iframe's real path. */
   confirmed: boolean
   /** The confirmed iframe file path (what the viewer may treat as current). */
   readyPath: string | null

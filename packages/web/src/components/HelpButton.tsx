@@ -9,7 +9,7 @@ export function HelpButton() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="How to use Glance" title="How to use Glance">
+        <Button variant="ghost" size="icon" aria-label="How to use Postplan" title="How to use Postplan">
           <CircleHelp className="size-4" />
         </Button>
       </SheetTrigger>
@@ -17,7 +17,7 @@ export function HelpButton() {
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle className="flex items-center gap-2">
             <CircleHelp className="size-4 text-primary" />
-            Using Glance
+            Using Postplan
           </SheetTitle>
           <SheetDescription className="sr-only">How to install the CLI and publish your first site.</SheetDescription>
         </SheetHeader>

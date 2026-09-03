@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Glance bundles and depends on open-source software. Each package remains under its own
+Postplan bundles and depends on open-source software. Each package remains under its own
 license; the most significant are listed below. Run `bun pm ls` for the full resolved tree.
 
 ## Runtime

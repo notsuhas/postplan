@@ -194,7 +194,7 @@ describe('W/R — a Slack fault never touches the comment', () => {
     const { fetchImpl, posts } = slackFetch({ lookups: { 'owner@x.com': 'Uowner' } }) // NOT pre-cached → live lookup
     const res = await postComment(
       app,
-      bindings(env, { SLACK_BOT_TOKEN: 'xoxb', SLACK_FETCH: fetchImpl, GLANCE_SESSIONS: sessions }),
+      bindings(env, { SLACK_BOT_TOKEN: 'xoxb', SLACK_FETCH: fetchImpl, POSTPLAN_SESSIONS: sessions }),
       { body: 'hi', filePath: 'index.html' },
     )
     expect(res.status).toBe(201)

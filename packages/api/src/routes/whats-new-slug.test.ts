@@ -9,7 +9,7 @@ import { makeDb, makeKv, seedUser } from '../test/harness'
 import type { AppEnv } from '../types'
 import { spaces } from './spaces'
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 describe('E1 slug.reserved — whats-new is a reserved system slug', () => {
   test('isValidSlug rejects whats-new', () => {
@@ -19,7 +19,7 @@ describe('E1 slug.reserved — whats-new is a reserved system slug', () => {
   test('POST /api/spaces { slug: "whats-new" } → 400 invalid slug', async () => {
     const db = makeDb()
     const kv = makeKv()
-    const env = { APP_URL, SESSION_SECRET: 's', GLANCE_SESSIONS: kv } as unknown as AppEnv['Bindings']
+    const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv } as unknown as AppEnv['Bindings']
     const app = new Hono<AppEnv>()
     app.use('/api/*', requireSameOrigin)
     app.use('/api/*', async (c, next) => {

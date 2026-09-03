@@ -18,7 +18,7 @@ import {
 } from '../lib/session'
 import type { AppEnv, Bindings, SessionUser } from '../types'
 
-const OAUTH_COOKIE = 'glance_oauth'
+const OAUTH_COOKIE = 'postplan_oauth'
 
 /** Only allow same-origin absolute paths as a post-login redirect (no open redirect). */
 function safeNext(next: string | null | undefined): string | null {
@@ -134,7 +134,7 @@ auth.get('/callback', async (c) => {
 
 auth.post('/logout', async (c) => {
   // This route runs neither requireAuth nor requireSameOrigin's cookie gate, so the credential is
-  // resolved directly. A `glk_` API key is not a session — `glance logout` is the wrong verb for
+  // resolved directly. A `glk_` API key is not a session — `postplan logout` is the wrong verb for
   // it (a key is revoked from the keys screen, not by logging out) — so report that rather than
   // silently doing nothing: destroyCliToken below is a KV delete and no-ops on a D1 key, and a
   // false { ok: true } would tell the caller a credential was revoked when it was not.
@@ -143,7 +143,7 @@ auth.post('/logout', async (c) => {
   }
 
   await destroySession(c)
-  // `glance logout` authenticates with a Bearer CLI token and no cookie, so also revoke that
+  // `postplan logout` authenticates with a Bearer CLI token and no cookie, so also revoke that
   // token server-side — otherwise the logged-out CLI credential stays valid for its full 30d TTL.
   const token = bearerToken(c)
   if (token) await destroyCliToken(c, token)
@@ -197,12 +197,12 @@ auth.post('/bootstrap', async (c) => {
 
   // One-shot lifetime op: a tighter window than the CLI default brakes token brute-force.
   const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
-  if (await isCliStartRateLimited(c.env.GLANCE_SESSIONS, `bootstrap:${ip}`, 5, 3600))
+  if (await isCliStartRateLimited(c.env.POSTPLAN_SESSIONS, `bootstrap:${ip}`, 5, 3600))
     return c.json({ error: 'rate_limited' }, 429)
 
   const body = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string })
   const db = c.get('db')
-  const alreadyCompleted = (await c.env.GLANCE_SESSIONS.get(BOOTSTRAP_COMPLETE_KEY)) !== null
+  const alreadyCompleted = (await c.env.POSTPLAN_SESSIONS.get(BOOTSTRAP_COMPLETE_KEY)) !== null
   const decision = await bootstrapDecision({
     expectedToken: c.env.BOOTSTRAP_TOKEN,
     providedToken: body.token,
@@ -216,7 +216,7 @@ auth.post('/bootstrap', async (c) => {
   // lets a retry recover without re-locking the deploy. Once set, bootstrap is one-shot (410).
   const user = await bootstrapSuperadminByEmail(db, c.env.SUPERADMIN_EMAIL, null, NEWEST_RELEASE_DATE)
   await createSession(c, user)
-  await c.env.GLANCE_SESSIONS.put(BOOTSTRAP_COMPLETE_KEY, '1')
+  await c.env.POSTPLAN_SESSIONS.put(BOOTSTRAP_COMPLETE_KEY, '1')
   return c.json({ ok: true, user })
 })
 
@@ -264,13 +264,13 @@ export async function isCliStartRateLimited(
 
 auth.post('/cli/start', async (c) => {
   const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
-  if (await isCliStartRateLimited(c.env.GLANCE_SESSIONS, ip)) return c.json({ error: 'rate_limited' }, 429)
+  if (await isCliStartRateLimited(c.env.POSTPLAN_SESSIONS, ip)) return c.json({ error: 'rate_limited' }, 429)
 
   const deviceCode = crypto.randomUUID()
   const userCode = generateUserCode()
   const record = JSON.stringify({ status: 'pending', userCode })
-  await c.env.GLANCE_SESSIONS.put(`cli_device:${deviceCode}`, record, { expirationTtl: 600 })
-  await c.env.GLANCE_SESSIONS.put(`cli_user:${userCode}`, deviceCode, { expirationTtl: 600 })
+  await c.env.POSTPLAN_SESSIONS.put(`cli_device:${deviceCode}`, record, { expirationTtl: 600 })
+  await c.env.POSTPLAN_SESSIONS.put(`cli_user:${userCode}`, deviceCode, { expirationTtl: 600 })
   return c.json({
     deviceCode,
     userCode,
@@ -283,26 +283,26 @@ auth.post('/cli/start', async (c) => {
 auth.get('/cli/poll', async (c) => {
   const deviceCode = c.req.query('device_code')
   if (!deviceCode) return c.json({ error: 'device_code required' }, 400)
-  const raw = await c.env.GLANCE_SESSIONS.get(`cli_device:${deviceCode}`)
+  const raw = await c.env.POSTPLAN_SESSIONS.get(`cli_device:${deviceCode}`)
   if (!raw) return c.json({ status: 'expired' }, 404)
   const rec = JSON.parse(raw) as { status: string; token?: string }
   if (rec.status !== 'complete' || !rec.token) return c.json({ status: 'pending' })
-  await c.env.GLANCE_SESSIONS.delete(`cli_device:${deviceCode}`) // one-time read
+  await c.env.POSTPLAN_SESSIONS.delete(`cli_device:${deviceCode}`) // one-time read
   return c.json({ status: 'complete', accessToken: rec.token })
 })
 
 auth.post('/cli/approve', requireAuth, async (c) => {
   const { userCode } = await c.req.json<{ userCode?: string }>()
   if (!userCode) return c.json({ error: 'userCode required' }, 400)
-  const deviceCode = await c.env.GLANCE_SESSIONS.get(`cli_user:${userCode.toUpperCase()}`)
+  const deviceCode = await c.env.POSTPLAN_SESSIONS.get(`cli_user:${userCode.toUpperCase()}`)
   if (!deviceCode) return c.json({ error: 'invalid or expired code' }, 404)
   const token = await createCliToken(c, c.get('user'))
-  await c.env.GLANCE_SESSIONS.put(
+  await c.env.POSTPLAN_SESSIONS.put(
     `cli_device:${deviceCode}`,
     JSON.stringify({ status: 'complete', token }),
     { expirationTtl: 600 },
   )
-  await c.env.GLANCE_SESSIONS.delete(`cli_user:${userCode.toUpperCase()}`)
+  await c.env.POSTPLAN_SESSIONS.delete(`cli_user:${userCode.toUpperCase()}`)
   return c.json({ ok: true })
 })
 

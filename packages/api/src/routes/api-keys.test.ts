@@ -12,7 +12,7 @@ async function scenario() {
   const { app, db, kv, env } = makeRouteApp()
   await mintUser(db, kv, 'owner')
   await mintUser(db, kv, 'other')
-  // Bound request helper: the CLI Bearer path (auth()) needs GLANCE_SESSIONS on env, so env
+  // Bound request helper: the CLI Bearer path (auth()) needs POSTPLAN_SESSIONS on env, so env
   // travels with app/db rather than being threaded through every call site.
   // Hono's `.get('/')`/`.post('/')` on a sub-router match the mount path with NO trailing slash
   // (see whats-new.test.ts) — '/' here means "the router root", not a literal trailing slash.

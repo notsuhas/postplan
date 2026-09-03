@@ -213,7 +213,7 @@ spaces.delete('/:slug', requireAuth, requireControlGrant, async (c) => {
   // Purge R2 objects in ONE key query + batched deletes before the FK cascade removes site + file
   // rows. (The old per-site deleteSiteObjects loop did 2+ subrequests/site → blew the 50-subrequest
   // free-plan cap mid-loop on a large space, 500ing with a partial destroy.)
-  await deleteSpaceObjects(db, c.env.GLANCE_FILES, space.id)
+  await deleteSpaceObjects(db, c.env.POSTPLAN_FILES, space.id)
   await db.delete(spacesTable).where(eq(spacesTable.id, space.id))
   return c.json({ ok: true })
 })

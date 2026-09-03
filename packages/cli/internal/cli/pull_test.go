@@ -63,7 +63,7 @@ func TestReadPull(t *testing.T) {
 			}
 		}
 		// pull marker records space/name/contentVersion for a later versioned redeploy.
-		markerBytes, err := os.ReadFile(filepath.Join(dir, ".glance", "pull.json"))
+		markerBytes, err := os.ReadFile(filepath.Join(dir, ".postplan", "pull.json"))
 		if err != nil {
 			t.Fatalf("no pull.json: %v", err)
 		}

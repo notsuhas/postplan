@@ -32,7 +32,7 @@ func (c *client) del(argv []string) error {
 	}
 	space, name, err := splitSpaceSlug(target)
 	if err != nil {
-		return fmt.Errorf("Usage: glance delete <space/slug>")
+		return fmt.Errorf("Usage: postplan delete <space/slug>")
 	}
 	if err := c.requireAuth(); err != nil {
 		return err
@@ -64,7 +64,7 @@ func (c *client) move(argv []string) error {
 	}
 	space, name, err := splitSpaceSlug(target)
 	if err != nil || dest == "" {
-		return fmt.Errorf("Usage: glance move <space/slug> <new-space>")
+		return fmt.Errorf("Usage: postplan move <space/slug> <new-space>")
 	}
 	if err := c.requireAuth(); err != nil {
 		return err

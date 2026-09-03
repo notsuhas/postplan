@@ -6,7 +6,7 @@ import { Window } from 'happy-dom'
 // excluded from every test in this directory — and why a `paintTexts` bug can survive a fully green
 // suite: nothing else in this package ever RUNS the wiring. So this file is the deliberate
 // exception: it assigns happy-dom's globals onto globalThis, imports client.ts so its real
-// `glance:paint` dispatch and its real in-page click handler run, and tears every assignment back
+// `postplan:paint` dispatch and its real in-page click handler run, and tears every assignment back
 // down in afterAll — scoped to this one file, nothing leaks into the rest of the
 // (global-free-by-design) api suite.
 //
@@ -52,7 +52,7 @@ beforeAll(async () => {
 
   posted = []
   Object.defineProperty(win, 'parent', { value: { postMessage: (msg: unknown) => posted.push(msg) }, configurable: true })
-  ;(win as AnyRecord).__GLANCE__ = { siteId: 's1', filePath: 'index.html', appOrigin: 'https://app.example.com' }
+  ;(win as AnyRecord).__POSTPLAN__ = { siteId: 's1', filePath: 'index.html', appOrigin: 'https://app.example.com' }
 
   const g = globalThis as unknown as AnyRecord
   const prev = { window: g.window, document: g.document, CSS: g.CSS, Highlight: g.Highlight, requestAnimationFrame: g.requestAnimationFrame }
@@ -63,7 +63,7 @@ beforeAll(async () => {
   g.requestAnimationFrame = (win as unknown as { requestAnimationFrame: typeof requestAnimationFrame }).requestAnimationFrame.bind(win)
   restore = () => Object.assign(g, prev)
 
-  // client.ts reads `window.__GLANCE__` and wires its listeners at IMPORT time, so every global
+  // client.ts reads `window.__POSTPLAN__` and wires its listeners at IMPORT time, so every global
   // above must exist before this line.
   await import('./client')
 })
@@ -79,54 +79,54 @@ function send(data: unknown, origin = 'https://app.example.com'): void {
 }
 
 describe('client.ts — a paint IS the highlight: everything sent is lit, an empty paint clears it', () => {
-  test('glance:paint lights EVERY text anchor it is sent', () => {
+  test('postplan:paint lights EVERY text anchor it is sent', () => {
     send({
-      type: 'glance:paint',
+      type: 'postplan:paint',
       anchors: [
         { id: 't1', anchorType: 'text', quote: 'alpha sentence.' },
         { id: 't2', anchorType: 'text', quote: 'beta sentence.' },
       ],
     })
-    expect(highlights.has('glance-comment')).toBe(true)
-    expect(highlights.get('glance-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.', 'beta sentence.'])
+    expect(highlights.has('postplan-comment')).toBe(true)
+    expect(highlights.get('postplan-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.', 'beta sentence.'])
   })
 
   test('an EMPTY paint clears the highlight — this is what closing the rail does to the page', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
-    send({ type: 'glance:paint', anchors: [] })
+    send({ type: 'postplan:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
+    send({ type: 'postplan:paint', anchors: [] })
     // Deleted, not set to an empty Highlight: a registered-but-empty Highlight paints nothing yet
     // stays resident, which is observably different from no highlight at all.
-    expect(highlights.has('glance-comment')).toBe(false)
+    expect(highlights.has('postplan-comment')).toBe(false)
   })
 
   test('a repaint (a new comment landing) lights the new anchor alongside the old', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
-    expect(highlights.get('glance-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.'])
+    send({ type: 'postplan:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
+    expect(highlights.get('postplan-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.'])
     send({
-      type: 'glance:paint',
+      type: 'postplan:paint',
       anchors: [
         { id: 't1', anchorType: 'text', quote: 'alpha sentence.' },
         { id: 't2', anchorType: 'text', quote: 'beta sentence.' },
       ],
     })
-    expect(highlights.get('glance-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.', 'beta sentence.'])
+    expect(highlights.get('postplan-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.', 'beta sentence.'])
   })
 
   test('an anchor whose quote no longer resolves is dropped, and its resolving sibling still lights', () => {
     send({
-      type: 'glance:paint',
+      type: 'postplan:paint',
       anchors: [
         { id: 't9', anchorType: 'text', quote: 'a sentence this page never had.' },
         { id: 't1', anchorType: 'text', quote: 'alpha sentence.' },
       ],
     })
-    expect(highlights.get('glance-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.'])
+    expect(highlights.get('postplan-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.'])
   })
 })
 
 /** The overlay box currently drawn for an element anchor, or null when nothing is drawn for it. */
 function elementBox(id: string): Element | null {
-  return document.getElementById('__glance_overlay__')?.querySelector(`[data-glance-anchor="${id}"]`) ?? null
+  return document.getElementById('__postplan_overlay__')?.querySelector(`[data-postplan-anchor="${id}"]`) ?? null
 }
 
 /** Fire a real DOM event (capture+bubble) against `target`, the way a page's own listeners see it —
@@ -141,7 +141,7 @@ function fireDom(type: string, target: Element, init: MouseEventInit = {}): Mous
 
 describe('client.ts — element (pinpoint) capture deleted; ordinary clicks, link-rewrite and existing-anchor painting all survive (slice C2a)', () => {
   test('a plain left click on an ordinary element is never intercepted — the page’s own handler still runs', () => {
-    send({ type: 'glance:paint', anchors: [] }) // nothing painted: the rail-closed state
+    send({ type: 'postplan:paint', anchors: [] }) // nothing painted: the rail-closed state
     const chart = document.getElementById('chart') as Element
     let pageHandlerRan = false
     const onClick = () => {
@@ -152,46 +152,46 @@ describe('client.ts — element (pinpoint) capture deleted; ordinary clicks, lin
     chart.removeEventListener('click', onClick)
     expect(evt.defaultPrevented).toBe(false)
     expect(pageHandlerRan).toBe(true)
-    expect(posted.some((m) => (m as AnyRecord).type === 'glance:pinpoint')).toBe(false)
+    expect(posted.some((m) => (m as AnyRecord).type === 'postplan:pinpoint')).toBe(false)
   })
 
   test('a mousemove over an element draws no overlay box', () => {
-    send({ type: 'glance:paint', anchors: [] })
+    send({ type: 'postplan:paint', anchors: [] })
     const chart = document.getElementById('chart') as Element
-    const before = document.getElementById('__glance_overlay__')?.children.length ?? 0
+    const before = document.getElementById('__postplan_overlay__')?.children.length ?? 0
     fireDom('mousemove', chart)
-    const after = document.getElementById('__glance_overlay__')?.children.length ?? 0
+    const after = document.getElementById('__postplan_overlay__')?.children.length ?? 0
     expect(after).toBe(before)
   })
 
-  test('a click on a same-origin link still gets its href rewritten with glance_annotate=1', () => {
-    send({ type: 'glance:paint', anchors: [] })
+  test('a click on a same-origin link still gets its href rewritten with postplan_annotate=1', () => {
+    send({ type: 'postplan:paint', anchors: [] })
     const link = document.getElementById('link') as HTMLAnchorElement
     fireDom('click', link, IN_NOTHING)
-    expect(link.getAttribute('href')).toContain('glance_annotate=1')
+    expect(link.getAttribute('href')).toContain('postplan_annotate=1')
   })
 
   test('an existing element thread gets its box AT PAINT TIME and reports its anchor resolved', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 'e1', anchorType: 'element', selector: '#chart' }] })
+    send({ type: 'postplan:paint', anchors: [{ id: 'e1', anchorType: 'element', selector: '#chart' }] })
     // The box is no longer a hover affordance: everything painted is drawn, because the parent only
     // paints while the rail is open.
     expect(elementBox('e1')).not.toBeNull()
-    const resolvedMsgs = posted.filter((m) => (m as AnyRecord).type === 'glance:pinpoint-resolved')
+    const resolvedMsgs = posted.filter((m) => (m as AnyRecord).type === 'postplan:pinpoint-resolved')
     const last = resolvedMsgs.at(-1) as AnyRecord
     expect(last.resolved).toEqual(['e1'])
     expect(last.orphaned).toEqual([])
   })
 
   test('an empty paint removes every element box too — the page goes back to how its author wrote it', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 'e1', anchorType: 'element', selector: '#chart' }] })
+    send({ type: 'postplan:paint', anchors: [{ id: 'e1', anchorType: 'element', selector: '#chart' }] })
     expect(elementBox('e1')).not.toBeNull()
-    send({ type: 'glance:paint', anchors: [] })
+    send({ type: 'postplan:paint', anchors: [] })
     expect(elementBox('e1')).toBeNull()
   })
 
   test('an element anchor whose selector no longer resolves is reported orphaned', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 'e2', anchorType: 'element', selector: '#does-not-exist' }] })
-    const resolvedMsgs = posted.filter((m) => (m as AnyRecord).type === 'glance:pinpoint-resolved')
+    send({ type: 'postplan:paint', anchors: [{ id: 'e2', anchorType: 'element', selector: '#does-not-exist' }] })
+    const resolvedMsgs = posted.filter((m) => (m as AnyRecord).type === 'postplan:pinpoint-resolved')
     const last = resolvedMsgs.at(-1) as AnyRecord
     expect(last.resolved).toEqual([])
     expect(last.orphaned).toEqual(['e2'])
@@ -201,11 +201,11 @@ describe('client.ts — element (pinpoint) capture deleted; ordinary clicks, lin
 // The page→rail route that replaced the badges. A CSS Custom Highlight takes part in no hit testing
 // at all, so this wiring — re-finding the anchors and testing the click point against their rects —
 // is the ONLY thing making a highlight clickable; nothing else in the suite executes it.
-describe('client.ts — clicking a painted anchor posts glance:anchor-click', () => {
-  const clicks = () => posted.filter((m) => (m as AnyRecord).type === 'glance:anchor-click') as AnyRecord[]
+describe('client.ts — clicking a painted anchor posts postplan:anchor-click', () => {
+  const clicks = () => posted.filter((m) => (m as AnyRecord).type === 'postplan:anchor-click') as AnyRecord[]
 
   test('a click inside a painted text anchor posts its id and swallows the click', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
+    send({ type: 'postplan:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
     const before = clicks().length
     const chart = document.getElementById('chart') as Element
     let pageHandlerRan = false
@@ -225,7 +225,7 @@ describe('client.ts — clicking a painted anchor posts glance:anchor-click', ()
   })
 
   test('a click inside a painted element anchor posts its id', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 'e1', anchorType: 'element', selector: '#chart' }] })
+    send({ type: 'postplan:paint', anchors: [{ id: 'e1', anchorType: 'element', selector: '#chart' }] })
     const before = clicks().length
     fireDom('click', document.getElementById('chart') as Element, IN_ELEMENT)
     expect(clicks()).toHaveLength(before + 1)
@@ -233,7 +233,7 @@ describe('client.ts — clicking a painted anchor posts glance:anchor-click', ()
   })
 
   test('a click that misses every painted anchor is left completely alone', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
+    send({ type: 'postplan:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
     const before = clicks().length
     const evt = fireDom('click', document.getElementById('chart') as Element, IN_NOTHING)
     expect(clicks()).toHaveLength(before)
@@ -241,7 +241,7 @@ describe('client.ts — clicking a painted anchor posts glance:anchor-click', ()
   })
 
   test('with NOTHING painted (the rail closed) the same click is inert', () => {
-    send({ type: 'glance:paint', anchors: [] })
+    send({ type: 'postplan:paint', anchors: [] })
     const before = clicks().length
     const evt = fireDom('click', document.getElementById('chart') as Element, IN_TEXT)
     expect(clicks()).toHaveLength(before)
@@ -249,7 +249,7 @@ describe('client.ts — clicking a painted anchor posts glance:anchor-click', ()
   })
 
   test('a modified or non-left click is never claimed — cmd-click, middle-click, right-click', () => {
-    send({ type: 'glance:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
+    send({ type: 'postplan:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
     const before = clicks().length
     const chart = document.getElementById('chart') as Element
     for (const init of [{ metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
@@ -260,64 +260,64 @@ describe('client.ts — clicking a painted anchor posts glance:anchor-click', ()
   })
 })
 
-// #27 — the boot glance:ready fires exactly once, at import time, so a parent whose listener
+// #27 — the boot postplan:ready fires exactly once, at import time, so a parent whose listener
 // attaches late (warm-cache load: the iframe finishes before the viewer's effect runs) loses it
-// forever. glance:ping is the parent's "did I miss it?" probe: the client re-announces, and the
+// forever. postplan:ping is the parent's "did I miss it?" probe: the client re-announces, and the
 // parent's arbiter already ignores duplicate readys, so a redundant ping costs nothing.
-describe('client.ts — glance:ping re-announces glance:ready (#27)', () => {
-  const readys = () => posted.filter((m) => (m as AnyRecord).type === 'glance:ready') as AnyRecord[]
+describe('client.ts — postplan:ping re-announces postplan:ready (#27)', () => {
+  const readys = () => posted.filter((m) => (m as AnyRecord).type === 'postplan:ready') as AnyRecord[]
 
-  test('a ping from the app origin re-posts glance:ready with the mounted filePath', () => {
+  test('a ping from the app origin re-posts postplan:ready with the mounted filePath', () => {
     const before = readys().length
-    send({ type: 'glance:ping' })
+    send({ type: 'postplan:ping' })
     expect(readys()).toHaveLength(before + 1)
     expect(readys().at(-1)?.filePath).toBe('index.html')
   })
 
   test('a ping from any other origin is ignored — same trust rule as paint/focus', () => {
     const before = readys().length
-    send({ type: 'glance:ping' }, 'https://evil.example.com')
+    send({ type: 'postplan:ping' }, 'https://evil.example.com')
     expect(readys()).toHaveLength(before)
   })
 })
 
-describe('client.ts — glance:print prints in the frame realm (the parent cannot call print cross-origin)', () => {
-  test('a trusted glance:print calls window.print exactly once; a foreign origin never does', () => {
+describe('client.ts — postplan:print prints in the frame realm (the parent cannot call print cross-origin)', () => {
+  test('a trusted postplan:print calls window.print exactly once; a foreign origin never does', () => {
     const win = (globalThis as unknown as AnyRecord).window as unknown as Window & AnyRecord
     let printed = 0
     Object.defineProperty(win, 'print', { value: () => printed++, configurable: true })
 
-    send({ type: 'glance:print' })
+    send({ type: 'postplan:print' })
     expect(printed).toBe(1)
 
     // Same payload from a hostile origin is ignored — commands are trusted ONLY from the app origin.
-    send({ type: 'glance:print' }, 'https://evil.example.com')
+    send({ type: 'postplan:print' }, 'https://evil.example.com')
     expect(printed).toBe(1)
   })
 })
 
-describe('client.ts — glance:theme swaps the theme stylesheet inside the frame (viewer-local override)', () => {
-  const link = () => document.getElementById('glance-theme') as HTMLLinkElement | null
+describe('client.ts — postplan:theme swaps the theme stylesheet inside the frame (viewer-local override)', () => {
+  const link = () => document.getElementById('postplan-theme') as HTMLLinkElement | null
 
   test('a trusted href installs the link, a second swaps it in place, null removes it (no boot theme here)', () => {
-    send({ type: 'glance:theme', href: '/_glance/theme/kapow.css?v=abc12345' })
-    expect(link()?.getAttribute('href')).toBe('/_glance/theme/kapow.css?v=abc12345')
+    send({ type: 'postplan:theme', href: '/_postplan/theme/kapow.css?v=abc12345' })
+    expect(link()?.getAttribute('href')).toBe('/_postplan/theme/kapow.css?v=abc12345')
 
-    send({ type: 'glance:theme', href: '/_glance/theme/matrix.css?v=abc12345' })
-    expect(link()?.getAttribute('href')).toBe('/_glance/theme/matrix.css?v=abc12345')
-    expect(document.querySelectorAll('#glance-theme')).toHaveLength(1)
+    send({ type: 'postplan:theme', href: '/_postplan/theme/matrix.css?v=abc12345' })
+    expect(link()?.getAttribute('href')).toBe('/_postplan/theme/matrix.css?v=abc12345')
+    expect(document.querySelectorAll('#postplan-theme')).toHaveLength(1)
 
     // This page booted with NO server-injected theme, so null = remove entirely.
-    send({ type: 'glance:theme', href: null })
+    send({ type: 'postplan:theme', href: null })
     expect(link()).toBeNull()
   })
 
-  test('hrefs outside /_glance/theme/ are rejected; foreign origins are ignored', () => {
-    send({ type: 'glance:theme', href: 'https://evil.example.com/steal.css' })
+  test('hrefs outside /_postplan/theme/ are rejected; foreign origins are ignored', () => {
+    send({ type: 'postplan:theme', href: 'https://evil.example.com/steal.css' })
     expect(link()).toBeNull()
-    send({ type: 'glance:theme', href: '/_glance/theme/../../etc.css' })
+    send({ type: 'postplan:theme', href: '/_postplan/theme/../../etc.css' })
     expect(link()).toBeNull()
-    send({ type: 'glance:theme', href: '/_glance/theme/kapow.css' }, 'https://evil.example.com')
+    send({ type: 'postplan:theme', href: '/_postplan/theme/kapow.css' }, 'https://evil.example.com')
     expect(link()).toBeNull()
   })
 })
@@ -331,7 +331,7 @@ describe('client.ts — clicking a mermaid diagram opens it in a modal <dialog> 
     const diagram = document.querySelector('.mermaid') as Element
 
     fireDom('click', diagram.querySelector('g') as Element)
-    const dialog = document.querySelector('dialog.glance-lb') as HTMLDialogElement
+    const dialog = document.querySelector('dialog.postplan-lb') as HTMLDialogElement
     expect(dialog.open).toBe(true)
     expect(dialog.querySelector('svg')?.id).toBe('mermaid-1')
     expect(document.querySelectorAll('svg')).toHaveLength(2) // the original is copied, never moved

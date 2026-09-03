@@ -1,5 +1,5 @@
 {
-  "name": "glance",
+  "name": "postplan",
   "private": true,
   "type": "module",
   "description": "An open-source alternative to Claude Artifacts for every coding agent \u2014 self-hosted on Cloudflare.",
@@ -7,11 +7,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/plivo-labs/glance.git"
+    "url": "https://github.com/notsuhas/postplan.git"
   },
-  "homepage": "https://github.com/plivo-labs/glance#readme",
+  "homepage": "https://github.com/notsuhas/postplan#readme",
   "bugs": {
-    "url": "https://github.com/plivo-labs/glance/issues"
+    "url": "https://github.com/notsuhas/postplan/issues"
   },
   "keywords": [
     "static-hosting",
@@ -39,8 +39,8 @@
     "format": "biome check --write .",
     "cf-typegen": "bunx wrangler types -c wrangler.jsonc packages/api/worker-configuration.d.ts",
     "db:generate": "cd packages/api && bunx drizzle-kit generate",
-    "db:migrate:local": "bunx wrangler d1 migrations apply glance-db -c wrangler.jsonc --local --persist-to .wrangler-shared",
-    "db:migrate:remote": "bunx wrangler d1 migrations apply glance-db -c wrangler.jsonc --remote",
+    "db:migrate:local": "bunx wrangler d1 migrations apply postplan-db -c wrangler.jsonc --local --persist-to .wrangler-shared",
+    "db:migrate:remote": "bunx wrangler d1 migrations apply postplan-db -c wrangler.jsonc --remote",
     "deploy": "scripts/apply-config.sh && bun run build:web && bunx wrangler deploy -c wrangler.jsonc && bunx wrangler deploy -c wrangler.content.jsonc"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-# Contributing to Glance
+# Contributing to Postplan
 
 ## Setup
 

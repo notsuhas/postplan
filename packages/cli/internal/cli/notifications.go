@@ -3,7 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"glance/internal/argparse"
+	"postplan/internal/argparse"
 	"io"
 	"strings"
 	"time"

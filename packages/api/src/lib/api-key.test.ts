@@ -158,7 +158,7 @@ describe('resolveApiKey', () => {
 })
 
 describe('apiKeyDb', () => {
-  test('no GLANCE_DB binding → falls back to c.get(\'db\') (route-fixtures harness shape)', async () => {
+  test('no POSTPLAN_DB binding → falls back to c.get(\'db\') (route-fixtures harness shape)', async () => {
     const harnessDb = makeDb()
     const app = new Hono<AppEnv>()
     app.use('*', async (c, next) => {
@@ -174,7 +174,7 @@ describe('apiKeyDb', () => {
     expect(seen).toBe(harnessDb)
   })
 
-  test('GLANCE_DB bound → a first-primary session client, not the fallback db', async () => {
+  test('POSTPLAN_DB bound → a first-primary session client, not the fallback db', async () => {
     const statement = {
       bind: () => statement,
       all: async () => ({ results: [], success: true, meta: {} }),
@@ -194,7 +194,7 @@ describe('apiKeyDb', () => {
       seen = apiKeyDb(c)
       return c.text('ok')
     })
-    await app.request('/x', {}, { GLANCE_DB: binding } as unknown as AppEnv['Bindings'])
+    await app.request('/x', {}, { POSTPLAN_DB: binding } as unknown as AppEnv['Bindings'])
     expect(anchors).toEqual(['first-primary'])
     expect(seen).toBeDefined()
   })

@@ -585,7 +585,7 @@ describe('site summary routes', () => {
       {
         method: 'POST',
         headers: {
-          cookie: '__Host-glance_session=x',
+          cookie: '__Host-postplan_session=x',
           Origin: 'https://evil.example.com',
           'Content-Type': 'application/json',
         },

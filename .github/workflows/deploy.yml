@@ -87,12 +87,12 @@ jobs:
             : "${CF_APP_URL:?set CF_APP_URL when CF_CONTENT_URL is set (custom domain)}"
             : "${CF_CONTENT_URL:?set CF_CONTENT_URL when CF_APP_URL is set (custom domain)}"
             sed -i \
-              -e "s#https://glance-content.${CF_WORKERS_SUBDOMAIN}.workers.dev#${CF_CONTENT_URL}#g" \
-              -e "s#https://glance.${CF_WORKERS_SUBDOMAIN}.workers.dev#${CF_APP_URL}#g" \
+              -e "s#https://postplan-content.${CF_WORKERS_SUBDOMAIN}.workers.dev#${CF_CONTENT_URL}#g" \
+              -e "s#https://postplan.${CF_WORKERS_SUBDOMAIN}.workers.dev#${CF_APP_URL}#g" \
               packages/web/public/_headers
           fi
-          echo "APP_URL=${CF_APP_URL:-https://glance.${CF_WORKERS_SUBDOMAIN}.workers.dev}" >> "$GITHUB_ENV"
-          echo "CONTENT_URL=${CF_CONTENT_URL:-https://glance-content.${CF_WORKERS_SUBDOMAIN}.workers.dev}" >> "$GITHUB_ENV"
+          echo "APP_URL=${CF_APP_URL:-https://postplan.${CF_WORKERS_SUBDOMAIN}.workers.dev}" >> "$GITHUB_ENV"
+          echo "CONTENT_URL=${CF_CONTENT_URL:-https://postplan-content.${CF_WORKERS_SUBDOMAIN}.workers.dev}" >> "$GITHUB_ENV"
           # Inject the Cloudflare Web Analytics beacon into the SPA shell, if configured. Runs
           # BEFORE build:web (vite passes the tag through). The committed index.html stays clean —
           # dev and beaconless self-hosts never load it. _headers already allowlists the beacon
@@ -106,7 +106,7 @@ jobs:
         run: bun run build:web
 
       # Regenerate the COMMITTED string-module bundles from source so a stale checkout can't ship an
-      # old annotate client, glance.db client, installer, or What's New catalog. The workers have no
+      # old annotate client, postplan.db client, installer, or What's New catalog. The workers have no
       # asset pipeline — they import these bundles at build time — build:install also refreshes the
       # /api/install script from the repo-root install.sh, and build:whatsnew re-bakes the release
       # notes from src/whats-new/notes/*.md (the main worker's `wrangler deploy` has no prebuild, so
@@ -128,7 +128,7 @@ jobs:
         working-directory: packages/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: bunx wrangler d1 migrations apply glance-db --remote
+        run: bunx wrangler d1 migrations apply postplan-db --remote
 
       # Read replication (issue #79): a DB-level setting with no wrangler command — REST only.
       # Reads then route to the nearest replica via the Sessions API adopted in the workers;

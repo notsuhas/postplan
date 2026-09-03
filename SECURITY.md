@@ -15,7 +15,7 @@ Only the latest release on `main` receives security fixes.
 
 Use GitHub's private vulnerability reporting:
 **Security tab → "Report a vulnerability"**
-(direct link: `https://github.com/plivo-labs/glance/security/advisories/new`)
+(direct link: `https://github.com/notsuhas/postplan/security/advisories/new`)
 
 Include:
 - Description of the vulnerability and potential impact
@@ -26,7 +26,7 @@ We aim to acknowledge reports within 2 business days and provide a fix timeline 
 
 ## Scope notes
 
-Glance handles sensitive surface areas — please pay particular attention to:
+Postplan handles sensitive surface areas — please pay particular attention to:
 
 - **OAuth flow** — Google OAuth state parameter, callback validation
 - **Session tokens** — signed cookies, session invalidation

@@ -5,9 +5,9 @@ import type { OgCard } from './lib/og-image'
 /** Worker bindings + secrets/vars. Secrets come from `.dev.vars` locally and
  *  `wrangler secret put` in prod; plain vars can live in wrangler.jsonc `vars`. */
 export interface Bindings {
-  GLANCE_DB: D1Database
-  GLANCE_FILES: R2Bucket
-  GLANCE_SESSIONS: KVNamespace
+  POSTPLAN_DB: D1Database
+  POSTPLAN_FILES: R2Bucket
+  POSTPLAN_SESSIONS: KVNamespace
   ASSETS: Fetcher
   UPLOAD_LIMITER?: RateLimit
   SUMMARY_LIMITER?: RateLimit
@@ -40,18 +40,22 @@ export interface Bindings {
   OG_RENDER?: (card: OgCard) => Promise<Response>
   SESSION_SECRET: string
   CONTENT_TOKEN_SECRET: string
-  // Optional: separate HMAC secret for the shared-backend data-plane tokens (glance.db SDK).
+  // Optional: separate HMAC secret for the shared-backend data-plane tokens (postplan.db SDK).
   // Distinct from CONTENT_TOKEN_SECRET so a leaked content (view) token can't verify as a data
   // token. When unset, the /api/_data surface is inert (404) — the feature is opt-in per deploy.
   DATA_TOKEN_SECRET?: string
-  // Optional: one hibernating Durable Object per site, fanning out glance.db change events to
+  // Optional: one hibernating Durable Object per site, fanning out postplan.db change events to
   // subscribed pages. Typed optional (like AI) so a binding-less deploy — and every test — still
   // serves mutations: the change_log is written either way, only the live push is skipped.
   SITE_ROOM?: DurableObjectNamespace
   APP_URL: string
   CONTENT_URL: string
-  // Comma-separated extra admin emails. SUPERADMIN_EMAIL is always an admin; both bypass the
-  // invite gate so a fresh instance is reachable before any invite row exists.
+  // Comma-separated superadmins, in addition to SUPERADMIN_EMAIL. Both bypass the invite gate and
+  // both grant the `superadmin` role — there is no lesser "admin" tier, which is why this is not
+  // called ADMIN_EMAILS.
+  SUPERADMIN_EMAILS?: string
+  // Deprecated spelling of SUPERADMIN_EMAILS, still read so an existing deploy keeps working
+  // without a config edit. Remove once no instance sets it.
   ADMIN_EMAILS?: string
   SUPERADMIN_EMAIL: string
 }

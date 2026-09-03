@@ -10,7 +10,7 @@ import { upload } from './upload'
 // Upload rejects duplicate paths before any R2 write — closing the blind-insert gap that would
 // otherwise 500 post-constraint.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 async function setup() {
   const db = makeDb()
@@ -24,8 +24,8 @@ async function setup() {
   const env = {
     APP_URL,
     SESSION_SECRET: 'sess',
-    GLANCE_SESSIONS: kv,
-    GLANCE_FILES: r2,
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
   } as unknown as AppEnv['Bindings']
 
   const app = new Hono<AppEnv>()
@@ -77,7 +77,7 @@ describe('upload — a superadmin is not an editor', () => {
     await postUpload(app, env, 'modme', [html('<html>1</html>', 'index.html')]) // owner creates
     const admin = await seedUser(db, { id: 'admin', email: 'admin@example.com', role: 'superadmin' })
     // superadmin is NOT the owner and NOT a member of acme
-    await (env.GLANCE_SESSIONS as ReturnType<typeof makeKv>).put(
+    await (env.POSTPLAN_SESSIONS as ReturnType<typeof makeKv>).put(
       'cli:admintok',
       JSON.stringify({ id: admin, email: 'admin@example.com', name: null, role: 'superadmin' }),
     )
@@ -89,7 +89,7 @@ describe('upload — a superadmin is not an editor', () => {
     const { app, env, db } = await setup()
     await postUpload(app, env, 'guarded', [html('<html>1</html>', 'index.html')])
     const other = await seedUser(db, { id: 'other', email: 'other@example.com', role: 'member' })
-    await (env.GLANCE_SESSIONS as ReturnType<typeof makeKv>).put(
+    await (env.POSTPLAN_SESSIONS as ReturnType<typeof makeKv>).put(
       'cli:othertok',
       JSON.stringify({ id: other, email: 'other@example.com', name: null, role: 'member' }),
     )
@@ -210,7 +210,7 @@ describe('upload — put-loop cleanup', () => {
         return r2.put(key, value, opts)
       },
     }
-    const res = await postFiles(app, { ...env, GLANCE_FILES: failing } as unknown as AppEnv['Bindings'], 'boom', [
+    const res = await postFiles(app, { ...env, POSTPLAN_FILES: failing } as unknown as AppEnv['Bindings'], 'boom', [
       html('<html>a</html>', 'a.html'),
       html('<html>b</html>', 'b.html'),
       html('<html>c</html>', 'c.html'),

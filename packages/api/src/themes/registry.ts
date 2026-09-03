@@ -40,6 +40,6 @@ export function normalizeTheme(raw: unknown): string | null {
   return typeof raw === 'string' && raw !== '' && raw !== 'none' && raw !== 'default' ? raw : null
 }
 
-/** Cache-busting version for /_glance/theme/*.css?v= links. Duplicated from css.ts so the MAIN
+/** Cache-busting version for /_postplan/theme/*.css?v= links. Duplicated from css.ts so the MAIN
  *  worker (and the web client via /api/themes) can build hrefs without importing the CSS strings. */
 export const THEMES_VERSION = "a32849a5"

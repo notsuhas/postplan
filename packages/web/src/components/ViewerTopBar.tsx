@@ -46,11 +46,11 @@ export function ViewerTopBar({
   onToggleRail: () => void
   onToggleSidebar: () => void
   onSearch: () => void
-  // Posts glance:print into the content iframe (HTML sites only — absent hides the item). The
+  // Posts postplan:print into the content iframe (HTML sites only — absent hides the item). The
   // frame prints itself; the browser's print dialog is where the user picks "Save as PDF".
   onPrint?: () => void
   // Viewer-LOCAL theme override (non-owners): current value + setter. Client-side only — the
-  // viewer posts glance:theme into the frame; nothing is written server-side.
+  // viewer posts postplan:theme into the frame; nothing is written server-side.
   viewTheme?: string | null
   onViewTheme?: (slug: string | null) => void
 }) {
@@ -63,7 +63,7 @@ export function ViewerTopBar({
     <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3 md:gap-3">
       <Link to="/dashboard" className="flex shrink-0 items-center gap-2 font-mono font-semibold text-sm tracking-tight">
         <BrandMark />
-        glance
+        postplan
       </Link>
 
       <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-sm">
@@ -91,7 +91,7 @@ export function ViewerTopBar({
           <ViewerTheme site={site} />
         ) : onViewTheme ? (
           // Non-owners re-skin only their OWN view: the choice never touches the server — the
-          // parent posts glance:theme into the frame and remembers it in localStorage. Absent
+          // parent posts postplan:theme into the frame and remembers it in localStorage. Absent
           // handler (audio sites: no document to theme) → no chip, like onPrint.
           <ThemeMenu
             trigger="chip"

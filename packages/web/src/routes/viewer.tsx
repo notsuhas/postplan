@@ -67,7 +67,7 @@ function Viewer() {
   // the lone-upload fallback, e.g. recording.webm), so audio detection, the player src, and comment
   // anchoring work at the root URL too. null = the site has no known root entry (never guess).
   // Audio has no HTML document to frame — it gets a native player instead of the sandboxed
-  // iframe, and (unlike the iframe src) no ?glance_annotate param: that flag only triggers the
+  // iframe, and (unlike the iframe src) no ?postplan_annotate param: that flag only triggers the
   // HTML-injection transform in content.ts, which never applies to audio.
   const isAudio = useMemo(() => entryPath !== null && isAudioFile(entryPath), [entryPath])
   const audioSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
@@ -102,9 +102,9 @@ function Viewer() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
   // Viewer-LOCAL theme override (non-owners): purely cosmetic and per-browser — persisted in
-  // localStorage per site, applied by posting glance:theme into the frame (the annotate client
+  // localStorage per site, applied by posting postplan:theme into the frame (the annotate client
   // swaps the stylesheet link in place; the server is never written). null = the site's default.
-  const viewThemeKey = `glance:viewTheme:${site.spaceSlug}/${site.siteSlug}`
+  const viewThemeKey = `postplan:viewTheme:${site.spaceSlug}/${site.siteSlug}`
   const [viewTheme, setViewTheme] = useState<string | null>(() => {
     try {
       return localStorage.getItem(viewThemeKey)
@@ -119,7 +119,7 @@ function Viewer() {
   const applyViewTheme = useCallback(
     (slug: string | null) => {
       void viewThemeHref(slug).then((href) => {
-        iframeRef.current?.contentWindow?.postMessage({ type: 'glance:theme', href }, contentOrigin)
+        iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:theme', href }, contentOrigin)
       })
     },
     [contentOrigin],
@@ -150,13 +150,13 @@ function Viewer() {
   const paint = useCallback(() => {
     const win = iframeRef.current?.contentWindow
     if (!win || !loaded) return
-    win.postMessage({ type: 'glance:paint', anchors: railOpen ? paintAnchors(threads) : [] }, contentOrigin)
+    win.postMessage({ type: 'postplan:paint', anchors: railOpen ? paintAnchors(threads) : [] }, contentOrigin)
   }, [threads, railOpen, loaded, contentOrigin])
 
   // ── S11 comments-load arbitration ────────────────────────────────────────────────────────────
   // The loader fires a comments prefetch BEFORE the iframe mounts; this pure reducer
   // (lib/prefetchArbiter) owns every ordering rule — generations (newer loads invalidate all older
-  // in-flight results), provisional HTML prefetches (held until a matching glance:ready), stale
+  // in-flight results), provisional HTML prefetches (held until a matching postplan:ready), stale
   // readys after a splat nav. The component only executes its decisions.
   const arbiter = useRef<ArbiterState>(initialArbiter(entryPath))
 
@@ -311,7 +311,7 @@ function Viewer() {
   // Actionable count for the toolbar badge: open threads (mirrors the rail's default "open" list).
   const openCount = useMemo(() => threads.filter((t) => t.status === 'open').length, [threads])
 
-  // Per-site tab title: without this the shell's static <title> ("Glance — …") shows for EVERY
+  // Per-site tab title: without this the shell's static <title> ("Postplan — …") shows for EVERY
   // site. site.title is owner-set or deploy-derived from the entry HTML's <title>; fall back to
   // the slug. Restored on unmount so back-navigation to the dashboard keeps the shell default.
   useEffect(() => {
@@ -322,7 +322,7 @@ function Viewer() {
     }
   }, [site.title, site.siteSlug])
 
-  // glance.db credential broker: the injected SDK in the iframe hands us a MessagePort; we
+  // postplan.db credential broker: the injected SDK in the iframe hands us a MessagePort; we
   // execute its data-plane requests with OUR token so no credential ever enters the untrusted
   // frame (P0-1). Bound to THIS site — the page cannot ask for another site's data.
   useEffect(() => {
@@ -410,13 +410,13 @@ function Viewer() {
       }
     }
     window.addEventListener('message', onMsg)
-    // The other half of the #27 handshake: the client posts its one boot glance:ready at load, and
+    // The other half of the #27 handshake: the client posts its one boot postplan:ready at load, and
     // on a warm-cache load the iframe can finish BEFORE this listener exists — the ready is lost,
     // filePath stays null, and the rail never loads for the initially open page. Pinging after
     // attach makes the order irrelevant: an already-booted client re-announces, while a ping that
     // beats the load lands on about:blank and is dropped (the boot ready then arrives normally).
     // Effect re-runs re-ping, which is harmless — the arbiter ignores duplicate readys.
-    iframeRef.current?.contentWindow?.postMessage({ type: 'glance:ping' }, contentOrigin)
+    iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:ping' }, contentOrigin)
     return () => window.removeEventListener('message', onMsg)
   }, [contentOrigin, me, site.spaceSlug, site.siteSlug, site.title, threads, dispatch, loadThreads, revealThread, applyViewTheme])
 
@@ -458,7 +458,7 @@ function Viewer() {
     }
     if (commentsPromise && commentsPromise !== consumedPrefetch.current && entryPath !== null) {
       consumedPrefetch.current = commentsPromise
-      // HTML stays provisional until its glance:ready confirms the path; audio has no iframe (and
+      // HTML stays provisional until its postplan:ready confirms the path; audio has no iframe (and
       // thus no ready) — it applies as soon as it settles, keeping the audio player's rail working.
       loadThreads(entryPath, { provisional: !isAudio, prefetch: commentsPromise })
     }
@@ -499,9 +499,9 @@ function Viewer() {
       const win = iframeRef.current?.contentWindow
       if (!win) return
       if (thread.anchorType === 'element' && thread.anchor)
-        win.postMessage({ type: 'glance:focus', selector: thread.anchor.selector }, contentOrigin)
+        win.postMessage({ type: 'postplan:focus', selector: thread.anchor.selector }, contentOrigin)
       // Context rides along so focusing lands on the SAME occurrence the paint highlighted.
-      else if (thread.quote) win.postMessage({ type: 'glance:focus', quote: thread.quote, context: thread.context }, contentOrigin)
+      else if (thread.quote) win.postMessage({ type: 'postplan:focus', quote: thread.quote, context: thread.context }, contentOrigin)
     },
     [contentOrigin],
   )
@@ -658,7 +658,7 @@ function Viewer() {
         onPrint={
           isAudio
             ? undefined
-            : () => iframeRef.current?.contentWindow?.postMessage({ type: 'glance:print' }, contentOrigin)
+            : () => iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:print' }, contentOrigin)
         }
         viewTheme={viewTheme}
         onViewTheme={isAudio ? undefined : onViewTheme}
@@ -702,7 +702,7 @@ function Viewer() {
                 // new tab that isn't itself sandboxed, so the destination site loads normally.
                 // allow-modals: window.print() counts as a modal, and Chromium blocks it in a
                 // sandboxed frame without this flag — required by the Print / Save as PDF action
-                // (the annotate client's glance:print handler). Also un-blocks alert()/confirm()
+                // (the annotate client's postplan:print handler). Also un-blocks alert()/confirm()
                 // for hosted pages, which matches how interactive artifacts behave elsewhere.
                 sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-top-navigation-by-user-activation allow-modals"
                 // Delegate mic to the cross-origin content frame: without this, getUserMedia is
@@ -778,7 +778,7 @@ function Viewer() {
 
 function withAnnotate(u: string): string {
   const url = new URL(u)
-  url.searchParams.set('glance_annotate', '1')
+  url.searchParams.set('postplan_annotate', '1')
   return url.toString()
 }
 

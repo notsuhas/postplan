@@ -5,7 +5,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"glance/internal/selfupdate"
+	"postplan/internal/selfupdate"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -63,7 +63,7 @@ func TestDownloadAndSwap(t *testing.T) {
 		newBinary := []byte("NEW-BINARY-CONTENTS-v2")
 		srv := releaseAssets(t, "v2.0.0", newBinary, "")
 
-		target := filepath.Join(t.TempDir(), "glance")
+		target := filepath.Join(t.TempDir(), "postplan")
 		if err := os.WriteFile(target, []byte("OLD-v1"), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -83,7 +83,7 @@ func TestDownloadAndSwap(t *testing.T) {
 	t.Run("checksum-mismatch-leaves-target-untouched", func(t *testing.T) {
 		srv := releaseAssets(t, "v2.0.0", []byte("NEW"), strings.Repeat("a", 64)) // wrong sha
 
-		target := filepath.Join(t.TempDir(), "glance")
+		target := filepath.Join(t.TempDir(), "postplan")
 		_ = os.WriteFile(target, []byte("OLD-v1"), 0o755)
 		if err := downloadAndSwap(srv.URL, "v2.0.0", target); err == nil {
 			t.Fatal("want error on checksum mismatch")
@@ -95,7 +95,7 @@ func TestDownloadAndSwap(t *testing.T) {
 		// the temp file must not be left behind
 		entries, _ := os.ReadDir(filepath.Dir(target))
 		for _, e := range entries {
-			if strings.HasPrefix(e.Name(), ".glance-update-") {
+			if strings.HasPrefix(e.Name(), ".postplan-update-") {
 				t.Errorf("leftover temp file: %s", e.Name())
 			}
 		}
@@ -103,7 +103,7 @@ func TestDownloadAndSwap(t *testing.T) {
 
 	t.Run("missing-asset-errors", func(t *testing.T) {
 		srv := releaseAssets(t, "v2.0.0", []byte("NEW"), "")
-		target := filepath.Join(t.TempDir(), "glance")
+		target := filepath.Join(t.TempDir(), "postplan")
 		_ = os.WriteFile(target, []byte("OLD"), 0o755)
 		if err := downloadAndSwap(srv.URL, "v9.9.9", target); err == nil { // wrong tag -> 404
 			t.Fatal("want error when the asset is missing")
@@ -125,7 +125,7 @@ func TestDownloadAndSwap(t *testing.T) {
 		binBytes, _ := os.ReadFile(newBin)
 
 		srv := releaseAssets(t, "v2.0.0", binBytes, "")
-		target := filepath.Join(t.TempDir(), "glance")
+		target := filepath.Join(t.TempDir(), "postplan")
 		_ = os.WriteFile(target, []byte("#!/bin/sh\necho OLD\n"), 0o755)
 
 		if err := downloadAndSwap(srv.URL, "v2.0.0", target); err != nil {

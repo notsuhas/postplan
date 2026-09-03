@@ -70,7 +70,7 @@ interface AdminInvite {
 
 interface InvitesData {
   invites: AdminInvite[]
-  // SUPERADMIN_EMAIL + ADMIN_EMAILS: they bypass the gate and may hold no invite row, so without
+  // SUPERADMIN_EMAIL + SUPERADMIN_EMAILS: they bypass the gate and may hold no invite row, so without
   // this the tab would look empty on a fresh instance and imply nobody can sign in.
   admins: string[]
 }
@@ -701,7 +701,7 @@ function InvitesPanel({ data }: { data: InvitesData }) {
       {data.admins.length > 0 && (
         <div className="rounded-xl border bg-muted/30 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Admins · always allowed
+            Superadmins · always allowed
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {data.admins.map((a) => (
@@ -711,7 +711,7 @@ function InvitesPanel({ data }: { data: InvitesData }) {
             ))}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Set by SUPERADMIN_EMAIL and ADMIN_EMAILS in deploy config — change them there, not here.
+            Set by SUPERADMIN_EMAIL and SUPERADMIN_EMAILS in deploy config — change them there, not here.
           </p>
         </div>
       )}
@@ -783,7 +783,7 @@ export function Component() {
 
   const description =
     loaderData.tab === 'overview'
-      ? 'Usage at a glance'
+      ? 'Usage at a postplan'
       : loaderData.tab === 'sites'
         ? `${loaderData.data.total} site${loaderData.data.total === 1 ? '' : 's'}`
         : loaderData.tab === 'spaces'

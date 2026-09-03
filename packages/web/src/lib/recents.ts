@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
 // Recently-opened sites, for the viewer's left sidebar (and the command palette) so a user can
-// jump back. Namespaced by user id (`glance:recents:<userId>`) — a shared machine must not leak
+// jump back. Namespaced by user id (`postplan:recents:<userId>`) — a shared machine must not leak
 // another user's history, so every call site skips recording until Me has resolved.
 //
 // The module is split in two: PURE list logic (canonicalize/dedupe/cap/ordering — unit-tested
@@ -21,11 +21,11 @@ export interface RecentEntry {
   at: string
 }
 
-const EVENT = 'glance:recents'
+const EVENT = 'postplan:recents'
 const MAX_SITES = 15
 
 function storageKey(userId: string): string {
-  return `glance:recents:${userId}`
+  return `postplan:recents:${userId}`
 }
 
 function siteKey(e: { spaceSlug: string; siteSlug: string }): string {

@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { requireSameOrigin } from './auth'
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 const env = { APP_URL } as AppEnv['Bindings']
 
 const app = new Hono<AppEnv>()
@@ -11,7 +11,7 @@ app.use('/api/*', requireSameOrigin)
 app.post('/api/thing', (c) => c.json({ ok: true }))
 app.get('/api/thing', (c) => c.json({ ok: true }))
 
-const cookie = '__Host-glance_session=signed-token'
+const cookie = '__Host-postplan_session=signed-token'
 
 describe('requireSameOrigin', () => {
   test('cookie POST with foreign Origin → 403', async () => {

@@ -1,4 +1,4 @@
-// Slack link-unfurl lib: parse a pasted Glance URL, build the card, post it back via chat.unfurl.
+// Slack link-unfurl lib: parse a pasted Postplan URL, build the card, post it back via chat.unfurl.
 // Transport, escaping, and identity lookups all come from lib/slack.ts — this file owns only what is
 // unfurl-specific (URL shape, card layout).
 //
@@ -84,7 +84,7 @@ export type UnfurlCard = {
  *  the slugs are `[a-z0-9-]` and need none. */
 export function buildUnfurlAttachment(card: UnfurlCard, url: string, nowMs: number): SlackAttachment {
   const updated = relativeTime(card.updatedAt, nowMs)
-  const meta = [`Glance · ${card.spaceSlug}/${card.siteSlug}`, ...(updated ? [`Updated ${updated}`] : [])]
+  const meta = [`Postplan · ${card.spaceSlug}/${card.siteSlug}`, ...(updated ? [`Updated ${updated}`] : [])]
   return {
     title: escapeSlack(card.title ?? card.siteSlug),
     title_link: url,

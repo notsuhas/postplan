@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"glance/internal/selfupdate"
+	"postplan/internal/selfupdate"
 	"strings"
 	"testing"
 )
@@ -30,9 +30,9 @@ func TestCompareVersions(t *testing.T) {
 
 func TestParseLatestTag(t *testing.T) {
 	cases := map[string]string{
-		"https://github.com/plivo-labs/glance/releases/tag/v0.4.0":        "v0.4.0",
+		"https://github.com/notsuhas/postplan/releases/tag/v0.4.0":        "v0.4.0",
 		"http://127.0.0.1:8080/releases/tag/v9.9.9?x=1#top":               "v9.9.9",
-		"https://github.com/plivo-labs/glance/releases/tag/v0.4.0-rc%2B1": "v0.4.0-rc+1",
+		"https://github.com/notsuhas/postplan/releases/tag/v0.4.0-rc%2B1": "v0.4.0-rc+1",
 	}
 	for url, want := range cases {
 		if got := selfupdate.ParseLatestTag(url); got != want {
@@ -40,8 +40,8 @@ func TestParseLatestTag(t *testing.T) {
 		}
 	}
 	for _, url := range []string{
-		"https://github.com/plivo-labs/glance/releases/latest",
-		"https://github.com/plivo-labs/glance/releases/tag/",
+		"https://github.com/notsuhas/postplan/releases/latest",
+		"https://github.com/notsuhas/postplan/releases/tag/",
 	} {
 		if got := selfupdate.ParseLatestTag(url); got != "" {
 			t.Errorf("selfupdate.ParseLatestTag(%q) = %q, want empty", url, got)
@@ -50,10 +50,10 @@ func TestParseLatestTag(t *testing.T) {
 }
 
 func TestAssetName(t *testing.T) {
-	if got := selfupdate.AssetName("darwin", "arm64"); got != "glance-arm64-darwin" {
+	if got := selfupdate.AssetName("darwin", "arm64"); got != "postplan-arm64-darwin" {
 		t.Errorf("darwin/arm64 = %q", got)
 	}
-	if got := selfupdate.AssetName("linux", "x64"); got != "glance-x64-linux" {
+	if got := selfupdate.AssetName("linux", "x64"); got != "postplan-x64-linux" {
 		t.Errorf("linux/x64 = %q", got)
 	}
 	if got := selfupdate.AssetName("win32", "x64"); got != "" {

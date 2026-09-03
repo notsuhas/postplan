@@ -22,7 +22,7 @@ function setup() {
   app.use('/api/*', trackCliUsage)
   app.get('/api/upload/:a/:b', requireAuth, (c) => c.json({ ok: true }))
   app.get('/api/sites/:a', requireAuth, (c) => c.json({ ok: true }))
-  // The viewer-metadata GET that `glance read` hits authenticates INLINE (readSessionOrBearer) to
+  // The viewer-metadata GET that `postplan read` hits authenticates INLINE (readSessionOrBearer) to
   // shape its own 404/403 JSON — it never runs requireAuth, so `authKind`/`user` stay unset. Stands
   // in for that route to prove trackCliUsage still records a CLI read it doesn't own the auth for.
   app.get('/api/sites/:space/:site', async (c) => {
@@ -30,18 +30,18 @@ function setup() {
     if (!user) return c.json({ error: 'unauthorized' }, 401)
     return c.json({ contentUrl: 'https://content.example.com/x/' })
   })
-  const env = { GLANCE_SESSIONS: kv, SESSION_SECRET: 'sekret', APP_URL: 'https://glance.example.com' }
+  const env = { POSTPLAN_SESSIONS: kv, SESSION_SECRET: 'sekret', APP_URL: 'https://postplan.example.com' }
   return { app, db, kv, env }
 }
 
 describe('parseCliVersion', () => {
-  test('extracts semver from a glance-cli User-Agent', () => {
-    expect(parseCliVersion('glance-cli/1.4.2')).toBe('1.4.2')
+  test('extracts semver from a postplan-cli User-Agent', () => {
+    expect(parseCliVersion('postplan-cli/1.4.2')).toBe('1.4.2')
   })
   test('returns null for browsers / unknown / missing agents', () => {
     expect(parseCliVersion('Mozilla/5.0')).toBeNull()
     expect(parseCliVersion(undefined)).toBeNull()
-    expect(parseCliVersion('glance-cli')).toBeNull()
+    expect(parseCliVersion('postplan-cli')).toBeNull()
   })
 })
 
@@ -61,7 +61,7 @@ describe('trackCliUsage', () => {
 
     const res = await app.request(
       '/api/upload/acme/site',
-      { headers: { Authorization: `Bearer ${tok}`, 'User-Agent': 'glance-cli/2.0.0' } },
+      { headers: { Authorization: `Bearer ${tok}`, 'User-Agent': 'postplan-cli/2.0.0' } },
       env,
     )
     expect(res.status).toBe(200)
@@ -83,14 +83,14 @@ describe('trackCliUsage', () => {
     expect(rows[0]).toMatchObject({ type: 'cli', action: 'sites', cliVersion: null })
   })
 
-  test('#22: `glance read` (inline-auth route, no requireAuth) is still tracked', async () => {
+  test('#22: `postplan read` (inline-auth route, no requireAuth) is still tracked', async () => {
     const { app, db, kv, env } = setup()
     const uid = await seedUser(db, { id: 'u1' })
     const tok = await cliToken(kv, uid)
 
     const res = await app.request(
       '/api/sites/acme/demo',
-      { headers: { Authorization: `Bearer ${tok}`, 'User-Agent': 'glance-cli/3.1.0' } },
+      { headers: { Authorization: `Bearer ${tok}`, 'User-Agent': 'postplan-cli/3.1.0' } },
       env,
     )
     expect(res.status).toBe(200)
@@ -108,7 +108,7 @@ describe('trackCliUsage', () => {
     // rule requireAuth uses). The route still 200s via the Bearer fallback, but nothing is recorded.
     const res = await app.request(
       '/api/sites/acme/demo',
-      { headers: { Authorization: `Bearer ${tok}`, Cookie: '__Host-glance_session=irrelevant' } },
+      { headers: { Authorization: `Bearer ${tok}`, Cookie: '__Host-postplan_session=irrelevant' } },
       env,
     )
     expect(res.status).toBe(200)
@@ -125,7 +125,7 @@ describe('trackCliUsage', () => {
     // from the glk_ check, not merely a missing header.
     const res = await app.request(
       '/api/upload/acme/site',
-      { headers: { Authorization: `Bearer ${secret}`, 'User-Agent': 'glance-cli/9.9.9' } },
+      { headers: { Authorization: `Bearer ${secret}`, 'User-Agent': 'postplan-cli/9.9.9' } },
       env,
     )
     expect(res.status).toBe(200)

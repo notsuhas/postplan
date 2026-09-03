@@ -54,7 +54,7 @@ describe('GET /api/sites/starred', () => {
         audio: false,
         hasSummary: false,
         starred: true,
-        url: 'https://glance.example.com/acme/deck',
+        url: 'https://postplan.example.com/acme/deck',
         createdAt: at(3),
         updatedAt: at(3),
       },

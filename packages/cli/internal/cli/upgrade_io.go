@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"glance/internal/config"
-	"glance/internal/selfupdate"
+	"postplan/internal/config"
+	"postplan/internal/selfupdate"
 	"io"
 	"net/http"
 	"os"
@@ -49,10 +49,10 @@ func saveState(s selfupdate.UpdateState) {
 
 // Overridable so tests (and forks) can point at a fake release host.
 func releaseBase() string {
-	if v := strings.TrimSpace(os.Getenv("GLANCE_RELEASE_BASE")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("POSTPLAN_RELEASE_BASE")); v != "" {
 		return v
 	}
-	return "https://github.com/plivo-labs/glance/releases"
+	return "https://github.com/notsuhas/postplan/releases"
 }
 
 // goAssetPlatform/goAssetArch map Go's runtime vocabulary onto the release asset vocabulary
@@ -80,7 +80,7 @@ func isInstalledBinary() bool {
 }
 
 func dirWritable(dir string) bool {
-	f, err := os.CreateTemp(dir, ".glance-wtest-")
+	f, err := os.CreateTemp(dir, ".postplan-wtest-")
 	if err != nil {
 		return false
 	}
@@ -157,7 +157,7 @@ func downloadAndSwap(base, tag, execPath string) error {
 		return fmt.Errorf("checksum mismatch for %s (%s)", asset, tag)
 	}
 
-	tmp := filepath.Join(filepath.Dir(execPath), fmt.Sprintf(".glance-update-%d", os.Getpid()))
+	tmp := filepath.Join(filepath.Dir(execPath), fmt.Sprintf(".postplan-update-%d", os.Getpid()))
 	if err := os.WriteFile(tmp, binary, 0o755); err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func (c *client) upgradeCmd(argv []string) error {
 	latest := strings.TrimPrefix(tag, "v")
 	if selfupdate.CompareVersions(latest, Version) <= 0 {
 		if !background {
-			fmt.Fprintf(c.out, "✓ glance %s is up to date.\n", Version)
+			fmt.Fprintf(c.out, "✓ postplan %s is up to date.\n", Version)
 		}
 		return nil
 	}
@@ -209,10 +209,10 @@ func (c *client) upgradeCmd(argv []string) error {
 	dir := filepath.Dir(exe)
 	if !dirWritable(dir) {
 		if background {
-			fmt.Fprintln(c.errOut, "glance "+latest+" is available — run `glance upgrade`")
+			fmt.Fprintln(c.errOut, "postplan "+latest+" is available — run `postplan upgrade`")
 			return nil
 		}
-		return fmt.Errorf("cannot write to %s — re-run the installer, or: sudo glance upgrade", dir)
+		return fmt.Errorf("cannot write to %s — re-run the installer, or: sudo postplan upgrade", dir)
 	}
 	if err := downloadAndSwap(base, tag, exe); err != nil {
 		if background {
@@ -226,7 +226,7 @@ func (c *client) upgradeCmd(argv []string) error {
 		st.UpdatedTo = latest
 		saveState(st)
 	} else {
-		fmt.Fprintf(c.out, "✓ Updated glance %s → %s\n", Version, latest)
+		fmt.Fprintf(c.out, "✓ Updated postplan %s → %s\n", Version, latest)
 	}
 	return nil
 }
@@ -234,7 +234,7 @@ func (c *client) upgradeCmd(argv []string) error {
 // Fire-and-forget: stamp the TTL, then hand off to a detached `upgrade --quiet` and return
 // immediately - the user's command never waits on the network.
 func maybeAutoUpdate() {
-	if os.Getenv("GLANCE_NO_UPDATE") != "" || os.Getenv("CI") != "" {
+	if os.Getenv("POSTPLAN_NO_UPDATE") != "" || os.Getenv("CI") != "" {
 		return
 	}
 	if !isInstalledBinary() {

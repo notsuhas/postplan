@@ -8,7 +8,7 @@ import { SiteRoom, TOKEN_HEADER, encodeAttachment } from './site-room'
 // CONTRACT against the same harness fakes site-room.test.ts uses.
 installWorkerSocketGlobals()
 
-const HMAC = 'glance-test-comment-events'
+const HMAC = 'postplan-test-comment-events'
 const ENV = { DATA_TOKEN_SECRET: HMAC } as never
 const VIEWER: DataCapability[] = ['read', 'create']
 const nowSec = () => Math.floor(Date.now() / 1000)

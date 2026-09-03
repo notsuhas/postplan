@@ -84,7 +84,7 @@ export const sites = sqliteTable(
     forkedFrom: text('forkedFrom').references((): AnySQLiteColumn => sites.id, { onDelete: 'set null' }),
     // Optional design theme (slug into the src/themes registry, e.g. 'plivo' | 'broadsheet'); null =
     // unthemed. Applied at SERVE time as an injected stylesheet link — stored bytes are never
-    // rewritten, so `glance read --pull` stays byte-identical. Plain text, no enum: the registry
+    // rewritten, so `postplan read --pull` stays byte-identical. Plain text, no enum: the registry
     // (a pure string map — safe for the content-worker bundle) is the single validation authority,
     // so shipping a new theme is a CSS change, not a migration.
     theme: text('theme'),
@@ -258,7 +258,7 @@ export const commentReactions = sqliteTable(
   (t) => [primaryKey({ columns: [t.commentId, t.userId, t.emoji] })],
 )
 
-// Generic per-site document store backing the browser `glance.db` SDK (shared backend).
+// Generic per-site document store backing the browser `postplan.db` SDK (shared backend).
 // One flat table keyed by (siteId, collection, docId) holding an opaque JSON blob — this is
 // what gives the schemaless collection() DX without a migration per collection. INVARIANTS:
 // `siteId` is ALWAYS derived server-side from the verified data token (never a client field),
@@ -282,7 +282,7 @@ export const documents = sqliteTable(
   ],
 )
 
-// Append-only per-site change stream for `glance.db` realtime push. Every documents mutation
+// Append-only per-site change stream for `postplan.db` realtime push. Every documents mutation
 // writes exactly one row here in the SAME db.batch, so a client that reconnects — or notices a
 // gap — replays from a cursor instead of going permanently stale (Cloudflare terminates every
 // WebSocket on a DO shutdown, INCLUDING each code deploy, so replay is not optional).
@@ -330,7 +330,7 @@ export const events = sqliteTable(
     siteId: text('siteId').references(() => sites.id, { onDelete: 'set null' }),
     // Denormalized "space/site" slug pair — survives a site delete for readable per-site rollups.
     siteLabel: text('siteLabel'),
-    // CLI semver from the User-Agent (glance-cli/<version>); null for views and legacy CLIs.
+    // CLI semver from the User-Agent (postplan-cli/<version>); null for views and legacy CLIs.
     cliVersion: text('cliVersion'),
     createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
   },
@@ -411,7 +411,7 @@ export const siteSummaries = sqliteTable('site_summaries', {
 })
 
 // Control-plane API keys: a long-lived credential a user mints for CLI/CI use, distinct from the
-// GLANCE_SESSIONS browser cookie. Only `hash` (SHA-256 hex of the secret) is ever stored — the
+// POSTPLAN_SESSIONS browser cookie. Only `hash` (SHA-256 hex of the secret) is ever stored — the
 // secret itself is shown once at creation and never persisted. `grants` is a JSON blob (see
 // `documents.json` for the same text/json-mode idiom) holding the key's scoped permissions.
 // `revokedAt` is a manual kill switch; `expiresAt` is enforced independently at auth time.

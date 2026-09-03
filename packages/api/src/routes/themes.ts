@@ -4,7 +4,7 @@ import { THEME_INFO, THEMES_VERSION } from '../themes/registry'
 
 // Design-theme catalog. Public GETs registered BEFORE the /api/* guards (the /api/install
 // idiom): no DB, no auth — a brief is design documentation, and the agent loop fetches it with
-// plain curl (`curl $GLANCE_API_URL/api/themes/plivo/DESIGN.md`) before generating themed HTML.
+// plain curl (`curl $POSTPLAN_API_URL/api/themes/plivo/DESIGN.md`) before generating themed HTML.
 // The list feeds the deploy panel's theme picker and the viewer's theme switcher.
 export const themes = new Hono()
 

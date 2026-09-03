@@ -23,7 +23,7 @@ function fakeEnv(bookmarkAfter: string | null = 'bm-after') {
     anchors.push(a)
     return session
   }
-  const env = { GLANCE_DB: { withSession } } as never
+  const env = { POSTPLAN_DB: { withSession } } as never
   return { env, anchors }
 }
 

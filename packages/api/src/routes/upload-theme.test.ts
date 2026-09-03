@@ -10,7 +10,7 @@ import { upload } from './upload'
 // unthemed), REPLACE only touches sites.theme when explicitly sent — an agent's plain redeploy
 // must never strip a theme picked in the UI. 'none'/'' clears; unknown slugs 400 before any write.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 async function setup() {
   const db = makeDb()
@@ -24,8 +24,8 @@ async function setup() {
   const env = {
     APP_URL,
     SESSION_SECRET: 'sess',
-    GLANCE_SESSIONS: kv,
-    GLANCE_FILES: r2,
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
   } as unknown as AppEnv['Bindings']
 
   const app = new Hono<AppEnv>()

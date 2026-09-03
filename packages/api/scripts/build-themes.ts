@@ -44,7 +44,7 @@ for (const slug of slugs) {
   css[slug] = readFileSync(join(dir, 'theme.css'), 'utf8')
   briefs[slug] = readFileSync(join(dir, 'DESIGN.md'), 'utf8')
   // Optional vendored fonts (themes/<slug>/fonts/*.woff2): served first-party at
-  // /_glance/theme/fonts/<file> so a themed page never calls out to Google (issue #155).
+  // /_postplan/theme/fonts/<file> so a themed page never calls out to Google (issue #155).
   const fontsDir = join(dir, 'fonts')
   if (existsSync(fontsDir)) {
     for (const f of readdirSync(fontsDir).filter((f) => f.endsWith('.woff2')).sort()) {
@@ -60,7 +60,7 @@ const version = new Bun.CryptoHasher('sha256')
   .update(slugs.map((s) => css[s]).join('\0') + Object.values(fonts).join('\0'))
   .digest('hex')
   .slice(0, 8)
-// Authored CSS references fonts as url('/_glance/theme/fonts/x.woff2?v=__THEMES_VERSION__') —
+// Authored CSS references fonts as url('/_postplan/theme/fonts/x.woff2?v=__THEMES_VERSION__') —
 // substitute the real version so a font swap busts the immutable cache.
 for (const slug of slugs) css[slug] = css[slug].replaceAll('__THEMES_VERSION__', version)
 
@@ -88,7 +88,7 @@ export function normalizeTheme(raw: unknown): string | null {
   return typeof raw === 'string' && raw !== '' && raw !== 'none' && raw !== 'default' ? raw : null
 }
 
-/** Cache-busting version for /_glance/theme/*.css?v= links. Duplicated from css.ts so the MAIN
+/** Cache-busting version for /_postplan/theme/*.css?v= links. Duplicated from css.ts so the MAIN
  *  worker (and the web client via /api/themes) can build hrefs without importing the CSS strings. */
 export const THEMES_VERSION = ${JSON.stringify(version)}
 `,

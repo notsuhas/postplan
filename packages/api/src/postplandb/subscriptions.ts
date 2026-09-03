@@ -1,4 +1,4 @@
-// The glance.db subscription core: registry, replay and dispatch, with the transport INJECTED.
+// The postplan.db subscription core: registry, replay and dispatch, with the transport INJECTED.
 //
 // It lives apart from client.ts on purpose. client.ts is browser code excluded from the worker
 // tsconfig and unreachable from bun (DOM globals, a real socket, a real fetch); everything that

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
-import { GLANCE_DB_JS, GLANCE_DB_VERSION } from './bundle'
+import { POSTPLAN_DB_JS, POSTPLAN_DB_VERSION } from './bundle'
 import { type ChangeEvent, type Frame, type StreamHandlers, createSubscriptions } from './subscriptions'
 
 // The SDK's subscription core, exercised against a fake transport: no DOM, no socket, no fetch.
@@ -305,13 +305,13 @@ describe('the last unsubscribe tears the stream down', () => {
 
 describe('the committed bundle', () => {
   test('exposes onCreate/onUpdate/onDelete (build:db was run)', () => {
-    expect(GLANCE_DB_JS).toContain('onCreate')
-    expect(GLANCE_DB_JS).toContain('onUpdate')
-    expect(GLANCE_DB_JS).toContain('onDelete')
+    expect(POSTPLAN_DB_JS).toContain('onCreate')
+    expect(POSTPLAN_DB_JS).toContain('onUpdate')
+    expect(POSTPLAN_DB_JS).toContain('onDelete')
   })
 
   // A substring pin goes stale the moment client.ts changes again, and NOTHING else in test,
-  // typecheck or lint notices: /_glance/db.js is immutable-cached under the committed version
+  // typecheck or lint notices: /_postplan/db.js is immutable-cached under the committed version
   // hash, so a forgotten `bun run build:db` silently serves the old shim forever. Rebuild here and
   // compare the stamp — the same build scripts/build-db.ts performs.
   test('is in sync with client.ts (content hash, not a substring)', async () => {
@@ -323,7 +323,7 @@ describe('the committed bundle', () => {
     })
     expect(built.success).toBe(true)
     const js = await built.outputs[0].text()
-    expect(new Bun.CryptoHasher('sha256').update(js).digest('hex').slice(0, 8)).toBe(GLANCE_DB_VERSION)
+    expect(new Bun.CryptoHasher('sha256').update(js).digest('hex').slice(0, 8)).toBe(POSTPLAN_DB_VERSION)
   })
 })
 

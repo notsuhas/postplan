@@ -11,12 +11,12 @@ import { parseShareGrants, sites } from './sites'
 // `userIds[]` (→ viewer) while the new dialog PUTs `users:[{id,role}]`. Groups stay view-only —
 // there is no editor row on site_group_shares, so an editor grant on a group is a 400.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 async function setup() {
   const db = makeDb()
   const kv = makeKv()
-  const env = { APP_URL, SESSION_SECRET: 's', GLANCE_SESSIONS: kv } as unknown as AppEnv['Bindings']
+  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {

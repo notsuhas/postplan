@@ -22,12 +22,12 @@ export function slugifyHandle(email: string): string {
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/-{2,}/g, '-')
     .replace(/^-+|-+$/g, '')
-  if (s.length < 3) s = `${s || 'user'}-glance`
+  if (s.length < 3) s = `${s || 'user'}-postplan`
   return s.slice(0, 40).replace(/-+$/g, '')
 }
 
 // An `unlisted` site is protected by nothing but the secrecy of its URL, and the slug is the URL.
-// A caller-supplied name is guessable by construction — `glance deploy ./dist` asks for `dist` —
+// A caller-supplied name is guessable by construction — `postplan deploy ./dist` asks for `dist` —
 // so creating an unlisted site appends entropy. 6 hex chars = 24 bits: not a secret to brute-force
 // over the network, but it ends drive-by enumeration of a shared instance, which is the actual
 // threat. The base is truncated so the result still satisfies SLUG_RE's 40-char ceiling.

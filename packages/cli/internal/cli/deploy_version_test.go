@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// Phase 4 / S14 — a deploy from a PULLED tree (has .glance/pull.json) is version-aware: it sends the
+// Phase 4 / S14 — a deploy from a PULLED tree (has .postplan/pull.json) is version-aware: it sends the
 // pulled contentVersion as expectedVersion, targets the recorded site, round-trips dotfiles, and
-// never re-uploads the .glance marker. And the owner-only gate widens to canReplace so an editor
+// never re-uploads the .postplan marker. And the owner-only gate widens to canReplace so an editor
 // (owned:false but canReplace:true) can redeploy.
 
 func writePulledDir(t *testing.T) string {
@@ -16,7 +16,7 @@ func writePulledDir(t *testing.T) string {
 	dir := filepath.Join(t.TempDir(), "site")
 	writeFile(t, filepath.Join(dir, "index.html"), "<p>edited</p>")
 	writeFile(t, filepath.Join(dir, ".well-known", "keep"), "secret-but-owned")
-	writeFile(t, filepath.Join(dir, ".glance", "pull.json"), `{"space":"acme","name":"doc","contentVersion":5}`)
+	writeFile(t, filepath.Join(dir, ".postplan", "pull.json"), `{"space":"acme","name":"doc","contentVersion":5}`)
 	return dir
 }
 
@@ -41,8 +41,8 @@ func TestDeployVersioned(t *testing.T) {
 		if st.files[".well-known/keep"] != "secret-but-owned" {
 			t.Errorf("dotfile not round-tripped: %v", st.files)
 		}
-		if _, leaked := st.files[".glance/pull.json"]; leaked {
-			t.Errorf(".glance/ marker must be excluded from the upload")
+		if _, leaked := st.files[".postplan/pull.json"]; leaked {
+			t.Errorf(".postplan/ marker must be excluded from the upload")
 		}
 	})
 

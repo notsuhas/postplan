@@ -6,7 +6,7 @@ import { makeDb, makeKv } from '../test/harness'
 import type { AppEnv } from '../types'
 import { auth } from './auth'
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 const TOKEN = 'the-bootstrap-token'
 
 function setup(overrides: Partial<AppEnv['Bindings']> = {}) {
@@ -17,7 +17,7 @@ function setup(overrides: Partial<AppEnv['Bindings']> = {}) {
     SESSION_SECRET: 'sess-secret',
     SUPERADMIN_EMAIL: 'owner@example.com',
     BOOTSTRAP_TOKEN: TOKEN,
-    GLANCE_SESSIONS: kv,
+    POSTPLAN_SESSIONS: kv,
     ...overrides,
   } as unknown as AppEnv['Bindings']
 
@@ -48,7 +48,7 @@ describe('POST /api/auth/bootstrap', () => {
     const { app, env, db } = setup()
     const res = await post(app, env, { token: TOKEN })
     expect(res.status).toBe(200)
-    expect(res.headers.get('set-cookie') ?? '').toContain('__Host-glance_session=')
+    expect(res.headers.get('set-cookie') ?? '').toContain('__Host-postplan_session=')
 
     const rows = await db.select().from(users).where(eq(users.email, 'owner@example.com'))
     expect(rows[0]?.role).toBe('superadmin')

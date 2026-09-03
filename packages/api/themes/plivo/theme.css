@@ -1,4 +1,4 @@
-/* Glance theme: Plivo — developer-precision, monochrome-first, one blue accent.
+/* Postplan theme: Plivo — developer-precision, monochrome-first, one blue accent.
  * Tokens from themes/plivo/DESIGN.md (production plivo.com values, Instrument Panel
  * revision: zinc neutrals, universal 2px chamfer, mono-uppercase CTA voice).
  * Classless: element selectors only, so it reskins arbitrary uploaded HTML. Injected LAST in
@@ -7,7 +7,7 @@
  * The INJECTED skin is light-only: an auto-dark variant would drop near-white text onto cards
  * an author painted white (unreadable). Agents building natively from the DESIGN.md brief still
  * get the full first-class dark mode — this file is only the re-skin for existing HTML. */
-/* Fonts are VENDORED and served first-party (/_glance/theme/fonts/*, issue #155) — a
+/* Fonts are VENDORED and served first-party (/_postplan/theme/fonts/*, issue #155) — a
  * themed page must never call out to Google: no IP/referer leak, no loss of typography on
  * egress-filtered networks, and markdownCsp stays 'self'-only.
  * One VARIABLE file per family (wght 400–600 covers every weight this theme uses), split by
@@ -17,7 +17,7 @@
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/_glance/theme/fonts/sora-latin.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/sora-latin.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -25,7 +25,7 @@
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/_glance/theme/fonts/sora-latin-ext.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/sora-latin-ext.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
@@ -33,7 +33,7 @@
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/_glance/theme/fonts/inter-latin.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/inter-latin.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -41,7 +41,7 @@
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/_glance/theme/fonts/inter-latin-ext.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/inter-latin-ext.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
@@ -49,7 +49,7 @@
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/_glance/theme/fonts/jetbrains-mono-latin.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/jetbrains-mono-latin.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -57,31 +57,31 @@
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/_glance/theme/fonts/jetbrains-mono-latin-ext.woff2?v=__THEMES_VERSION__') format('woff2');
+  src: url('/_postplan/theme/fonts/jetbrains-mono-latin-ext.woff2?v=__THEMES_VERSION__') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 :root {
-  --glance-bg: #ffffff;
-  --glance-fg: #09090b;
-  --glance-surface: #fafafa;
-  --glance-surface-2: #f4f4f5;
-  --glance-muted-fg: #67676f;
-  --glance-border: #e4e4e7;
-  --glance-border-strong: #c9c9cf;
-  --glance-code: #f4f4f5;
-  --glance-code-fg: #1c1c22;
-  --glance-accent: #323dfe;
-  --glance-accent-text: #323dfe;
+  --postplan-bg: #ffffff;
+  --postplan-fg: #09090b;
+  --postplan-surface: #fafafa;
+  --postplan-surface-2: #f4f4f5;
+  --postplan-muted-fg: #67676f;
+  --postplan-border: #e4e4e7;
+  --postplan-border-strong: #c9c9cf;
+  --postplan-code: #f4f4f5;
+  --postplan-code-fg: #1c1c22;
+  --postplan-accent: #323dfe;
+  --postplan-accent-text: #323dfe;
   color-scheme: light;
 }
 
 html {
-  background: var(--glance-bg);
+  background: var(--postplan-bg);
 }
 body {
-  background: var(--glance-bg);
-  color: var(--glance-fg);
+  background: var(--postplan-bg);
+  color: var(--postplan-fg);
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
   line-height: 1.6;
 }
@@ -89,36 +89,36 @@ h1, h2, h3, h4, h5, h6 {
   font-family: 'Sora', 'Inter', -apple-system, system-ui, sans-serif;
   font-weight: 400;
   line-height: 1.1;
-  color: var(--glance-fg);
+  color: var(--postplan-fg);
 }
 h1 { letter-spacing: -0.04em; }
 h2 { letter-spacing: -0.035em; }
 h3, h4 { font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; }
-a { color: var(--glance-accent-text); text-decoration-color: color-mix(in srgb, var(--glance-accent-text) 40%, transparent); }
-a:hover { text-decoration-color: var(--glance-accent-text); }
-small { color: var(--glance-muted-fg); }
-hr { border: 0; border-top: 1px solid var(--glance-border); }
+a { color: var(--postplan-accent-text); text-decoration-color: color-mix(in srgb, var(--postplan-accent-text) 40%, transparent); }
+a:hover { text-decoration-color: var(--postplan-accent-text); }
+small { color: var(--postplan-muted-fg); }
+hr { border: 0; border-top: 1px solid var(--postplan-border); }
 blockquote {
   margin-left: 0;
   padding: 0.25rem 0 0.25rem 1rem;
-  border-left: 2px solid var(--glance-border-strong);
-  color: var(--glance-muted-fg);
+  border-left: 2px solid var(--postplan-border-strong);
+  color: var(--postplan-muted-fg);
 }
 code, kbd, samp, pre {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
 }
 code, kbd, samp {
-  background: var(--glance-code);
-  color: var(--glance-code-fg);
+  background: var(--postplan-code);
+  color: var(--postplan-code-fg);
   padding: 0.15em 0.4em;
   border-radius: 2px;
   font-size: 0.9em;
 }
 pre {
-  background: var(--glance-code);
-  color: var(--glance-code-fg);
-  border: 1px solid var(--glance-border);
+  background: var(--postplan-code);
+  color: var(--postplan-code-fg);
+  border: 1px solid var(--postplan-border);
   border-radius: 2px;
   padding: 1rem;
   overflow: auto;
@@ -132,13 +132,13 @@ th {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--glance-muted-fg);
+  color: var(--postplan-muted-fg);
 }
-th, td { border-bottom: 1px solid var(--glance-border); padding: 0.4rem 0.8rem; }
-thead th { border-bottom: 1px solid var(--glance-border-strong); }
+th, td { border-bottom: 1px solid var(--postplan-border); padding: 0.4rem 0.8rem; }
+thead th { border-bottom: 1px solid var(--postplan-border-strong); }
 button {
-  background: var(--glance-fg);
-  color: var(--glance-bg);
+  background: var(--postplan-fg);
+  color: var(--postplan-bg);
   border: 1px solid transparent;
   border-radius: 2px;
   padding: 0.7rem 1.1rem;
@@ -150,24 +150,24 @@ button {
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-button:hover { background: var(--glance-accent); color: #ffffff; }
+button:hover { background: var(--postplan-accent); color: #ffffff; }
 button:active { transform: translateY(1px); }
 input, select, textarea {
-  background: var(--glance-bg);
-  color: var(--glance-fg);
-  border: 1px solid var(--glance-border-strong);
+  background: var(--postplan-bg);
+  color: var(--postplan-fg);
+  border: 1px solid var(--postplan-border-strong);
   border-radius: 2px;
   padding: 0.5rem 0.75rem;
   font-family: inherit;
 }
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid var(--glance-accent);
+  outline: 2px solid var(--postplan-accent);
   outline-offset: 1px;
 }
-::selection { background: color-mix(in srgb, var(--glance-accent) 18%, transparent); }
+::selection { background: color-mix(in srgb, var(--postplan-accent) 18%, transparent); }
 figure, fieldset {
-  background: var(--glance-surface);
-  border: 1px solid var(--glance-border);
+  background: var(--postplan-surface);
+  border: 1px solid var(--postplan-border);
   border-radius: 2px;
 }
 fieldset { padding: 1.5rem; }
@@ -177,7 +177,7 @@ figcaption {
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--glance-muted-fg);
+  color: var(--postplan-muted-fg);
 }
 
 /* Reading measure: flowing text caps at ~72ch so a bare full-width document stays readable.

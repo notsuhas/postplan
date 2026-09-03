@@ -28,13 +28,13 @@ import { sites } from './sites'
 // under /api/sites; notifications at /api/notifications) so CSRF, auth, the mentionable access gate,
 // the create/reply intersection, and the notification endpoints are all exercised end to end.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 async function setup() {
   const db = makeDb()
   const r2 = makeR2()
   const kv = makeKv()
-  const env = { APP_URL, SESSION_SECRET: 's', GLANCE_SESSIONS: kv, GLANCE_FILES: r2 } as unknown as AppEnv['Bindings']
+  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv, POSTPLAN_FILES: r2 } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {

@@ -7,8 +7,8 @@ import { encodeCursor } from '../realtime/cursor'
 import { type HarnessDb, makeDb, seedMember, seedSite, seedSpace, seedUser } from '../test/harness'
 import { MAX_CHANGES, dataApi } from './data'
 
-const HMAC = 'glance-test-catchup'
-// getDb() prefers the injected harness db, so GLANCE_DB is never touched; CONTENT_URL drives CORS.
+const HMAC = 'postplan-test-catchup'
+// getDb() prefers the injected harness db, so POSTPLAN_DB is never touched; CONTENT_URL drives CORS.
 const ENV = { DATA_TOKEN_SECRET: HMAC, CONTENT_URL: 'https://content.example.com' } as never
 
 function mount(db: HarnessDb) {

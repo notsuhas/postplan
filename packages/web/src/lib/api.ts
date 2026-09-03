@@ -14,7 +14,7 @@ export class ApiError extends Error {
 /** D1 session bookmark round-trip (issue #79): the server tags responses with the newest
  *  bookmark; echoing it back anchors its next D1 session so reads on a replica still see
  *  this browser's prior writes. */
-export const BOOKMARK_HEADER = 'x-glance-d1-bookmark'
+export const BOOKMARK_HEADER = 'x-postplan-d1-bookmark'
 
 let dbBookmark: string | null = null
 export const __resetDbBookmark = () => {

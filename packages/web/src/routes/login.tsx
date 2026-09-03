@@ -9,10 +9,10 @@ import { Input } from '@/components/ui/input'
 import '@/tailwind.css'
 
 // Public source — surfaced in the header + footer so a self-hoster can find the repo.
-const REPO_URL = 'https://github.com/plivo-labs/glance'
+const REPO_URL = 'https://github.com/notsuhas/postplan'
 
 const ERRORS: Record<string, string> = {
-  denied: 'Wrong door — Glance is restricted to approved Google Workspace accounts.',
+  denied: 'Wrong door — Postplan is restricted to approved Google Workspace accounts.',
   oauth: "Google sign-in didn't go through. Try again.",
   state: 'Sign-in session expired before it finished. Start over.',
   exchange: "Couldn't finish the handshake with Google. Try again.",
@@ -33,7 +33,7 @@ const FEATURES = [
   },
   {
     label: 'Drag-drop or CLI',
-    detail: 'Drop a folder in the browser or run glance deploy. Same upload, same URL.',
+    detail: 'Drop a folder in the browser or run postplan deploy. Same upload, same URL.',
   },
   {
     label: 'private · members · team',
@@ -49,9 +49,9 @@ const FEATURES = [
 // origin so the demo mirrors what the visitor will actually see, not a placeholder domain.
 function terminalSteps(installCmd: string, host: string) {
   return [
-    { prompt: installCmd, output: '✓ installed glance → ~/.local/bin/glance' },
-    { prompt: 'glance login', output: '✓ device approved in the browser · signed in' },
-    { prompt: 'glance deploy ./site --visibility team', output: `✓ live → ${host}/you/site · 0.4s` },
+    { prompt: installCmd, output: '✓ installed postplan → ~/.local/bin/postplan' },
+    { prompt: 'postplan login', output: '✓ device approved in the browser · signed in' },
+    { prompt: 'postplan deploy ./site --visibility team', output: `✓ live → ${host}/you/site · 0.4s` },
   ]
 }
 
@@ -85,7 +85,7 @@ export function Component() {
   // This deployment's own origin drives the copy-paste install one-liner and the demo output,
   // so what a visitor copies is pre-pointed at THIS instance (mirrors GET /api/install).
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const host = origin.replace(/^https?:\/\//, '') || 'glance.example.com'
+  const host = origin.replace(/^https?:\/\//, '') || 'postplan.example.com'
   const installCmd = `curl -fsSL ${origin}/api/install | sh`
   const terminal = terminalSteps(installCmd, host)
 
@@ -120,7 +120,7 @@ export function Component() {
         <header className="bp-rise flex items-center justify-between">
           <div className="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-tight">
             <span className="inline-block size-2.5 rounded-[3px] bg-primary shadow-[0_0_14px_2px_rgba(245,158,11,0.5)]" />
-            glance
+            postplan
           </div>
           <div className="flex items-center gap-4 font-mono text-xs">
             <a
@@ -141,7 +141,7 @@ export function Component() {
           <div>
             <div className="bp-rise font-mono text-sm" style={{ animationDelay: '60ms' }}>
               <span className="text-muted-foreground">~/work $</span>{' '}
-              <span className="text-primary">glance</span>
+              <span className="text-primary">postplan</span>
             </div>
             <h1
               className="bp-rise mt-5 font-mono text-5xl font-semibold leading-[1.04] tracking-tight [text-shadow:0_2px_30px_rgba(7,11,22,0.85)] sm:text-6xl"
@@ -189,7 +189,7 @@ export function Component() {
                 <span className="size-3 rounded-full bg-white/15" />
                 <span className="size-3 rounded-full bg-white/15" />
                 <span className="size-3 rounded-full bg-white/15" />
-                <span className="ml-2 font-mono text-xs text-muted-foreground">glance — zsh</span>
+                <span className="ml-2 font-mono text-xs text-muted-foreground">postplan — zsh</span>
                 <CopyButton
                   text={installCmd}
                   label="copy install"

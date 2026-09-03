@@ -20,7 +20,7 @@ function setup() {
     await next()
   })
   app.get('/whoami', requireAuth, (c) => c.json(c.get('credential')))
-  // Stands in for the INLINE-auth routes (the viewer endpoint `glance read` hits), which call
+  // Stands in for the INLINE-auth routes (the viewer endpoint `postplan read` hits), which call
   // readSessionOrBearer directly instead of running requireAuth. It must resolve the same
   // credentials the middleware does — see the projection test below.
   app.get('/inline', async (c) => {
@@ -28,9 +28,9 @@ function setup() {
     return user ? c.json(user) : c.json({ error: 'unauthorized' }, 401)
   })
   const env = {
-    GLANCE_SESSIONS: kv,
+    POSTPLAN_SESSIONS: kv,
     SESSION_SECRET: 'sekret',
-    APP_URL: 'https://glance.example.com',
+    APP_URL: 'https://postplan.example.com',
   } as unknown as AppEnv['Bindings']
   return { app, db, kv, env }
 }
@@ -102,7 +102,7 @@ describe('requireAuth credential dispatch', () => {
 
   // readSessionOrBearer is a PROJECTION of readCredential, not a second resolver. Reverting it to
   // its own readSession -> readCliToken implementation leaves every test above green while silently
-  // 401ing API keys on the inline-auth routes — which is the whole `glance read` path. This is the
+  // 401ing API keys on the inline-auth routes — which is the whole `postplan read` path. This is the
   // test that fails when the two paths drift apart.
   test('readSessionOrBearer resolves a glk_ key too, so inline-auth routes accept API keys', async () => {
     const { app, db, env } = setup()

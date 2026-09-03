@@ -5,12 +5,12 @@ const base = 'https://example.com/dir/index.html'
 
 describe('withAnnotateParam — same-origin in-frame link rewrite', () => {
   test('same-origin relative link → param added', () => {
-    expect(withAnnotateParam('page2.html', base)).toBe('https://example.com/dir/page2.html?glance_annotate=1')
+    expect(withAnnotateParam('page2.html', base)).toBe('https://example.com/dir/page2.html?postplan_annotate=1')
   })
 
   test('same-origin absolute link → param added', () => {
     expect(withAnnotateParam('https://example.com/other/page.html', base)).toBe(
-      'https://example.com/other/page.html?glance_annotate=1',
+      'https://example.com/other/page.html?postplan_annotate=1',
     )
   })
 
@@ -20,12 +20,12 @@ describe('withAnnotateParam — same-origin in-frame link rewrite', () => {
 
   test('existing query + hash are preserved', () => {
     expect(withAnnotateParam('page2.html?foo=bar#section', base)).toBe(
-      'https://example.com/dir/page2.html?foo=bar&glance_annotate=1#section',
+      'https://example.com/dir/page2.html?foo=bar&postplan_annotate=1#section',
     )
   })
 
   test('a link that already carries the param is unchanged', () => {
-    expect(withAnnotateParam('page2.html?glance_annotate=1', base)).toBe('https://example.com/dir/page2.html?glance_annotate=1')
+    expect(withAnnotateParam('page2.html?postplan_annotate=1', base)).toBe('https://example.com/dir/page2.html?postplan_annotate=1')
   })
 
   test('an unparseable href yields null, never throws', () => {

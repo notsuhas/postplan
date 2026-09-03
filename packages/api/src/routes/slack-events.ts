@@ -92,12 +92,12 @@ function siteTargets(event: LinkSharedEvent, appUrl: string): { parsed: ParsedSi
  *  that would happen if you typed the title out yourself. */
 async function unfurlLinks(c: Context<AppEnv>, event: LinkSharedEvent): Promise<void> {
   // Parse first: URL parsing is free, while resolving the sharer costs a KV read, a Slack subrequest,
-  // and a D1 round trip. A message whose links aren't Glance sites must cost none of that.
+  // and a D1 round trip. A message whose links aren't Postplan sites must cost none of that.
   const targets = siteTargets(event, c.env.APP_URL)
   if (targets.length === 0 || !event.user) return
 
   const deps = slackDepsFromEnv(c.env)
-  // No email → no way to map the sharer onto a Glance identity → fail closed (no card).
+  // No email → no way to map the sharer onto a Postplan identity → fail closed (no card).
   const email = await lookupSlackEmail(deps, event.user)
   if (!email) return
   const db = c.get('db')

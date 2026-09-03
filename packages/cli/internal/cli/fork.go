@@ -3,8 +3,8 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"glance/internal/argparse"
-	"glance/internal/slug"
+	"postplan/internal/argparse"
+	"postplan/internal/slug"
 	"strings"
 )
 
@@ -18,7 +18,7 @@ func (c *client) fork(argv []string) error {
 	if len(positional) > 0 {
 		target = positional[0]
 	}
-	usage := "Usage: glance fork <space/slug> [--space <slug>] [--name <slug>]"
+	usage := "Usage: postplan fork <space/slug> [--space <slug>] [--name <slug>]"
 	space, name, err := splitSpaceSlug(target)
 	if err != nil {
 		return fmt.Errorf("%s", usage)

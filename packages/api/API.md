@@ -1,13 +1,13 @@
-# Glance HTTP API
+# Postplan HTTP API
 
 The HTTP control plane. Every endpoint below is callable with an **API key** (`glk_…`) minted from
 `/settings/keys`.
 
-Base URL is your instance origin (`https://glance.<your-subdomain>.workers.dev` by default).
+Base URL is your instance origin (`https://postplan.<your-subdomain>.workers.dev` by default).
 All request and response bodies are JSON unless noted; the one exception is
 [deploy](#deploy-files), which is `multipart/form-data`.
 
-> Looking for the `glance` CLI instead? See the [README](../../README.md#cli). The CLI is a client
+> Looking for the `postplan` CLI instead? See the [README](../../README.md#cli). The CLI is a client
 > of this API, not part of its contract — nothing here requires it.
 
 - [Authentication](#authentication)
@@ -16,7 +16,7 @@ All request and response bodies are JSON unless noted; the one exception is
 - [Sites](#sites)
 - [Deploy files](#deploy-files)
 - [Spaces](#spaces)
-- [Data tokens (glance.db)](#data-tokens-glancedb)
+- [Data tokens (postplan.db)](#data-tokens-postplandb)
 - [Errors](#errors)
 
 ---
@@ -26,7 +26,7 @@ All request and response bodies are JSON unless noted; the one exception is
 Send the key as a bearer token:
 
 ```bash
-curl -H "Authorization: Bearer $GLANCE_TOKEN" https://your-instance/api/sites/mine
+curl -H "Authorization: Bearer $POSTPLAN_TOKEN" https://your-instance/api/sites/mine
 ```
 
 Three credential kinds reach these routes, and the server records *which* one authenticated a
@@ -36,7 +36,7 @@ request. The [grant limits](#what-a-key-may-do) apply to API keys only:
 | --- | --- | --- |
 | API key | `Authorization: Bearer glk_…` | Ownership **and** its grants |
 | Device token | `Authorization: Bearer <uuid>` | Ownership alone |
-| Browser session | `__Host-glance_session` cookie | Ownership alone; unsafe methods also require same-origin (CSRF) |
+| Browser session | `__Host-postplan_session` cookie | Ownership alone; unsafe methods also require same-origin (CSRF) |
 
 A `glk_`-prefixed bearer is dispatched to the key store and never falls through to the device-token
 store, or the reverse — an invalid key is `401`, not a retry against the other store.
@@ -139,7 +139,7 @@ key still succeeds. A key that isn't yours is `404`, not `403`, so ids can't be 
 ```
 
 A revoked key stops authenticating immediately. One documented exception: a
-[data token](#data-tokens-glancedb) the key already minted keeps working for the remainder of its
+[data token](#data-tokens-postplandb) the key already minted keeps working for the remainder of its
 ≤300s life, because that token is a self-contained signed credential and not a lookup against the key.
 
 ## Sites
@@ -196,7 +196,7 @@ POST /api/upload/:spaceSlug/:siteSlug        multipart/form-data      ✱ contro
 
 ```bash
 curl -X POST "https://your-instance/api/upload/sam/q3-metrics" \
-  -H "Authorization: Bearer $GLANCE_TOKEN" \
+  -H "Authorization: Bearer $POSTPLAN_TOKEN" \
   -F "files=@dist/index.html;filename=index.html" \
   -F "files=@dist/app.js;filename=app.js" \
   -F "visibility=team"
@@ -214,7 +214,7 @@ curl -X POST "https://your-instance/api/upload/sam/q3-metrics" \
 | `DELETE` | `/api/spaces/:slug/members/:userId` ✱ | Remove a member |
 | `DELETE` | `/api/spaces/:slug` ✱ | Delete a group space — see the caveat above |
 
-## Data tokens (glance.db)
+## Data tokens (postplan.db)
 
 The control plane never touches site data. To read or write a site's document store, exchange your
 credential for a short-lived data token and use that against `/api/_data`:
@@ -237,7 +237,7 @@ always wins — a key can restrict what you could otherwise do, never widen it. 
 `grants.data` is `null` is `403` here.
 
 ```bash
-TOKEN=$(curl -s -X POST -H "Authorization: Bearer $GLANCE_TOKEN" \
+TOKEN=$(curl -s -X POST -H "Authorization: Bearer $POSTPLAN_TOKEN" \
   "https://your-instance/api/data-token/sam/q3-metrics" | jq -r .token)
 ```
 

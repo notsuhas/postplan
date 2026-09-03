@@ -15,8 +15,8 @@ import {
   seedUser,
 } from '../test/harness'
 
-const HMAC = 'glance-test-changelog'
-// getDb() prefers the injected harness db, so GLANCE_DB is never touched. No SITE_ROOM: the
+const HMAC = 'postplan-test-changelog'
+// getDb() prefers the injected harness db, so POSTPLAN_DB is never touched. No SITE_ROOM: the
 // binding is optional, so the default env is also the "binding-less deploy" case.
 const ENV = { DATA_TOKEN_SECRET: HMAC, CONTENT_URL: 'https://content.example.com' } as never
 

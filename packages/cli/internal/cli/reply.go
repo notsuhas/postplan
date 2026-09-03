@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"glance/internal/argparse"
+	"postplan/internal/argparse"
 	"io"
 	"net/url"
 	"strings"
@@ -12,7 +12,7 @@ import (
 
 // reply posts a reply to an existing comment thread. stdin is the recommended channel for
 // agent/arbitrary bodies; it's read only when no positional message was given AND stdin isn't a
-// TTY - otherwise a bare `glance reply a/b t1` at a prompt would silently hang on stdin.
+// TTY - otherwise a bare `postplan reply a/b t1` at a prompt would silently hang on stdin.
 func (c *client) reply(argv []string) error {
 	parsed, err := parseReplyArgs(argv)
 	if err != nil {
@@ -75,7 +75,7 @@ func resolveReplyBody(message, stdin, tag *string, noTag bool) (string, error) {
 	return fmt.Sprintf("[%s] %s", label, trimmed), nil
 }
 
-const replyUsage = "Usage: glance reply <space/slug> <threadId> [message] [--tag <label> | --no-tag]"
+const replyUsage = "Usage: postplan reply <space/slug> <threadId> [message] [--tag <label> | --no-tag]"
 
 type replyArgs struct {
 	space    string
@@ -113,7 +113,7 @@ func parseReplyArgs(argv []string) (*replyArgs, error) {
 		return nil, errors.New("Expected <space/slug>.\n" + replyUsage)
 	}
 	if len(positional) < 2 || positional[1] == "" {
-		return nil, errors.New("Missing <threadId> (see `glance comments`).\n" + replyUsage)
+		return nil, errors.New("Missing <threadId> (see `postplan comments`).\n" + replyUsage)
 	}
 
 	out := &replyArgs{space: space, site: site, threadID: positional[1], noTag: noTag}

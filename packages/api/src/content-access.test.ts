@@ -426,7 +426,7 @@ describe('T1.7 fault injection and branch parity', () => {
     ])
     const hits = [
       { url: `/_t/${t}/sp/site/doc.md?raw=1`, contains: '# Title', arity: SERVE_BATCH_ARITY },
-      { url: `/_t/${t}/sp/site/index.html?glance_annotate=1`, contains: 'window.__GLANCE__', arity: INDEX_BATCH_ARITY },
+      { url: `/_t/${t}/sp/site/index.html?postplan_annotate=1`, contains: 'window.__POSTPLAN__', arity: INDEX_BATCH_ARITY },
       { url: `/_t/${t}/sp/site/doc.md`, contains: '<h1>Title</h1>', arity: SERVE_BATCH_ARITY },
     ]
     for (const hit of hits) {

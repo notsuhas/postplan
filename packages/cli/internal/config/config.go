@@ -14,7 +14,7 @@ type Config struct {
 
 func Dir() string {
 	h, _ := os.UserHomeDir()
-	return filepath.Join(h, ".glance")
+	return filepath.Join(h, ".postplan")
 }
 
 func Path() string {
@@ -69,10 +69,10 @@ func Write(cfg Config) error {
 }
 
 // Instance URL precedence: explicit env override -> persisted config -> local dev default. Uses
-// the `|| not ??` semantics: a blank/whitespace GLANCE_API_URL falls through instead of yielding
+// the `|| not ??` semantics: a blank/whitespace POSTPLAN_API_URL falls through instead of yielding
 // a bad base URL.
 func APIBase() string {
-	if v := strings.TrimSpace(os.Getenv("GLANCE_API_URL")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("POSTPLAN_API_URL")); v != "" {
 		return v
 	}
 	if c := Read(); c != nil && c.ApiUrl != "" {
@@ -82,9 +82,9 @@ func APIBase() string {
 }
 
 // Token precedence: explicit env override -> persisted config. Uses the `|| not ??` semantics: a
-// blank/whitespace GLANCE_TOKEN falls through instead of yielding a bad token.
+// blank/whitespace POSTPLAN_TOKEN falls through instead of yielding a bad token.
 func APIToken() string {
-	if v := strings.TrimSpace(os.Getenv("GLANCE_TOKEN")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("POSTPLAN_TOKEN")); v != "" {
 		return v
 	}
 	if c := Read(); c != nil {

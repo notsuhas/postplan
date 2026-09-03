@@ -9,7 +9,7 @@ import (
 
 const CheckIntervalMS = int64(24 * 60 * 60 * 1000)
 
-// UpdateState persists across runs in ~/.glance/update.json.
+// UpdateState persists across runs in ~/.postplan/update.json.
 type UpdateState struct {
 	LastCheckedAt int64  `json:"lastCheckedAt,omitempty"`
 	UpdatedTo     string `json:"updatedTo,omitempty"` // a background swap landed; notice pending
@@ -62,7 +62,7 @@ func ParseLatestTag(u string) string {
 	return m[1]
 }
 
-// Release asset naming - must match release.yml: glance-<arm64|x64>-<darwin|linux>. Returns "" for
+// Release asset naming - must match release.yml: postplan-<arm64|x64>-<darwin|linux>. Returns "" for
 // unsupported platform/arch. Input follows the JS process.platform/process.arch vocabulary
 // ('darwin'/'linux', 'arm64'/'x64'); the caller maps Go's GOARCH ('amd64'->'x64') before calling.
 func AssetName(platform, arch string) string {
@@ -72,7 +72,7 @@ func AssetName(platform, arch string) string {
 	if arch != "arm64" && arch != "x64" {
 		return ""
 	}
-	return "glance-" + arch + "-" + platform
+	return "postplan-" + arch + "-" + platform
 }
 
 func ShouldCheck(state UpdateState, now int64) bool {
@@ -85,7 +85,7 @@ func PlanAnnouncement(state UpdateState, current string) (message string, next U
 	if state.UpdatedTo != "" {
 		// Only claim the update if we're actually running it (a manual reinstall may have raced us).
 		if state.UpdatedTo == current {
-			message = "✓ glance auto-updated to " + current
+			message = "✓ postplan auto-updated to " + current
 		}
 		next = state
 		next.UpdatedTo = ""

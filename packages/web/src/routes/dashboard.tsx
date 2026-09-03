@@ -523,7 +523,7 @@ function AgentSetup() {
           <h2 className="font-medium">Give this to your agent</h2>
         </div>
         <p className="text-muted-foreground text-sm">
-          Paste it into Claude, Codex, or Cursor — it installs the CLI and the glance skill, so your
+          Paste it into Claude, Codex, or Cursor — it installs the CLI and the postplan skill, so your
           agent can ship sites and read review comments straight from your terminal.
         </p>
       </div>
@@ -607,14 +607,14 @@ function InstallDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Install the glance CLI</DialogTitle>
+          <DialogTitle>Install the postplan CLI</DialogTitle>
           <DialogDescription>Deploy from your terminal — and use it as an agent skill.</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
           <code className="min-w-0 flex-1 truncate font-mono text-sm">{installCmd}</code>
           <CopyButton text={installCmd} label="Copy" copiedMessage="Install command copied" />
         </div>
-        <p className="text-muted-foreground text-xs">Installs to ~/.local/bin/glance.</p>
+        <p className="text-muted-foreground text-xs">Installs to ~/.local/bin/postplan.</p>
       </DialogContent>
     </Dialog>
   )

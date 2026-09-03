@@ -116,7 +116,7 @@ export function lookupSlackId(deps: SlackHttpDeps, email: string): Promise<strin
 }
 
 /** Resolve the profile email of a Slack user-id — the inverse binding, used to map whoever shared a
- *  link back onto a Glance account. An `ok` response with no readable email is DEFINITIVE (a bot, a
+ *  link back onto a Postplan account. An `ok` response with no readable email is DEFINITIVE (a bot, a
  *  guest, or a workspace that never granted `users:read.email`), not a transient failure. */
 export function lookupSlackEmail(deps: SlackHttpDeps, userId: string): Promise<string | null> {
   return cachedLookup(deps, `${EMAIL_CACHE_PREFIX}${userId}`, `${INFO_URL}?user=${encodeURIComponent(userId)}`, (data) => {
@@ -202,9 +202,9 @@ export type SlackDeps = SlackHttpDeps & { appUrl: string }
  *  and the injected fetch (SLACK_FETCH is the test seam — unset in prod → deliverSlack's global-fetch
  *  fallback). */
 export const slackDepsFromEnv = (
-  env: Pick<Bindings, 'GLANCE_SESSIONS' | 'SLACK_BOT_TOKEN' | 'APP_URL' | 'SLACK_FETCH'>,
+  env: Pick<Bindings, 'POSTPLAN_SESSIONS' | 'SLACK_BOT_TOKEN' | 'APP_URL' | 'SLACK_FETCH'>,
 ): SlackDeps => ({
-  kv: env.GLANCE_SESSIONS,
+  kv: env.POSTPLAN_SESSIONS,
   token: env.SLACK_BOT_TOKEN,
   appUrl: env.APP_URL,
   fetchImpl: env.SLACK_FETCH,

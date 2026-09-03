@@ -3,7 +3,7 @@ import { countingKv } from '../test/harness'
 import { buildUnfurlAttachment, parseSiteUrl, postUnfurl, relativeTime, type UnfurlCard } from './slack-unfurl'
 import type { SlackHttpDeps } from './slack'
 
-const APP = 'https://glance.example.com'
+const APP = 'https://postplan.example.com'
 
 const depsWith = (fetchImpl: typeof fetch) =>
   ({ kv: countingKv(), token: 'xoxb-test', fetchImpl }) as unknown as SlackHttpDeps
@@ -18,9 +18,9 @@ describe('parseSiteUrl', () => {
   })
 
   test('rejects any other origin — a look-alike host must never resolve against our data', () => {
-    expect(parseSiteUrl('https://glance.evil.com/acme/report', APP)).toBeNull()
-    expect(parseSiteUrl('http://glance.example.com/acme/report', APP)).toBeNull() // scheme is part of origin
-    expect(parseSiteUrl('https://glance.example.com.evil.com/acme/report', APP)).toBeNull()
+    expect(parseSiteUrl('https://postplan.evil.com/acme/report', APP)).toBeNull()
+    expect(parseSiteUrl('http://postplan.example.com/acme/report', APP)).toBeNull() // scheme is part of origin
+    expect(parseSiteUrl('https://postplan.example.com.evil.com/acme/report', APP)).toBeNull()
   })
 
   test('rejects non-site paths: too few segments and reserved first segments', () => {
@@ -69,7 +69,7 @@ describe('buildUnfurlAttachment', () => {
       title: 'Q3 Report',
       title_link: `${APP}/acme/report`,
       text: 'How the numbers moved',
-      footer: 'Glance · acme/report · Updated 3 days ago',
+      footer: 'Postplan · acme/report · Updated 3 days ago',
     })
   })
 
@@ -80,7 +80,7 @@ describe('buildUnfurlAttachment', () => {
   })
 
   test('an unparseable updatedAt drops the freshness clause, not the card', () => {
-    expect(build({ updatedAt: 'garbage' }).footer).toBe('Glance · acme/report')
+    expect(build({ updatedAt: 'garbage' }).footer).toBe('Postplan · acme/report')
   })
 
   test('an imageUrl rides as the attachment image_url (400px-capped by Slack), absent otherwise', () => {
@@ -98,7 +98,7 @@ describe('buildUnfurlAttachment', () => {
 })
 
 describe('postUnfurl', () => {
-  const unfurls = { [`${APP}/acme/report`]: { title: 'Q3', title_link: `${APP}/acme/report`, footer: 'Glance' } }
+  const unfurls = { [`${APP}/acme/report`]: { title: 'Q3', title_link: `${APP}/acme/report`, footer: 'Postplan' } }
 
   /** Capture the JSON body chat.unfurl was called with (null when it was never called). */
   function capture() {

@@ -4,7 +4,7 @@ import { resolveEntryPath } from './entryPath'
 // T11.1 — resolveEntryPath mirrors the server's normalizePath (packages/api/src/content.ts). The
 // dot/traversal/trailing-slash pairs below are hand-coded FROM that implementation; if the server
 // changes, these pins force the mirror to follow. NOTE: a pure suite can't prove the iframe really
-// lands on this path — the prefetch stays provisional until glance:ready (see prefetchArbiter),
+// lands on this path — the prefetch stays provisional until postplan:ready (see prefetchArbiter),
 // and the G4 real-browser smoke covers actual iframe timing.
 
 describe('resolveEntryPath', () => {

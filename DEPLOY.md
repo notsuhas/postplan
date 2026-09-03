@@ -7,9 +7,9 @@ The fast path is `scripts/setup.sh` (see [README](README.md#deploy-in-one-comman
 ```bash
 wrangler login
 
-wrangler d1 create glance-db            # → database_id = "xxxx…"
-wrangler kv namespace create GLANCE_SESSIONS   # → id = "yyyy…"
-wrangler r2 bucket create glance-files  # enable R2 in the dashboard first
+wrangler d1 create postplan-db            # → database_id = "xxxx…"
+wrangler kv namespace create POSTPLAN_SESSIONS   # → id = "yyyy…"
+wrangler r2 bucket create postplan-files  # enable R2 in the dashboard first
 ```
 
 Paste the IDs into **both** `packages/api/wrangler.jsonc` and `packages/api/wrangler.content.jsonc` (they ship with `YOUR_*` placeholders):
@@ -25,8 +25,8 @@ Set the `vars` block in both configs:
 
 | var | example |
 |---|---|
-| `APP_URL` | `https://glance.your-subdomain.workers.dev` |
-| `CONTENT_URL` | `https://glance-content.your-subdomain.workers.dev` |
+| `APP_URL` | `https://postplan.your-subdomain.workers.dev` |
+| `CONTENT_URL` | `https://postplan-content.your-subdomain.workers.dev` |
 | `ALLOWED_HD` | `yourcompany.com` (Google Workspace domain) |
 | `SUPERADMIN_EMAIL` | `you@yourcompany.com` |
 
@@ -35,10 +35,10 @@ Also update `_headers` `frame-src` and the content worker `frame-ancestors` to t
 Apply migrations to remote D1:
 
 ```bash
-cd packages/api && wrangler d1 migrations apply glance-db --remote
+cd packages/api && wrangler d1 migrations apply postplan-db --remote
 ```
 
-Enable D1 read replication (reads route to the nearest replica via the Sessions API; billing is unchanged — still rows_read/rows_written). It's a database-level setting with no wrangler command: use the dashboard (D1 → glance-db → Settings) or the REST API with a `D1:Edit` token:
+Enable D1 read replication (reads route to the nearest replica via the Sessions API; billing is unchanged — still rows_read/rows_written). It's a database-level setting with no wrangler command: use the dashboard (D1 → postplan-db → Settings) or the REST API with a `D1:Edit` token:
 
 ```bash
 curl -X PUT "https://api.cloudflare.com/client/v4/accounts/<account_id>/d1/database/<database_id>" \
@@ -62,7 +62,7 @@ echo "$(openssl rand -hex 32)" | wrangler secret put BOOTSTRAP_TOKEN
 
 - `SESSION_SECRET` — HMAC key for signed cookies + KV session tokens.
 - `CONTENT_TOKEN_SECRET` — HMAC key for short-lived gated-content URL tokens.
-- `DATA_TOKEN_SECRET` (optional, main worker only) — HMAC key for `glance.db` shared-backend data
+- `DATA_TOKEN_SECRET` (optional, main worker only) — HMAC key for `postplan.db` shared-backend data
   tokens; keep distinct from `CONTENT_TOKEN_SECRET`. While unset, `/api/_data` and the token mint
   return 404 — the feature is opt-in per deploy. Enable with:
   `echo "$(openssl rand -hex 32)" | wrangler secret put DATA_TOKEN_SECRET`
@@ -70,7 +70,7 @@ echo "$(openssl rand -hex 32)" | wrangler secret put BOOTSTRAP_TOKEN
   comment notifications as Slack DMs. **Kill-switch: while unset, no Slack DMs are ever sent and the
   comment path does zero extra work** — removing the secret disables the feature instantly. Set with:
   `wrangler secret put SLACK_BOT_TOKEN`. Requires a Slack app (install to your workspace) with bot
-  scopes **`chat:write` · `users:read` · `users:read.email`** — `users:read.email` resolves a Glance
+  scopes **`chat:write` · `users:read` · `users:read.email`** — `users:read.email` resolves a Postplan
   user's email to a Slack id (cached in KV ~30d; not-found ~1h), and `chat:write` DMs that id directly
   (the user id doubles as the DM channel). The DM carries the actor, the comment reason (mention /
   your-site / participant / share), the snippet, and a deep link back to the review thread. Slack DMs
@@ -85,11 +85,11 @@ bun run deploy   # build web → deploy main worker (with assets) → deploy con
 
 ## 4. First run
 
-Open `https://glance.<your-subdomain>.workers.dev/login`, paste `BOOTSTRAP_TOKEN` into **Complete setup**, and submit. This claims `SUPERADMIN_EMAIL` as the first superadmin and signs you in. Once an admin exists the setup panel disappears and the token is inert.
+Open `https://postplan.<your-subdomain>.workers.dev/login`, paste `BOOTSTRAP_TOKEN` into **Complete setup**, and submit. This claims `SUPERADMIN_EMAIL` as the first superadmin and signs you in. Once an admin exists the setup panel disappears and the token is inert.
 
 ## Google OAuth (optional)
 
-Glance runs fine on bootstrap auth alone. To add Google Workspace SSO, create an OAuth client at console.cloud.google.com → Credentials (authorized redirect URI `https://glance.<your-subdomain>.workers.dev/api/auth/callback`), then:
+Postplan runs fine on bootstrap auth alone. To add Google Workspace SSO, create an OAuth client at console.cloud.google.com → Credentials (authorized redirect URI `https://postplan.<your-subdomain>.workers.dev/api/auth/callback`), then:
 
 ```bash
 cd packages/api

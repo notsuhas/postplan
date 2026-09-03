@@ -14,9 +14,9 @@ function setup() {
   const db = makeDb()
   const r2 = makeR2()
   const env = {
-    APP_URL: 'https://glance.example.com',
+    APP_URL: 'https://postplan.example.com',
     CONTENT_TOKEN_SECRET: tokenKey,
-    GLANCE_FILES: r2,
+    POSTPLAN_FILES: r2,
   } as unknown as Parameters<typeof contentApp.request>[2]
   const app = new Hono()
   app.use('*', async (c, next) => {
@@ -91,8 +91,8 @@ describe('external-link rewrite in served HTML', () => {
     const html = '<html><body><a href="https://example.org/">ext</a></body></html>'
     const { token } = await gatedSite(db, r2, { path: 'index.html', text: html })
 
-    const body = await (await app.request(`/_t/${token}/sam/site/?glance_annotate=1`, {}, env)).text()
-    expect(body).toContain('<script src="/_glance/annotate.js')
+    const body = await (await app.request(`/_t/${token}/sam/site/?postplan_annotate=1`, {}, env)).text()
+    expect(body).toContain('<script src="/_postplan/annotate.js')
     expect(body).toMatch(/<a href="https:\/\/example\.org\/" target="_blank" rel="noopener noreferrer">/)
   })
 

@@ -8,7 +8,7 @@ import type { DataCapability } from './data-token'
 import { signDataToken } from './data-token'
 import { canViewerRead } from './data-visibility'
 
-const HMAC = 'glance-test-vis'
+const HMAC = 'postplan-test-vis'
 const ENV = { DATA_TOKEN_SECRET: HMAC, CONTENT_URL: 'https://content.example.com' } as never
 
 const VIEWER_CAPS: DataCapability[] = ['read', 'create']

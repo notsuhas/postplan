@@ -7,16 +7,16 @@ import (
 	"path/filepath"
 )
 
-// SKILL.md is the canonical skill source (glance-cli/SKILL.md symlinks here), embedded so
+// SKILL.md is the canonical skill source (postplan-cli/SKILL.md symlinks here), embedded so
 // `skill install` ships it INSIDE the binary (the binary audience usually has neither Node nor npx).
 //
 // Lives beside this file because go:embed cannot reach above its own package directory. The
-// repo-root glance-cli/SKILL.md symlink points here, so the skills installer still finds it.
+// repo-root postplan-cli/SKILL.md symlink points here, so the skills installer still finds it.
 //
 //go:embed SKILL.md
 var skillMD string
 
-const skillName = "glance-cli"
+const skillName = "postplan-cli"
 
 // Install the bundled AI-agent skill with NO Node/npx dependency - writes it into Claude Code's
 // user skills dir.
@@ -26,7 +26,7 @@ func (c *client) skillCmd(argv []string) error {
 		sub = argv[0]
 	}
 	if sub != "install" {
-		return fmt.Errorf("Usage: glance skill install")
+		return fmt.Errorf("Usage: postplan skill install")
 	}
 	home, _ := os.UserHomeDir()
 	dir := filepath.Join(home, ".claude", "skills", skillName)
@@ -38,6 +38,6 @@ func (c *client) skillCmd(argv []string) error {
 		return err
 	}
 	fmt.Fprintf(c.out, "✓ Installed the %s skill for Claude Code → %s\n", skillName, dest)
-	fmt.Fprintln(c.out, "  Other agents (Codex, Cursor): npx skills add plivo-labs/glance --global")
+	fmt.Fprintln(c.out, "  Other agents (Codex, Cursor): npx skills add notsuhas/postplan --global")
 	return nil
 }

@@ -492,7 +492,7 @@ describe('comments routes — T9.5 mutations fuse target reads into the access b
 // WORKER does before (and instead of) addressing it, exactly like data-ws.test.ts does for
 // data.ts's twin route.
 
-const HMAC = 'glance-test-comments-socket'
+const HMAC = 'postplan-test-comments-socket'
 const socketUrl = (space: string, site: string) => `/api/sites/${space}/${site}/comments/socket`
 const wsHeaders = (proto?: string) => ({
   Upgrade: 'websocket',
@@ -741,13 +741,13 @@ describe('comments routes — S6 GET .../comments/socket (authenticated WS upgra
     // Bearer token still authenticates the request; a foreign Origin alone must deny it.
     const res = await app.request(
       socketUrl('acme', 'doc'),
-      { headers: { ...auth(owner), cookie: '__Host-glance_session=x', Origin: 'https://evil.example.com', ...wsHeaders() } },
+      { headers: { ...auth(owner), cookie: '__Host-postplan_session=x', Origin: 'https://evil.example.com', ...wsHeaders() } },
       withRoom(env, room),
     )
     expect(res.status).toBe(403)
     expect(room.requests).toHaveLength(0)
 
-    // 'same-site' is NOT 'same-origin': the sandboxed content origin (glance-content.*.workers.dev)
+    // 'same-site' is NOT 'same-origin': the sandboxed content origin (postplan-content.*.workers.dev)
     // shares this app's registrable domain (workers.dev is a public suffix) but is untrusted — a
     // predicate loosened to accept same-site would let that origin ride the session cookie and
     // hijack the socket. isSameOrigin's own doc comment says never to loosen it; pin the refusal.
@@ -760,7 +760,7 @@ describe('comments routes — S6 GET .../comments/socket (authenticated WS upgra
         headers: {
           Authorization: `Bearer tok-${owner}`,
           'Content-Type': 'application/json',
-          cookie: '__Host-glance_session=x',
+          cookie: '__Host-postplan_session=x',
           'Sec-Fetch-Site': 'same-site',
           ...wsHeaders(),
         },
@@ -772,7 +772,7 @@ describe('comments routes — S6 GET .../comments/socket (authenticated WS upgra
 
     const sameOrigin = await app.request(
       socketUrl('acme', 'doc'),
-      { headers: { ...auth(owner), cookie: '__Host-glance_session=x', ...wsHeaders() } }, // auth() sets Origin: APP_URL
+      { headers: { ...auth(owner), cookie: '__Host-postplan_session=x', ...wsHeaders() } }, // auth() sets Origin: APP_URL
       withRoom(env, recordingRoom()),
     )
     expect(sameOrigin.status).toBe(101)
@@ -783,7 +783,7 @@ describe('comments routes — S6 GET .../comments/socket (authenticated WS upgra
         headers: {
           Authorization: `Bearer tok-${owner}`,
           'Content-Type': 'application/json',
-          cookie: '__Host-glance_session=x',
+          cookie: '__Host-postplan_session=x',
           'Sec-Fetch-Site': 'same-origin',
           ...wsHeaders(),
         },

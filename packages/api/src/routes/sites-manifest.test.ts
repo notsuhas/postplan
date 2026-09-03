@@ -9,13 +9,13 @@ import { sites } from './sites'
 // canReplace ONLY to owner/editor/superadmin (a plain viewer sees none of it); /exists recognizes a
 // non-member editor as authorized-with-canReplace so the CLI takes the REPLACE path, not CREATE.
 
-const APP_URL = 'https://glance.example.com'
+const APP_URL = 'https://postplan.example.com'
 
 async function setup() {
   const db = makeDb()
   const kv = makeKv()
   const r2 = makeR2()
-  const env = { APP_URL, SESSION_SECRET: 's', CONTENT_URL: 'https://content.example.com', CONTENT_TOKEN_SECRET: 'ct', GLANCE_SESSIONS: kv, GLANCE_FILES: r2 } as unknown as AppEnv['Bindings']
+  const env = { APP_URL, SESSION_SECRET: 's', CONTENT_URL: 'https://content.example.com', CONTENT_TOKEN_SECRET: 'ct', POSTPLAN_SESSIONS: kv, POSTPLAN_FILES: r2 } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {

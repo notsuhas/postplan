@@ -1,7 +1,7 @@
-// Parent-frame credential broker for glance.db — the P0-1 (confused deputy) fix that lets
+// Parent-frame credential broker for postplan.db — the P0-1 (confused deputy) fix that lets
 // UNTRUSTED hosted pages use the data plane without ever holding a credential.
 //
-// Protocol: the SDK injected into the iframe posts {type:'glance:db-hello'} with a transferred
+// Protocol: the SDK injected into the iframe posts {type:'postplan:db-hello'} with a transferred
 // MessagePort. We adopt the port ONLY when the message comes from the content origin AND from
 // the exact iframe window we mounted (same validation discipline as parseIntent). Every
 // subsequent request arrives on that port, is shape-validated, executed with OUR token against
@@ -14,7 +14,7 @@
 // paths cross the channel).
 //
 // Realtime works the same way: the iframe holds no credential, so WE open the WebSocket with OUR
-// token and relay each pushed frame down the same port as {type:'glance:db-event'} — deliberately
+// token and relay each pushed frame down the same port as {type:'postplan:db-event'} — deliberately
 // with no numeric `id`, because the SDK settles any numbered frame as a reply to an in-flight
 // request. The socket outlives the iframe document, so an in-site navigation resumes from the
 // cursor we kept rather than replaying from nothing.
@@ -30,7 +30,7 @@ const OP_METHOD: Record<string, string> = { create: 'POST', get: 'GET', list: 'G
 // Pre-check only — the server's 100KB byte cap is authoritative.
 const MAX_DATA_CHARS = 110_000
 const TOKEN_SLACK_MS = 30_000
-const WS_PROTOCOL = 'glance.db.v1'
+const WS_PROTOCOL = 'postplan.db.v1'
 const RECONNECT_MS = 3000
 const RECONNECT_MAX_MS = 60_000
 const PING_MS = 30_000
@@ -187,13 +187,13 @@ export function createDbBroker(
         markLive?.()
         // Any dial past the first means the page missed a window: tell it to replay. The first
         // one needs no nudge — the subscribe that started it is still awaiting this moment.
-        if (dials > 1) port?.postMessage({ type: 'glance:db-open' })
+        if (dials > 1) port?.postMessage({ type: 'postplan:db-open' })
       }
       ws.onmessage = (e) => {
         const f = parseFrame(e.data)
         if (!f) return
         cursor = f.cursor
-        port?.postMessage({ type: 'glance:db-event', events: f.events, cursor: f.cursor })
+        port?.postMessage({ type: 'postplan:db-event', events: f.events, cursor: f.cursor })
       }
       ws.onclose = () => {
         if (socket !== ws) return
@@ -285,7 +285,7 @@ export function createDbBroker(
     if (e.origin !== opts.contentOrigin) return
     const source = opts.getSource()
     if (!source || e.source !== source) return
-    if ((e.data as { type?: unknown } | null)?.type !== 'glance:db-hello') return
+    if ((e.data as { type?: unknown } | null)?.type !== 'postplan:db-hello') return
     const p = e.ports?.[0]
     if (!p) return
     port?.close()
@@ -293,8 +293,8 @@ export function createDbBroker(
     p.onmessage = (msg) => onPortMessage(p, msg)
     // Mint eagerly so the page learns immediately whether the feature is available here.
     ensureToken().then(
-      () => p.postMessage({ type: 'glance:db-ready' }),
-      (err: { message?: string }) => p.postMessage({ type: 'glance:db-error', error: err?.message ?? 'unavailable' }),
+      () => p.postMessage({ type: 'postplan:db-ready' }),
+      (err: { message?: string }) => p.postMessage({ type: 'postplan:db-error', error: err?.message ?? 'unavailable' }),
     )
   }
 
@@ -322,7 +322,7 @@ function parseFrame(data: unknown): { events: unknown[]; cursor: string } | null
 }
 
 function mintError(status: number): string {
-  if (status === 404) return 'glance.db is not enabled on this Glance instance'
+  if (status === 404) return 'postplan.db is not enabled on this Postplan instance'
   if (status === 401) return 'not signed in'
   return 'you do not have access to this site’s data'
 }

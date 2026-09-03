@@ -1,62 +1,62 @@
 ---
-name: glance-cli
-description: Use the `glance` CLI to build a self-contained HTML explainer/dashboard for a codebase or system and publish it — "explain with html", "make an html dashboard", "create a dashboard", "visualize this architecture", "a simple HTML summary for my boss" — or to deploy any file/folder to a Glance instance and get a URL, manage sites (list, delete, move, fork), and close the review loop from the terminal (pull a site's review comments, reply to a thread, then redeploy). Also covers `glance.db`, the built-in per-site document store with REALTIME subscriptions — reach for this on "realtime page", "live dashboard", "page that updates itself", "push updates from my backend/script/cron to a page", a form/poll/board that collects submissions, or any page whose data changes after deploy. Also hosts no-build React SPAs (import-map recipe included) and mermaid diagrams.
+name: postplan-cli
+description: Use the `postplan` CLI to build a self-contained HTML explainer/dashboard for a codebase or system and publish it — "explain with html", "make an html dashboard", "create a dashboard", "visualize this architecture", "a simple HTML summary for my boss" — or to deploy any file/folder to a Postplan instance and get a URL, manage sites (list, delete, move, fork), and close the review loop from the terminal (pull a site's review comments, reply to a thread, then redeploy). Also covers `postplan.db`, the built-in per-site document store with REALTIME subscriptions — reach for this on "realtime page", "live dashboard", "page that updates itself", "push updates from my backend/script/cron to a page", a form/poll/board that collects submissions, or any page whose data changes after deploy. Also hosts no-build React SPAs (import-map recipe included) and mermaid diagrams.
 ---
 
-# Glance CLI
+# Postplan CLI
 
-`glance` uploads a local folder to a Glance instance (static hosting on Cloudflare Workers) and returns a URL. It's a single self-contained binary — nothing else to install.
+`postplan` uploads a local folder to a Postplan instance (static hosting on Cloudflare Workers) and returns a URL. It's a single self-contained binary — nothing else to install.
 
 ## Install
 
 ```bash
-curl -fsSL <your-glance-instance>/api/install | sh
+curl -fsSL <your-postplan-instance>/api/install | sh
 ```
 
-This drops the `glance` binary on your PATH (pre-pointed at that instance) and it keeps itself up to date. Run `glance` with no arguments to list every command.
+This drops the `postplan` binary on your PATH (pre-pointed at that instance) and it keeps itself up to date. Run `postplan` with no arguments to list every command.
 
 ## Target instance
 
-The CLI talks to `GLANCE_API_URL` (default `http://localhost:8787`). It's read on **every** command. For a self-hosted deploy:
+The CLI talks to `POSTPLAN_API_URL` (default `http://localhost:8787`). It's read on **every** command. For a self-hosted deploy:
 
 ```bash
-export GLANCE_API_URL=https://glance.your-subdomain.workers.dev
+export POSTPLAN_API_URL=https://postplan.your-subdomain.workers.dev
 ```
 
-Put it in your shell profile to make it permanent. Token + URL are saved to `~/.glance/config.json`.
+Put it in your shell profile to make it permanent. Token + URL are saved to `~/.postplan/config.json`.
 
 ## Commands
 
 | command | what it does |
 |---|---|
-| `glance login` | device-code flow: prints a URL + code, opens a browser, polls until you approve, saves the token |
-| `glance deploy <path> [--space <slug>] [--name <slug>] [--visibility team\|private\|members]` | uploads a file or a folder |
-| `glance list` | lists your sites — `space/slug  visibility  url` |
-| `glance delete <space/slug>` | confirms (y/N), then deletes |
-| `glance move <space/slug> <new-space>` | moves a site to another space you belong to (keeps its files, comments, shares) |
-| `glance fork <space/slug> [--space <slug>] [--name <slug>]` | copies a site you can open into your own space — your copy, to edit freely |
-| `glance comments <space/slug> [--file <path>] [--open] [--json]` | prints a site's review comments as a markdown digest (or raw JSON) |
-| `glance reply <space/slug> <threadId> [message] [--tag <label>\|--no-tag]` | posts a reply to a comment thread (get the `threadId` from `glance comments`) |
-| `glance read <space/slug> [--file <path>] [--pull <dir>]` | prints a file to stdout, or `--pull` downloads the whole site's source into a folder to edit + redeploy |
-| `glance notifications [--read] [--json]` | shows your notifications — mentions and comments on your sites (or raw JSON); `--read` marks them all read |
-| `glance logout` | revokes the server session and removes the local token |
+| `postplan login` | device-code flow: prints a URL + code, opens a browser, polls until you approve, saves the token |
+| `postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team\|private\|members]` | uploads a file or a folder |
+| `postplan list` | lists your sites — `space/slug  visibility  url` |
+| `postplan delete <space/slug>` | confirms (y/N), then deletes |
+| `postplan move <space/slug> <new-space>` | moves a site to another space you belong to (keeps its files, comments, shares) |
+| `postplan fork <space/slug> [--space <slug>] [--name <slug>]` | copies a site you can open into your own space — your copy, to edit freely |
+| `postplan comments <space/slug> [--file <path>] [--open] [--json]` | prints a site's review comments as a markdown digest (or raw JSON) |
+| `postplan reply <space/slug> <threadId> [message] [--tag <label>\|--no-tag]` | posts a reply to a comment thread (get the `threadId` from `postplan comments`) |
+| `postplan read <space/slug> [--file <path>] [--pull <dir>]` | prints a file to stdout, or `--pull` downloads the whole site's source into a folder to edit + redeploy |
+| `postplan notifications [--read] [--json]` | shows your notifications — mentions and comments on your sites (or raw JSON); `--read` marks them all read |
+| `postplan logout` | revokes the server session and removes the local token |
 
 ### login
 Device-code flow. If no browser opener is available (SSH/headless), open the printed URL and enter the code manually. Must run before any authed command — others fail with "Not logged in."
 
-**In CI, don't run `login` at all — it's interactive.** Mint an API key from `/settings/keys` in the browser and export it; `GLANCE_TOKEN` takes precedence over the saved config:
+**In CI, don't run `login` at all — it's interactive.** Mint an API key from `/settings/keys` in the browser and export it; `POSTPLAN_TOKEN` takes precedence over the saved config:
 
 ```bash
-export GLANCE_TOKEN=glk_...        # shown exactly once at mint
-export GLANCE_API_URL=https://…    # only if the runner has no ~/.glance/config.json
-glance deploy ./dist
+export POSTPLAN_TOKEN=glk_...        # shown exactly once at mint
+export POSTPLAN_API_URL=https://…    # only if the runner has no ~/.postplan/config.json
+postplan deploy ./dist
 ```
 
-A key can deploy, create, fork and move, but **never deletes a site** and never mints or revokes another key — so `glance delete` will fail with a key exported, by design. `glance logout` deliberately ignores `GLANCE_TOKEN` and acts on your real session; revoke a key from `/settings/keys` instead. Full contract: `packages/api/API.md`.
+A key can deploy, create, fork and move, but **never deletes a site** and never mints or revokes another key — so `postplan delete` will fail with a key exported, by design. `postplan logout` deliberately ignores `POSTPLAN_TOKEN` and acts on your real session; revoke a key from `/settings/keys` instead. Full contract: `packages/api/API.md`.
 
 ### deploy
 - `<path>` is the only required arg — it can be a **single file** or a **folder**.
-  - **File**: uploads just that file; it renders at the site root (e.g. `glance deploy report.html`).
+  - **File**: uploads just that file; it renders at the site root (e.g. `postplan deploy report.html`).
   - **Folder**: walks recursively, skipping `.git`, `node_modules`, `.DS_Store`; relative paths become the site's layout.
 - `--name` defaults to the **file name (sans extension)** or **folder name**, slugified. Pass `--name` to override (required if the derived name isn't a valid slug — lowercase, 3–40 chars).
 - `--space` defaults to your **personal space**. Pass `--space` to target a team/group space.
@@ -65,10 +65,10 @@ A key can deploy, create, fork and move, but **never deletes a site** and never 
 - Prints `✓ Deployed → <url>`.
 
 ```bash
-glance deploy report.html                                  # → /<you>/report in your personal space
-glance deploy ./dist --space docs --name api-reference --visibility members
-glance deploy ./call-feedback                              # folder w/ index.html + audio/*.wav → a page with players
-glance deploy clip.mp3                                     # a single audio file → a playable audio page
+postplan deploy report.html                                  # → /<you>/report in your personal space
+postplan deploy ./dist --space docs --name api-reference --visibility members
+postplan deploy ./call-feedback                              # folder w/ index.html + audio/*.wav → a page with players
+postplan deploy clip.mp3                                     # a single audio file → a playable audio page
 ```
 
 ### Hosting media (audio, images, PDFs, fonts)
@@ -80,19 +80,19 @@ A site is just its files, so any static asset in the folder is hosted and served
 ```
 
 - **Audio streams with seeking** — audio is served with HTTP byte-range support, so `<audio>` players can scrub and play without downloading the whole file first.
-- **A lone audio file is playable on its own** — `glance deploy clip.mp3` (no HTML) opens as a real audio player.
+- **A lone audio file is playable on its own** — `postplan deploy clip.mp3` (no HTML) opens as a real audio player.
 - **Limits**: 20 MB per file, 200 files per deploy.
 
-The web app deploys the same way — drop a folder (or loose files, including a single mp3) onto the dashboard, or record audio right there — with the same result as `glance deploy`.
+The web app deploys the same way — drop a folder (or loose files, including a single mp3) onto the dashboard, or record audio right there — with the same result as `postplan deploy`.
 
 ### delete
-Argument must be `space/slug` (with the slash), e.g. `glance delete docs/api-reference`.
+Argument must be `space/slug` (with the slash), e.g. `postplan delete docs/api-reference`.
 
 ### move
-Move an existing site into another space you belong to: `glance move <space/slug> <new-space>`, e.g. `glance move my-handle/api-reference docs`. The site keeps its files, comments and shares — only its URL changes to `/<new-space>/<slug>`. Owner-only. Fails if a site with the same slug already exists in the target space.
+Move an existing site into another space you belong to: `postplan move <space/slug> <new-space>`, e.g. `postplan move my-handle/api-reference docs`. The site keeps its files, comments and shares — only its URL changes to `/<new-space>/<slug>`. Owner-only. Fails if a site with the same slug already exists in the target space.
 
 ### fork
-Make your own copy of a site you can open: `glance fork <space/slug>`, e.g. `glance fork alice/roadmap`. Anyone who can *view* a site can fork it.
+Make your own copy of a site you can open: `postplan fork <space/slug>`, e.g. `postplan fork alice/roadmap`. Anyone who can *view* a site can fork it.
 
 - The copy lands in your **personal space** as `<slug>-copy` (then `-copy-2`, `-copy-3`… if that's taken). Prints `✓ Forked → <url>`.
 - `--space <slug>` forks into a team/group space you belong to instead.
@@ -100,11 +100,11 @@ Make your own copy of a site you can open: `glance fork <space/slug>`, e.g. `gla
 - The fork is **yours and independent**: you own it, it starts with the source's files, and it carries none of the original's comments or shares. Editing it never touches the original.
 
 ```bash
-glance fork alice/roadmap                                  # → /<you>/roadmap-copy
-glance fork docs/api-reference --space team --name api-v2  # → /team/api-v2
+postplan fork alice/roadmap                                  # → /<you>/roadmap-copy
+postplan fork docs/api-reference --space team --name api-v2  # → /team/api-v2
 ```
 
-Use it when you want to riff on someone's page instead of commenting on it — fork, `glance read --pull` your copy, edit, redeploy.
+Use it when you want to riff on someone's page instead of commenting on it — fork, `postplan read --pull` your copy, edit, redeploy.
 
 ### comments
 Pulls the review comments (threads) on a deployed site so an agent can read them from the terminal.
@@ -129,21 +129,21 @@ Default output is a **markdown digest**:
 ```
 
 - A header line counts `open` vs `resolved` over the shown threads.
-- Threads are **grouped by file** (first-appearance order); each thread is a `###` heading `<filePath> · <STATUS> · <threadId>`. The trailing **threadId** is what you pass to `glance reply` to respond on that thread.
+- Threads are **grouped by file** (first-appearance order); each thread is a `###` heading `<filePath> · <STATUS> · <threadId>`. The trailing **threadId** is what you pass to `postplan reply` to respond on that thread.
 - A present quote renders as a `> "…"` blockquote; each comment is a `- @<author>: <body>` line. Deleted comments show `- @<author> (deleted): [deleted]` (original text is gone); a missing author falls back to `@unknown`.
 - Empty result prints `No comments.`.
 
-**Agent loop** — this command closes the review loop without a browser: `glance comments <space/slug> --open` to pull outstanding feedback → edit the local doc to address it → `glance reply <space/slug> <threadId>` to note what you changed on the thread → `glance deploy` to redeploy, then re-run `glance comments` to see the updated threads. A comment's highlight is re-located in the page when you reopen it in the browser; the comment itself always stays in the digest regardless.
+**Agent loop** — this command closes the review loop without a browser: `postplan comments <space/slug> --open` to pull outstanding feedback → edit the local doc to address it → `postplan reply <space/slug> <threadId>` to note what you changed on the thread → `postplan deploy` to redeploy, then re-run `postplan comments` to see the updated threads. A comment's highlight is re-located in the page when you reopen it in the browser; the comment itself always stays in the digest regardless.
 
 ### reply
 Posts a reply to an existing comment thread — so you can respond after addressing feedback, right from the terminal.
 
 - `<space/slug>` is required and must contain the slash (e.g. `docs/api-reference`).
-- `<threadId>` is required — copy it from the `###` heading in `glance comments` output (the value after the status).
+- `<threadId>` is required — copy it from the `###` heading in `postplan comments` output (the value after the status).
 - The reply body comes from **either** a positional `[message]` **or** stdin:
-  - **stdin is the recommended channel** for anything an agent writes, or any multiline/arbitrary text — pipe it in: `echo "done — reworded the intro" | glance reply docs/api-reference k3f9q2`. A here-doc works for multiple lines.
-  - A positional `[message]` is fine for a short, one-line note: `glance reply docs/api-reference k3f9q2 "fixed in the latest deploy"`. Quote it so the shell keeps it as one argument.
-  - A positional message that **starts with a dash** is taken as a flag unless you put `--` first: `glance reply docs/api-reference k3f9q2 -- "-- see the note above"`. (Everything after `--` is literal.) For anything tricky, prefer stdin.
+  - **stdin is the recommended channel** for anything an agent writes, or any multiline/arbitrary text — pipe it in: `echo "done — reworded the intro" | postplan reply docs/api-reference k3f9q2`. A here-doc works for multiple lines.
+  - A positional `[message]` is fine for a short, one-line note: `postplan reply docs/api-reference k3f9q2 "fixed in the latest deploy"`. Quote it so the shell keeps it as one argument.
+  - A positional message that **starts with a dash** is taken as a flag unless you put `--` first: `postplan reply docs/api-reference k3f9q2 -- "-- see the note above"`. (Everything after `--` is literal.) For anything tricky, prefer stdin.
 - **Tagging / attribution.** A reply is attributed **server-side to the logged-in account** — there is no separate "agent" identity. So the body is prefixed to mark authorship:
   - default: `[agent] ` — signals the reply was written by an agent (the **only** signal of that; the author on record is still the human who's logged in).
   - `--tag <label>`: use a custom prefix, e.g. `--tag claude` → `[claude] …`.
@@ -151,16 +151,16 @@ Posts a reply to an existing comment thread — so you can respond after address
 - Empty bodies are rejected; a body over the server's size limit fails with the server's error. Prints `✓ Replied to <threadId>` on success.
 
 ```bash
-glance comments docs/api-reference --open                 # find the threadId on the heading
-echo "reworded the intro as requested" | glance reply docs/api-reference k3f9q2
-glance reply docs/api-reference k3f9q2 "typo fixed" --no-tag
+postplan comments docs/api-reference --open                 # find the threadId on the heading
+echo "reworded the intro as requested" | postplan reply docs/api-reference k3f9q2
+postplan reply docs/api-reference k3f9q2 "typo fixed" --no-tag
 ```
 
 ### notifications
 Shows your notifications, newest first — who mentioned you and who commented on your sites — without opening the browser.
 
 ```
-$ glance notifications
+$ postplan notifications
 2 unread · 3 shown
 ● Priya N commented on eng/perf-dashboard (index.html, 2h ago)
   “The p95 chart hides the cold-start spike, can we…”
@@ -172,35 +172,35 @@ $ glance notifications
 - `●` = unread, `✓` = read. A deleted account shows as “Someone”.
 - `--read` marks everything read and prints a confirmation.
 - `--json` prints the raw server response instead — for piping into `jq` or an agent loop.
-- Follow up from the same terminal: `glance comments <space/slug>` to read the full thread, `glance reply <space/slug> <threadId>` to answer.
+- Follow up from the same terminal: `postplan comments <space/slug>` to read the full thread, `postplan reply <space/slug> <threadId>` to answer.
 
 ### read
 Prints a deployed file's contents to stdout.
 
 - `<space/slug>` is required and must contain the slash (e.g. `docs/api-reference`).
 - `--file <path>` selects a file within the site (e.g. `--file guide.html`); omit it for the site root (a single-file site serves its lone file there).
-- Output is the file body only — no headers, no trailing newline — so it pipes cleanly: `glance read docs/api-reference --file index.html > index.html`.
+- Output is the file body only — no headers, no trailing newline — so it pipes cleanly: `postplan read docs/api-reference --file index.html > index.html`.
 - **A single `read` of a `.md` file returns the server-RENDERED HTML, not the markdown source.** To get the exact source back (for editing and redeploying), use `--pull` below.
 - Every tier is access-gated (there is no anonymous tier), so `read` works only on sites you can view; a tier you can't access fails with the server's status. Errors print the HTTP status + a truncated server message.
 
 **`--pull <dir>`** — download the whole site's **source** into a local folder so you can edit it and redeploy:
 
 ```
-glance read docs/api-reference --pull ./api-reference   # writes every file (source, not rendered) into ./api-reference
+postplan read docs/api-reference --pull ./api-reference   # writes every file (source, not rendered) into ./api-reference
 # …edit the files…
-glance deploy ./api-reference                            # redeploys to the SAME site (remembers where it came from)
+postplan deploy ./api-reference                            # redeploys to the SAME site (remembers where it came from)
 ```
 
-- Writes every file of the site — markdown as its true source, dotfiles included — into `<dir>`, plus a small `.glance/pull.json` marker that records the site and the version you pulled.
-- A later `glance deploy <dir>` reads that marker to target the same site automatically (no need to re-type `--space`/`--name`) and passes the pulled version so a stale redeploy is safely refused instead of clobbering someone else's newer change.
+- Writes every file of the site — markdown as its true source, dotfiles included — into `<dir>`, plus a small `.postplan/pull.json` marker that records the site and the version you pulled.
+- A later `postplan deploy <dir>` reads that marker to target the same site automatically (no need to re-type `--space`/`--name`) and passes the pulled version so a stale redeploy is safely refused instead of clobbering someone else's newer change.
 - Needs edit rights: `--pull` works for a site you **own** or have been given **edit** access to. A view-only share can't pull the source.
 
 **Editor round-trip** — if someone shared a site with you as an *editor*, this is the whole loop with no browser and no git:
 
 ```
-glance read alice/roadmap --pull ./roadmap   # pull the source (records version, e.g. 7)
+postplan read alice/roadmap --pull ./roadmap   # pull the source (records version, e.g. 7)
 # …add or remove content sections in ./roadmap…
-glance deploy ./roadmap                       # redeploys to the same site, sends the pulled version
+postplan deploy ./roadmap                       # redeploys to the same site, sends the pulled version
 ```
 
 You can update that site's content even though you don't own it and aren't in its space. If someone else redeployed since your pull, the deploy is refused as stale (409) — re-run the `--pull` to get the current version, reapply your change, and deploy again.
@@ -212,14 +212,14 @@ You can update that site's content even though you don't own it and aren't in it
 
 `members` = people in the site's own space only (it was renamed from `group`; the old value is still accepted and mapped to `members`). There is no public/anonymous tier — `public` is still accepted on the wire but mapped to `team` (everyone in your org).
 
-## Saving data from your pages — `glance.db` (experimental)
+## Saving data from your pages — `postplan.db` (experimental)
 
 Each site gets a small JSON document store, and any HTML page you deploy can use it directly —
-no keys, no setup, no script tag. When someone opens the site through the Glance app, `glance.db`
+no keys, no setup, no script tag. When someone opens the site through the Postplan app, `postplan.db`
 is available to the page's JavaScript automatically:
 
 ```js
-const notes = glance.db.collection('notes')
+const notes = postplan.db.collection('notes')
 await notes.create({ text: 'hello' })       // returns {id, data, createdAt, updatedAt}
 await notes.list()                           // your documents, newest first
 await notes.get(id); await notes.put(id, {...}); await notes.delete(id)
@@ -227,18 +227,18 @@ await notes.get(id); await notes.put(id, {...}); await notes.delete(id)
 
 So a deployed page can have a working form, notes list, or per-viewer state with just that.
 (Only when viewed through the app — opening the raw content URL directly gives a clear
-"open this site through the Glance app" error.)
+"open this site through the Postplan app" error.)
 
 Scripts and cron jobs can write to the same store — exchange a credential for a short-lived data
 token. Prefer an **API key** (`/settings/keys`) over lifting the CLI token out of
-`~/.glance/config.json`: a key is scoped to chosen sites, carries a capability ceiling, expires on
+`~/.postplan/config.json`: a key is scoped to chosen sites, carries a capability ceiling, expires on
 a fixed schedule, and is revocable on its own without killing your session.
 
 ```bash
-TOKEN=$(curl -s -X POST -H "Authorization: Bearer $GLANCE_TOKEN" \
-  "$GLANCE_API_URL/api/data-token/<space>/<slug>" | jq -r .token)     # valid 5 min
+TOKEN=$(curl -s -X POST -H "Authorization: Bearer $POSTPLAN_TOKEN" \
+  "$POSTPLAN_API_URL/api/data-token/<space>/<slug>" | jq -r .token)     # valid 5 min
 curl -H "Authorization: Bearer $TOKEN" -X POST -d '{"text":"hi"}' \
-  "$GLANCE_API_URL/api/_data/notes"
+  "$POSTPLAN_API_URL/api/_data/notes"
 # also: GET /api/_data/notes (list) · GET/PUT/DELETE /api/_data/notes/<id>
 ```
 
@@ -258,7 +258,7 @@ work · by default you only see documents **you** created; name a collection `sh
 viewer sees all of it (polls, boards) · the site **owner** sees everything and can edit/delete
 any document (moderation); other viewers can never change existing documents · access follows
 the site's sharing — lose access to the site, lose access to its data. If it errors with "not
-enabled", ask your Glance admin to turn the feature on.
+enabled", ask your Postplan admin to turn the feature on.
 
 ## Live pages — subscribe instead of polling
 
@@ -266,7 +266,7 @@ A page can be **pushed** changes as they happen. Do not write a `setInterval` th
 subscribe:
 
 ```js
-const c = glance.db.collection('shared-metrics')
+const c = postplan.db.collection('shared-metrics')
 
 const off = c.onCreate(e => addRow(e))   // e = {type, collection, id, createdBy, at}
 c.onUpdate(e => refresh(e.id))
@@ -289,13 +289,13 @@ assume it already has.
 ```bash
 # from a cron job / CI / any server — the page updates itself
 curl -H "Authorization: Bearer $TOKEN" -X POST -d '{"deploys":42,"ok":true}' \
-  "$GLANCE_API_URL/api/_data/shared-metrics"
+  "$POSTPLAN_API_URL/api/_data/shared-metrics"
 ```
 
 Worth knowing:
 
 - **Subscriptions are lazy** — a page that never subscribes never opens a connection.
-- **Reconnects replay.** Connections drop (a Glance deploy restarts them); the SDK reconnects and
+- **Reconnects replay.** Connections drop (a Postplan deploy restarts them); the SDK reconnects and
   replays everything missed from its last position before delivering anything live, so a page left
   open overnight is not silently stale. You get each change once, in order.
 - **A push obeys the read rules above, unchanged** — so on a default collection you are only pushed
@@ -312,7 +312,7 @@ For any flowchart, sequence, architecture, or state diagram, reach for **mermaid
 </script>
 <pre class="mermaid">
 graph LR
-  CLI[glance CLI] --> API[main worker] --> R2[(R2)]
+  CLI[postplan CLI] --> API[main worker] --> R2[(R2)]
   API --> D1[(D1)]
 </pre>
 ```
@@ -356,7 +356,7 @@ Then write normal React in `<script type="text/babel" data-type="module" data-pr
 - **Pin `?deps=react@19.1.0` on any lib that itself depends on react** (recharts, lucide-react…) — without it esm.sh loads a second react copy → "invalid hook call".
 - **React Flow (`@xyflow/react`) is for INTERACTIVE graphs only — static diagrams belong to mermaid (above).** It does NOT auto-layout: don't hand-place `position: {x,y}`, compute positions with dagre (add `"@dagrejs/dagre": "https://esm.sh/@dagrejs/dagre@1.1.5"` to the import map) per React Flow's layouting docs. Give the `<ReactFlow>` wrapper an explicit height (`height: 100vh`) — with no height the canvas renders blank.
 - **Multi-file works**: relative ESM imports (`import { Chart } from './chart.js'`) resolve against the site's files. Hash routing (`#/page`) for client-side navigation.
-- **Big/TS apps**: skip the recipe — build locally (`vite build` / `bun build`) and `glance deploy ./dist`.
+- **Big/TS apps**: skip the recipe — build locally (`vite build` / `bun build`) and `postplan deploy ./dist`.
 
 ## Explaining code or a system as HTML
 
@@ -378,9 +378,9 @@ When the user wants to understand — or share understanding of — a codebase, 
 
 **Publish.** Verify tag balance and `open <file>` locally first, then:
 ```bash
-glance deploy <file>.html      # --name defaults to the filename slug; renders at the site root
+postplan deploy <file>.html      # --name defaults to the filename slug; renders at the site root
 ```
-Report the returned `✓ Deployed → <url>` as the deliverable — not the prose. Visibility defaults to `team`; there is no public tier — every viewer needs a Glance login. Re-deploying the same name prompts `Replace? (y/N)` and updates the live URL in place — matches the "living doc" behavior above.
+Report the returned `✓ Deployed → <url>` as the deliverable — not the prose. Visibility defaults to `team`; there is no public tier — every viewer needs a Postplan login. Re-deploying the same name prompts `Replace? (y/N)` and updates the live URL in place — matches the "living doc" behavior above.
 
 ### Anti-patterns
 - Explaining from memory/assumption instead of reading the code.
@@ -389,7 +389,7 @@ Report the returned `✓ Deployed → <url>` as the deliverable — not the pros
 - Multi-file output, a build step, or broken external deps — one openable file only.
 
 ## Gotchas
-- Commands other than `login`/`logout` require a credential: run `glance login`, or export `GLANCE_TOKEN` (an API key) — which wins over the saved config.
-- A key can't delete a site. `glance delete` with `GLANCE_TOKEN` exported is a 403 by design, not a misconfiguration — unset it and use your own session.
-- Wrong `GLANCE_API_URL` → you'll log in / deploy against the wrong instance silently. Verify with `glance list`.
+- Commands other than `login`/`logout` require a credential: run `postplan login`, or export `POSTPLAN_TOKEN` (an API key) — which wins over the saved config.
+- A key can't delete a site. `postplan delete` with `POSTPLAN_TOKEN` exported is a 403 by design, not a misconfiguration — unset it and use your own session.
+- Wrong `POSTPLAN_API_URL` → you'll log in / deploy against the wrong instance silently. Verify with `postplan list`.
 - `deploy` errors print the HTTP status and a truncated server message — check `--space`/`--name` are valid slugs and you're pointed at the right instance.

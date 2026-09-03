@@ -172,7 +172,7 @@ export function ApiKeyDialog({
             <DialogHeader>
               <DialogTitle>Key created</DialogTitle>
               <DialogDescription>
-                Copy it now — this is the only time it’s shown. Glance stores only its hash.
+                Copy it now — this is the only time it’s shown. Postplan stores only its hash.
               </DialogDescription>
             </DialogHeader>
             {/* min-w-0: this row is a grid item of DialogContent, so min-width:auto pins it to the

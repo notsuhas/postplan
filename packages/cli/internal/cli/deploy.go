@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"glance/internal/argparse"
-	"glance/internal/slug"
+	"postplan/internal/argparse"
+	"postplan/internal/slug"
 	"io/fs"
 	"mime/multipart"
 	"os"
@@ -33,7 +33,7 @@ func walk(dir string, includeHidden bool) ([]string, error) {
 			return nil
 		}
 		name := d.Name()
-		// .glance holds the pull.json round-trip marker — internal bookkeeping, never site content.
+		// .postplan holds the pull.json round-trip marker — internal bookkeeping, never site content.
 		skip := name == ".git" || name == "node_modules" || name == ".DS_Store" || name == pullMarkerDir ||
 			(!includeHidden && strings.HasPrefix(name, "."))
 		if skip {
@@ -118,7 +118,7 @@ func (c *client) deploy(argv []string) error {
 		themeSet = true
 	}
 	if path == "" {
-		return fmt.Errorf("Usage: glance deploy <path> [--space <slug>] [--name <slug>] [--visibility team|private|members] [--theme <slug>|default] [--include-hidden]")
+		return fmt.Errorf("Usage: postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team|private|members] [--theme <slug>|default] [--include-hidden]")
 	}
 	if err := c.requireAuth(); err != nil {
 		return err
@@ -133,9 +133,9 @@ func (c *client) deploy(argv []string) error {
 		return fmt.Errorf("No such file or directory: %s", root)
 	}
 
-	// A tree produced by `read --pull` carries a .glance/pull.json marker: redeploy it to the SAME
+	// A tree produced by `read --pull` carries a .postplan/pull.json marker: redeploy it to the SAME
 	// site, pass the pulled contentVersion as the CAS token (editor replaces require it), and
-	// re-include dotfiles (they were pulled, so they're part of the source). The .glance/ dir itself
+	// re-include dotfiles (they were pulled, so they're part of the source). The .postplan/ dir itself
 	// is excluded from the walk above.
 	var marker *pullMarker
 	if info.IsDir() {

@@ -1,6 +1,6 @@
 // S-D test harness: a real in-memory SQLite (bun:sqlite) wired through drizzle so the
 // repo/route helpers run their actual query builders, plus a KV mock matching the
-// GLANCE_SESSIONS surface. Cast to the D1 types the app expects — query semantics are
+// POSTPLAN_SESSIONS surface. Cast to the D1 types the app expects — query semantics are
 // identical; only the driver differs (D1's `.batch` is shimmed sequentially).
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -417,7 +417,7 @@ export async function seedApiKey(db: DrizzleD1Database, o: { userId: string } & 
   return id
 }
 
-/** In-memory stand-in for the GLANCE_SESSIONS KV namespace (get/put/delete/list + ttl peek).
+/** In-memory stand-in for the POSTPLAN_SESSIONS KV namespace (get/put/delete/list + ttl peek).
  *  `list` returns every matching key in one page (list_complete: true, no cursor) — enough to
  *  drive `revokeUserCliTokens`'s prefix enumeration; it never needs to exercise pagination. */
 export function makeKv() {
@@ -527,7 +527,7 @@ function etagConditionsHold(onlyIf: R2Conditional, currentEtag: string): boolean
   return true
 }
 
-/** In-memory stand-in for the GLANCE_FILES R2 bucket with a TRUE BYTE model: bodies are
+/** In-memory stand-in for the POSTPLAN_FILES R2 bucket with a TRUE BYTE model: bodies are
  *  stored as Uint8Array (string puts UTF-8-encoded), ranges slice bytes, `size` is always
  *  the full BYTE length, and `httpEtag` ROTATES on every put of the same key (quoted,
  *  version-suffixed — real R2 etags change when content changes; rotating unconditionally

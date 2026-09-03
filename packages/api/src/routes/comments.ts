@@ -419,7 +419,7 @@ async function ingestVoiceComment(
   // depends on the other — run them together so the AI latency doesn't stack on the upload latency.
   const [transcript] = await Promise.all([
     transcribeVoice(c.env.AI, bytes),
-    c.env.GLANCE_FILES.put(audioKey, bytes, { httpMetadata: { contentType: EXT_MIME[ext] } }),
+    c.env.POSTPLAN_FILES.put(audioKey, bytes, { httpMetadata: { contentType: EXT_MIME[ext] } }),
   ])
   // Best-effort transcript is the stored body so the CLI/agent review loop reads it as text. The
   // transcript is server-generated, so it skips cleanBody's empty-reject; still strip control chars
@@ -487,7 +487,7 @@ comments.get('/:space/:site/comments/audio/:commentId', async (c) => {
   const comment = extras[0][0]
   if (!comment || comment.deletedAt !== null || !comment.audioKey) return c.json({ error: 'not found' }, 404)
   if (!threadInSite(extras[1][0]?.thread, site.id)) return c.json({ error: 'not found' }, 404)
-  const object = await c.env.GLANCE_FILES.get(comment.audioKey)
+  const object = await c.env.POSTPLAN_FILES.get(comment.audioKey)
   if (!object) return c.json({ error: 'not found' }, 404)
 
   const headers = new Headers({
@@ -640,7 +640,7 @@ async function createVoiceThread(c: Context<AppEnv>, site: ResolvedSite): Promis
       audioKey,
     })
   } catch (e) {
-    await deleteKeys(c.env.GLANCE_FILES, [audioKey]) // compensation: don't orphan the R2 object
+    await deleteKeys(c.env.POSTPLAN_FILES, [audioKey]) // compensation: don't orphan the R2 object
     throw e
   }
   await pushThreadCreated(c, site, fields.filePath, out.thread, out.comment)
@@ -692,7 +692,7 @@ async function replyVoiceComment(c: Context<AppEnv>, site: ResolvedSite, thread:
   try {
     added = await addComment(c.get('db'), { threadId: thread.id, authorId: c.get('user').id, body, commentId, audioKey })
   } catch (e) {
-    await deleteKeys(c.env.GLANCE_FILES, [audioKey]) // compensation: don't orphan the R2 object
+    await deleteKeys(c.env.POSTPLAN_FILES, [audioKey]) // compensation: don't orphan the R2 object
     throw e
   }
   await pushCommentCreated(c, site, thread, added)
@@ -772,7 +772,7 @@ comments.delete('/:space/:site/comments/:threadId/messages/:commentId', async (c
   else if (isOpening) await deleteComment(c.get('db'), comment.threadId, comment.id)
   else await hardDeleteComment(c.get('db'), comment.threadId, comment.id)
 
-  if (audioKeys.length > 0) await fireAndForget(c, deleteKeys(c.env.GLANCE_FILES, audioKeys))
+  if (audioKeys.length > 0) await fireAndForget(c, deleteKeys(c.env.POSTPLAN_FILES, audioKeys))
   return c.json({ ok: true })
 })
 

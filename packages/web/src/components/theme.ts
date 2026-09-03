@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react'
 // re-render on toggle without violating the project's no-useEffect rule.
 
 export type Theme = 'light' | 'dark'
-const KEY = 'glance-theme'
+const KEY = 'postplan-theme'
 
 export function getTheme(): Theme {
   if (typeof document === 'undefined') return 'dark'
@@ -20,7 +20,7 @@ export function setTheme(t: Theme): void {
   } catch {
     /* private mode / storage disabled — ignore */
   }
-  window.dispatchEvent(new Event('glance:theme'))
+  window.dispatchEvent(new Event('postplan:theme'))
 }
 
 export function toggleTheme(): void {
@@ -28,8 +28,8 @@ export function toggleTheme(): void {
 }
 
 function subscribe(cb: () => void): () => void {
-  window.addEventListener('glance:theme', cb)
-  return () => window.removeEventListener('glance:theme', cb)
+  window.addEventListener('postplan:theme', cb)
+  return () => window.removeEventListener('postplan:theme', cb)
 }
 
 export function useTheme(): Theme {

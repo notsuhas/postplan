@@ -84,7 +84,7 @@ describe('A10 markdown served THROUGH the tokenized worker path stays safe', () 
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://glance.example.com', CONTENT_TOKEN_SECRET: secret, GLANCE_FILES: r2 } }
+    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
   }
   async function gatedSite(db: ReturnType<typeof makeDb>) {
     const uid = await seedUser(db, { id: 'u1' })
@@ -164,7 +164,7 @@ describe('sanitizePath (upload-time R2 key hardening)', () => {
 describe('content 404s carry Cache-Control: no-store', () => {
   // Mount the real content app under a wrapper that injects the in-memory harness db, so
   // serve()'s D1 reads run against real SQLite. The two cases here return BEFORE any R2
-  // access, so no GLANCE_FILES mock is needed (S-D only).
+  // access, so no POSTPLAN_FILES mock is needed (S-D only).
   function setup() {
     const db = makeDb()
     const app = new Hono()
@@ -173,7 +173,7 @@ describe('content 404s carry Cache-Control: no-store', () => {
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, env: { APP_URL: 'https://glance.example.com', CONTENT_TOKEN_SECRET: secret } }
+    return { app, db, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret } }
   }
 
   test('content-missing-site-404-no-store: unknown space/site → 404 + no-store, before any R2 access', async () => {
@@ -207,7 +207,7 @@ describe('directory listing fallback (no index.html)', () => {
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://glance.example.com', CONTENT_TOKEN_SECRET: secret, GLANCE_FILES: r2 } }
+    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
   }
 
   // Seed sam/site (gated `team` tier) owned by u1 and return a content token bound to that owner.
@@ -232,8 +232,8 @@ describe('directory listing fallback (no index.html)', () => {
     const body = await res.text()
     expect(body).toContain('No <code>index.html')
     // Links point at the app viewer route (URL updates) and break out of the iframe (target=_top).
-    expect(body).toContain('href="https://glance.example.com/sam/site/home.html" target="_top"')
-    expect(body).toContain('href="https://glance.example.com/sam/site/assets/app.js" target="_top"')
+    expect(body).toContain('href="https://postplan.example.com/sam/site/home.html" target="_top"')
+    expect(body).toContain('href="https://postplan.example.com/sam/site/assets/app.js" target="_top"')
   })
 
   test('single-file site still serves the lone file at the root (fallback preserved)', async () => {
@@ -257,7 +257,7 @@ describe('view analytics (page-view events)', () => {
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://glance.example.com', CONTENT_TOKEN_SECRET: secret, GLANCE_FILES: r2 } }
+    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
   }
 
   async function gatedSite(db: ReturnType<typeof makeDb>) {
@@ -343,19 +343,19 @@ describe('injectAnnotate replacement safety (#46: $-specials in filePath stay ve
     const out = injectAnnotate(html, {
       siteId: 's1',
       filePath: 'weird$&$$$1name.html',
-      appOrigin: 'https://glance.example.com',
+      appOrigin: 'https://postplan.example.com',
     })
     expect(out).toContain('"filePath":"weird$&$$$1name.html"')
     // Still anchored before </body> (the preferred injection point), not the append fallback.
-    expect(out.indexOf('window.__GLANCE__=')).toBeLessThan(out.indexOf('</body>'))
+    expect(out.indexOf('window.__POSTPLAN__=')).toBeLessThan(out.indexOf('</body>'))
   })
 
   test('no </body>/</head> → appends after the document, keeping any leading doctype first (no quirks flip)', () => {
     const html = '<!doctype html><p>bare</p>'
-    const out = injectAnnotate(html, { siteId: 's1', filePath: 'a.html', appOrigin: 'https://glance.example.com' })
+    const out = injectAnnotate(html, { siteId: 's1', filePath: 'a.html', appOrigin: 'https://postplan.example.com' })
     expect(out.startsWith('<!doctype html>')).toBe(true)
-    expect(out).toContain('window.__GLANCE__=')
-    expect(out.indexOf('<p>bare</p>')).toBeLessThan(out.indexOf('window.__GLANCE__='))
+    expect(out).toContain('window.__POSTPLAN__=')
+    expect(out.indexOf('<p>bare</p>')).toBeLessThan(out.indexOf('window.__POSTPLAN__='))
   })
 })
 
@@ -369,7 +369,7 @@ describe('gated file serving: cache-control, conditional 304, archive-through-ch
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://glance.example.com', CONTENT_TOKEN_SECRET: secret, GLANCE_FILES: r2 } }
+    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
   }
 
   // Seed sam/site (gated `team` tier) owned by `owner` with one index.html, returning a bound token.
@@ -451,7 +451,7 @@ describe('audio serving: MIME resolution + HTTP Range support', () => {
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://glance.example.com', CONTENT_TOKEN_SECRET: secret, GLANCE_FILES: r2 } }
+    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
   }
 
   // Seeds a gated `team`-tier site with one file, stamped `application/octet-stream` — what

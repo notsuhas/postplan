@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Glance one-shot setup: provision -> deploy -> secrets -> migrate -> wire URLs -> print link.
+# Postplan one-shot setup: provision -> deploy -> secrets -> migrate -> wire URLs -> print link.
 #
 # Does the WHOLE self-host from a fresh Cloudflare account. After `wrangler login` this script:
 #   1. provisions the D1 database, KV namespace, and R2 bucket (create-or-reuse by name) and
@@ -97,37 +97,37 @@ if grep -q 'yourcompany.com' wrangler.jsonc; then
   exit 1
 fi
 
-note "Provisioning D1 database (glance-db)"
+note "Provisioning D1 database (postplan-db)"
 if grep -q 'YOUR_D1_DATABASE_ID' wrangler.jsonc; then
-  D1_ID="$(wrangler d1 info glance-db 2>/dev/null | grep -oiE "$UUID" | head -1 || true)"   # reuse if it exists
+  D1_ID="$(wrangler d1 info postplan-db 2>/dev/null | grep -oiE "$UUID" | head -1 || true)"   # reuse if it exists
   if [[ -z "$D1_ID" ]]; then
-    D1_ID="$(wrangler d1 create glance-db 2>&1 | tee /dev/stderr | grep -oiE "$UUID" | head -1 || true)"
+    D1_ID="$(wrangler d1 create postplan-db 2>&1 | tee /dev/stderr | grep -oiE "$UUID" | head -1 || true)"
   fi
   [[ -n "$D1_ID" ]] || { echo "Could not determine D1 database_id — aborting."; exit 1; }
   wire YOUR_D1_DATABASE_ID "$D1_ID" wrangler.jsonc wrangler.content.jsonc   # both share one DB
-  echo "   glance-db → $D1_ID"
+  echo "   postplan-db → $D1_ID"
 else
   echo "   already wired — skipping"
 fi
 
-note "Provisioning KV namespace (GLANCE_SESSIONS)"
+note "Provisioning KV namespace (POSTPLAN_SESSIONS)"
 if grep -q 'YOUR_KV_NAMESPACE_ID' wrangler.jsonc; then
-  KV_ID="$(wrangler kv namespace list 2>/dev/null | grep -B3 'GLANCE_SESSIONS' | grep -oE "$HEX32" | head -1 || true)"
+  KV_ID="$(wrangler kv namespace list 2>/dev/null | grep -B3 'POSTPLAN_SESSIONS' | grep -oE "$HEX32" | head -1 || true)"
   if [[ -z "$KV_ID" ]]; then
-    KV_ID="$(wrangler kv namespace create GLANCE_SESSIONS 2>&1 | tee /dev/stderr | grep -oE "$HEX32" | head -1 || true)"
+    KV_ID="$(wrangler kv namespace create POSTPLAN_SESSIONS 2>&1 | tee /dev/stderr | grep -oE "$HEX32" | head -1 || true)"
   fi
   [[ -n "$KV_ID" ]] || { echo "Could not determine KV namespace id — aborting."; exit 1; }
   wire YOUR_KV_NAMESPACE_ID "$KV_ID" wrangler.jsonc   # content worker has no KV
-  echo "   GLANCE_SESSIONS → $KV_ID"
+  echo "   POSTPLAN_SESSIONS → $KV_ID"
 else
   echo "   already wired — skipping"
 fi
 
-note "Provisioning R2 bucket (glance-files)"
-R2_OUT="$(wrangler r2 bucket create glance-files 2>&1 || true)"
+note "Provisioning R2 bucket (postplan-files)"
+R2_OUT="$(wrangler r2 bucket create postplan-files 2>&1 || true)"
 echo "$R2_OUT" >&2
 if echo "$R2_OUT" | grep -qiE 'created|already (exists|owned by you)'; then
-  echo "   glance-files ready"
+  echo "   postplan-files ready"
 else
   warn "R2 bucket not confirmed. If R2 isn't enabled, turn it on at dash.cloudflare.com -> R2"
   warn "(accept the terms), then re-run. Multiple accounts? export CLOUDFLARE_ACCOUNT_ID first."
@@ -225,18 +225,18 @@ else
   echo "   set BOOTSTRAP_TOKEN"
 fi
 
-# Google OAuth is OPTIONAL — Glance runs bootstrap-only without it. Wire it later with:
+# Google OAuth is OPTIONAL — Postplan runs bootstrap-only without it. Wire it later with:
 #   wrangler secret put GOOGLE_CLIENT_ID && wrangler secret put GOOGLE_CLIENT_SECRET
 
 note "Applying D1 migrations to the remote database"
-wrangler d1 migrations apply glance-db --remote
+wrangler d1 migrations apply postplan-db --remote
 
 # --- D1 read replication (issue #79): reads route to the nearest replica via the Sessions API
 # the workers use; billing is unchanged (still rows_read/rows_written). A DB-level setting with
 # no wrangler command — REST only, so the OAuth login can't authenticate it. Best-effort here;
 # CI (deploy.yml) also ensures it on every deploy.
-note "Enabling D1 read replication (glance-db)"
-if wrangler d1 info glance-db --json 2>/dev/null | grep -q '"mode": *"auto"'; then
+note "Enabling D1 read replication (postplan-db)"
+if wrangler d1 info postplan-db --json 2>/dev/null | grep -q '"mode": *"auto"'; then
   echo "   already enabled — skipping"
 elif [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
   ACCT="${CLOUDFLARE_ACCOUNT_ID:-$(wrangler whoami 2>/dev/null | grep -oE "$HEX32" | head -1 || true)}"
@@ -247,10 +247,10 @@ elif [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
     echo "   read replication → auto"
   else
     warn "Could not enable read replication via the API — enable it in the dashboard:"
-    warn "   dash.cloudflare.com → Storage & Databases → D1 → glance-db → Settings"
+    warn "   dash.cloudflare.com → Storage & Databases → D1 → postplan-db → Settings"
   fi
 else
-  warn "Needs a REST call (no wrangler command). Enable it in the dashboard (D1 → glance-db →"
+  warn "Needs a REST call (no wrangler command). Enable it in the dashboard (D1 → postplan-db →"
   warn "Settings) or export CLOUDFLARE_API_TOKEN (D1:Edit) and re-run."
 fi
 

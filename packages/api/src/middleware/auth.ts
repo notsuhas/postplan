@@ -5,7 +5,7 @@ import { getUserById } from '../db/repo'
 import { bearerToken, readCredential } from '../lib/session'
 import type { AppEnv } from '../types'
 
-const SESSION_COOKIE = '__Host-glance_session'
+const SESSION_COOKIE = '__Host-postplan_session'
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 /** True when the request's cookie jar carries a session cookie AT ALL — presence, not validity,
@@ -25,7 +25,7 @@ export const isSameOrigin = (c: Context<AppEnv>): boolean => {
 
 /**
  * CSRF defense-in-depth. Only enforces on cookie-authenticated, state-changing requests:
- * if the `glance_session` cookie is present AND the method is unsafe, require same-origin
+ * if the `postplan_session` cookie is present AND the method is unsafe, require same-origin
  * else 403. Bearer-token CLI calls carry no cookie and pass through untouched; GET/HEAD
  * always pass — safe because a foreign origin's fetch/XHR still can't READ the JSON body
  * without this app's CORS allowing it (unlike a WebSocket upgrade, which is CORS-exempt;

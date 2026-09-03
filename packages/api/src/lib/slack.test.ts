@@ -91,7 +91,7 @@ describe('lookupSlackId', () => {
 })
 
 describe('formatSlackMessage', () => {
-  const appUrl = 'https://glance.example.com'
+  const appUrl = 'https://postplan.example.com'
   const base = {
     siteLabel: 'design/q3-dashboard',
     actorName: 'Ravi Anand',
@@ -136,7 +136,7 @@ describe('formatSlackMessage', () => {
     expect(msg).toContain('*Ravi Anand*')
     // the deep link rides the site label as a bold hyperlink (& entity-escaped per Slack)
     expect(msg).toContain(
-      '*<https://glance.example.com/design/q3-dashboard/q3.html?thread=t1&amp;review=1|design/q3-dashboard>*',
+      '*<https://postplan.example.com/design/q3-dashboard/q3.html?thread=t1&amp;review=1|design/q3-dashboard>*',
     )
     expect(msg.split('\n')).toHaveLength(2) // verb line + quote; no separate URL line
   })
@@ -155,7 +155,7 @@ const EVENT = {
 const postBody = (init?: RequestInit) => JSON.parse(String(init?.body)) as { channel: string; text: string }
 
 describe('deliverSlack', () => {
-  const appUrl = 'https://glance.example.com'
+  const appUrl = 'https://postplan.example.com'
 
   test('S1: token absent/blank → resolves with zero KV and zero HTTP', async () => {
     for (const token of [undefined, '', '  ']) {

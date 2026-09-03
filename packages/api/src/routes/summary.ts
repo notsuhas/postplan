@@ -121,7 +121,7 @@ summary.post('/:space/:site/summary', async (c) => {
   const entry = pickEntry(fileRows)
   let extracted = null
   if (entry && isSupportedEntry(entry)) {
-    const object = await c.env.GLANCE_FILES.get(entry.storageKey)
+    const object = await c.env.POSTPLAN_FILES.get(entry.storageKey)
     if (object) extracted = await extractText(entry, await object.text())
   }
   if (!extracted?.ok) return c.json({ error: 'nothing to summarize' }, 422)

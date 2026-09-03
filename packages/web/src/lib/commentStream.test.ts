@@ -7,9 +7,9 @@ import { createCommentStream } from './commentStream'
 // close-and-redial. There is also no cursor (ruled decision 1): a reconnect can only tell the
 // consumer "a gap may have happened, go re-read the list", never replay what was missed.
 
-const APP = 'https://glance.example.com'
+const APP = 'https://postplan.example.com'
 const SITE = { spaceSlug: 'sam', siteSlug: 'demo' }
-const WS_URL = 'wss://glance.example.com/api/sites/sam/demo/comments/socket'
+const WS_URL = 'wss://postplan.example.com/api/sites/sam/demo/comments/socket'
 
 /** Enough of a WebSocket for the rail, plus the levers a test needs. */
 class FakeSocket {

@@ -497,13 +497,13 @@ describe('T3.6 per-transform byte identity (cold R2 vs warm cache)', () => {
       { path: 'index.html', text: '<html><head></head><body><p>x</p></body></html>' },
     ])
     const before = ops(s)
-    const cold = await (await get(s, token, 'index.html?glance_annotate=1')).text()
+    const cold = await (await get(s, token, 'index.html?postplan_annotate=1')).text()
     expect(diff(before, ops(s))).toEqual(COLD_FULL)
     const warmBefore = ops(s)
-    const warm = await (await get(s, token, 'index.html?glance_annotate=1')).text()
+    const warm = await (await get(s, token, 'index.html?postplan_annotate=1')).text()
     expect(diff(warmBefore, ops(s))).toEqual(WARM_HIT)
     expect(warm).toBe(cold)
-    expect(cold).toContain('window.__GLANCE__=')
+    expect(cold).toContain('window.__POSTPLAN__=')
   })
 
   test('plain-HTML link rewrite: cold vs warm bytes identical; one view per request', async () => {

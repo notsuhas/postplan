@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Glance">
-  <!-- Favicon derived from the Glance brand mark (warm tile + almond eye + screen pupil),
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Postplan">
+  <!-- Favicon derived from the Postplan brand mark (warm tile + almond eye + screen pupil),
        simplified and enlarged for 16-32px: fine content lines, glow and catchlight dropped,
        eye scaled up so it still reads as an eye at 16px. The rim adapts to the browser theme
        via prefers-color-scheme (dark rim on light chrome, light rim on dark chrome). -->

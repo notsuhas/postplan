@@ -1,7 +1,7 @@
-// glance.db browser client. BROWSER code — excluded from the worker tsconfig and bundled to a
+// postplan.db browser client. BROWSER code — excluded from the worker tsconfig and bundled to a
 // string by scripts/build-db.ts (run `bun run build:db` after editing this file).
 //
-// Two transports, picked from the boot global `window.__GLANCE_DB__`:
+// Two transports, picked from the boot global `window.__POSTPLAN_DB__`:
 //   • same-origin ({space, site}): the page runs on the TRUSTED app origin — mint a data token
 //     via the session (/api/data-token) and call /api/_data directly. Tokens are re-minted
 //     before expiry and once on a 401.
@@ -10,7 +10,7 @@
 //     port2 to the parent frame; every operation is a message the parent validates, executes
 //     with ITS token, and answers with data only (P0-1: the confused-deputy fix).
 //
-// The global is __GLANCE_DB__, not __GLANCE__ — that one belongs to the annotate overlay.
+// The global is __POSTPLAN_DB__, not __POSTPLAN__ — that one belongs to the annotate overlay.
 
 import { WS_PROTOCOL } from '../realtime/protocol'
 import { type ChangeEvent, type Frame, type StreamHandlers, type Transport, createSubscriptions } from './subscriptions'
@@ -30,7 +30,7 @@ type BrokerReq = {
 const HELLO_TIMEOUT_MS = 5000
 const REQUEST_TIMEOUT_MS = 15000
 
-const boot = (window as unknown as { __GLANCE_DB__?: Boot }).__GLANCE_DB__
+const boot = (window as unknown as { __POSTPLAN_DB__?: Boot }).__POSTPLAN_DB__
 
 // --- broker transport (hosted pages inside the app viewer) --------------------------------
 
@@ -57,30 +57,30 @@ function connect(appOrigin: string): Promise<MessagePort> {
     const ch = new MessageChannel()
     const timer = setTimeout(() => {
       connecting = null
-      reject(new Error('glance.db: no broker answered — open this site through the Glance app'))
+      reject(new Error('postplan.db: no broker answered — open this site through the Postplan app'))
     }, HELLO_TIMEOUT_MS)
     ch.port1.onmessage = (e: MessageEvent) => {
       const d = e.data as { type?: string; error?: string; id?: number; ok?: boolean; status?: number; body?: unknown }
-      if (d?.type === 'glance:db-ready') {
+      if (d?.type === 'postplan:db-ready') {
         clearTimeout(timer)
         port = ch.port1
         resolve(port)
-      } else if (d?.type === 'glance:db-error') {
+      } else if (d?.type === 'postplan:db-error') {
         clearTimeout(timer)
         connecting = null
-        reject(new Error(d.error || 'glance.db: broker refused the connection'))
-      } else if (d?.type === 'glance:db-event') {
+        reject(new Error(d.error || 'postplan.db: broker refused the connection'))
+      } else if (d?.type === 'postplan:db-event') {
         // A pushed frame, NOT a reply — it carries no `id`, so it can never settle a request.
         stream?.onFrame(e.data as Frame)
-      } else if (d?.type === 'glance:db-open') {
+      } else if (d?.type === 'postplan:db-open') {
         // The parent's socket (re)connected; replay whatever the dead one missed.
         stream?.onOpen()
       } else if (typeof d?.id === 'number') {
         if (d.ok) settle(d.id, 'resolve', d.body)
-        else settle(d.id, 'reject', new Error((d.body as { error?: string })?.error || `glance: ${d.status}`))
+        else settle(d.id, 'reject', new Error((d.body as { error?: string })?.error || `postplan: ${d.status}`))
       }
     }
-    window.parent.postMessage({ type: 'glance:db-hello' }, appOrigin, [ch.port2])
+    window.parent.postMessage({ type: 'postplan:db-hello' }, appOrigin, [ch.port2])
   })
   return connecting
 }
@@ -89,7 +89,7 @@ async function brokerCall(appOrigin: string, req: Omit<BrokerReq, 'id'>): Promis
   const p = await connect(appOrigin)
   const id = ++seq
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => settle(id, 'reject', new Error('glance.db: request timed out')), REQUEST_TIMEOUT_MS)
+    const timer = setTimeout(() => settle(id, 'reject', new Error('postplan.db: request timed out')), REQUEST_TIMEOUT_MS)
     pending.set(id, { resolve, reject, timer })
     p.postMessage({ id, ...req })
   })
@@ -102,7 +102,7 @@ let expiresAt = 0
 
 async function mint(space: string, site: string): Promise<string> {
   const r = await fetch(`/api/data-token/${space}/${site}`, { method: 'POST' })
-  if (!r.ok) throw new Error(`glance: could not mint data token (${r.status})`)
+  if (!r.ok) throw new Error(`postplan: could not mint data token (${r.status})`)
   const data = (await r.json()) as { token: string; expiresIn: number }
   token = data.token
   expiresAt = Date.now() + Math.max(0, data.expiresIn - 30) * 1000
@@ -122,7 +122,7 @@ async function directCall(space: string, site: string, method: string, path: str
   }
   if (res.status === 204) return null
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as { error?: string }).error || `glance: ${res.status}`)
+  if (!res.ok) throw new Error((data as { error?: string }).error || `postplan: ${res.status}`)
   return data
 }
 
@@ -217,7 +217,7 @@ function subscriptions() {
     if (boot?.space && boot?.site) subs = createSubscriptions(directTransport(boot.space, boot.site))
     else if (boot?.appOrigin && window.parent !== window) subs = createSubscriptions(brokerTransport(boot.appOrigin))
     else
-      throw new Error('glance.db: not connected — open this site through the Glance app, or set window.__GLANCE_DB__')
+      throw new Error('postplan.db: not connected — open this site through the Postplan app, or set window.__POSTPLAN_DB__')
   }
   return subs
 }
@@ -234,7 +234,7 @@ function call(op: string, collection: string, docId?: string, data?: unknown): P
     return brokerCall(boot.appOrigin, { op, collection, docId, data })
   }
   return Promise.reject(
-    new Error('glance.db: not connected — open this site through the Glance app, or set window.__GLANCE_DB__'),
+    new Error('postplan.db: not connected — open this site through the Postplan app, or set window.__POSTPLAN_DB__'),
   )
 }
 
@@ -254,4 +254,4 @@ function collection(name: string) {
   }
 }
 
-;(window as unknown as { glance: unknown }).glance = { db: { collection } }
+;(window as unknown as { postplan: unknown }).postplan = { db: { collection } }
