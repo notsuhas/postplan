@@ -6,7 +6,7 @@ import { batchAll } from '../lib/d1'
 import { canReplace } from '../lib/access'
 import { fireAndForget } from '../lib/events'
 import { capTitle, extractHtmlMeta, NO_META, pickEntry } from '../lib/extract'
-import { isValidSlug } from '../lib/slug'
+import { isValidSlug, slugForVisibility } from '../lib/slug'
 import { deleteKeys, MAX_FILE_BYTES, sanitizePath } from '../lib/storage'
 import { isVisibility, normalizeVisibility } from '../lib/visibility'
 import { isTheme, normalizeTheme } from '../themes/registry'
@@ -160,6 +160,10 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
 
   const replace = c.req.query('replace') === 'true'
   const isCreate = !existing
+  // An unlisted site is protected only by its URL being unguessable, and the caller-supplied name
+  // is guessable by construction (`glance deploy ./dist` asks for `dist`). Create adds entropy; a
+  // REPLACE keeps the existing slug, or every link already handed out would break.
+  const storedSlug = isCreate ? slugForVisibility(siteSlug, visibility) : siteSlug
   let siteId: string
   let oldKeys: string[] = []
   // True when the actor is exercising an EDITOR grant (not the owner). Editors are content-only:
@@ -274,7 +278,7 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
         db.insert(sites).values({
           id: siteId,
           spaceId: space.id,
-          slug: siteSlug,
+          slug: storedSlug,
           title: title ?? derivedTitle,
           description,
           visibility: isVisibility(visibility) ? visibility : 'team',
@@ -351,8 +355,8 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
   if (!isCreate && oldKeys.length > 0) await fireAndForget(c, deleteKeys(c.env.GLANCE_FILES, oldKeys))
 
   return c.json({
-    url: `${c.env.APP_URL}/${spaceSlug}/${siteSlug}`,
-    siteSlug,
+    url: `${c.env.APP_URL}/${spaceSlug}/${storedSlug}`,
+    siteSlug: storedSlug,
     fileCount: newRows.length,
     contentVersion: newVersion,
   })

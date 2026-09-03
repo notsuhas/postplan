@@ -3,7 +3,10 @@ import { Hono } from 'hono'
 import { signDataToken } from '../lib/data-token'
 import { TOKEN_HEADER } from '../realtime/site-room'
 import { type HarnessDb, makeDb, seedMember, seedSite, seedSpace, seedUser } from '../test/harness'
-import wrangler from '../../wrangler.jsonc'
+// The TRACKED template at the repo root, not the rendered wrangler.jsonc — that one is gitignored
+// (scripts/apply-config.sh generates it from deploy.env), so a fresh clone and CI would not have
+// it. What this asserts is structural, and structure lives in the template.
+import wrangler from '../../../../wrangler.example.jsonc'
 import { dataApi } from './data'
 
 // The WORKER side of the realtime upgrade. Everything here is about what happens BEFORE the

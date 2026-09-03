@@ -26,7 +26,7 @@ import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
 import { readSessionOrBearer } from '../lib/session'
 import { fetchAccessFacts, isSharedFromFacts, resolveSite, resolveSiteForAccess } from '../lib/site-access'
 import { deliverSlack, type SlackRecipient, slackDepsFromEnv, slackEnabled } from '../lib/slack'
-import { isValidSlug } from '../lib/slug'
+import { isValidSlug, slugForVisibility } from '../lib/slug'
 import { copyObjects, deleteKeys, deleteSiteObjects } from '../lib/storage'
 import { signToken } from '../lib/token'
 import { isVisibility, normalizeVisibility } from '../lib/visibility'
@@ -185,11 +185,14 @@ sites.post('/', requireAuth, requireControlGrant, async (c) => {
   if (existing) return c.json({ error: 'site already exists', conflict: true }, 409)
 
   const id = crypto.randomUUID()
+  // An unlisted site is protected only by its URL being unguessable, so the stored slug carries
+  // entropy the caller did not supply. The response below returns the real slug and url.
+  const storedSlug = slugForVisibility(siteSlug, vis)
   try {
     await db.insert(sitesTable).values({
       id,
       spaceId: space.id,
-      slug: siteSlug,
+      slug: storedSlug,
       title: typeof title === 'string' ? title : null,
       visibility: isVisibility(vis) ? vis : 'team',
       ownerId: user.id,
@@ -201,7 +204,9 @@ sites.post('/', requireAuth, requireControlGrant, async (c) => {
     throw err
   }
 
-  return c.json({ id, spaceSlug, siteSlug, url: `${c.env.APP_URL}/${spaceSlug}/${siteSlug}` }, 201)
+  // storedSlug, not siteSlug: an unlisted create adds entropy, and returning the requested name
+  // would hand back a URL that 404s.
+  return c.json({ id, spaceSlug, siteSlug: storedSlug, url: `${c.env.APP_URL}/${spaceSlug}/${storedSlug}` }, 201)
 })
 
 // GET /api/sites/mine — sites owned by the caller, newest first. The pure-audio badge rides the
