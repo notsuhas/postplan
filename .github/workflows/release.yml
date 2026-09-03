@@ -30,7 +30,7 @@ jobs:
           v="${GITHUB_REF_NAME#v}"
           while read -r goos goarch out; do
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-              go build -trimpath -ldflags="-s -w -X main.version=$v" -o "dist/$out" .
+              go build -trimpath -ldflags="-s -w -X main.version=$v" -o "dist/$out" ./cmd/glance
             # Checksum the uncompressed binary (what actually runs), then gzip to shrink the download.
             # The installer + self-update verify the decompressed bytes against this sum.
             ( cd dist && shasum -a 256 "$out" | awk '{print $1}' > "$out.sha256" && gzip -9 "$out" )

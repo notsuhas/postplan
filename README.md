@@ -123,7 +123,7 @@ Docs are JSON ≤100KB in named collections. Every viewer can create and read th
 ```
 packages/api   Hono Worker — /api/* + file serving, ships the React app as static assets
 packages/web   Vite + React Router v7
-packages/cli   `glance` CLI (Go)
+packages/cli   `glance` CLI (Go) — `cmd/glance` is the binary, `internal/cli` the command surface
 ```
 
 Local dev: `bun install && bun run db:migrate:local && bun run dev` (main :8787 + content :8788 + vite :5173), then open http://localhost:5173. CI auto-deploys both workers on push to `main`.

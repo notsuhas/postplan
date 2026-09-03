@@ -70,7 +70,7 @@ detect_arch() {
 
 # Resolve the latest release tag WITHOUT the GitHub API (anonymous api.github.com is capped at
 # 60 req/hr/IP — shared NATs/CI hit it and the install silently fails). Mirrors the CLI's own
-# self-update path (packages/cli/upgrade_io.go): the /releases/latest page 302-redirects to
+# self-update path (packages/cli/internal/cli/upgrade_io.go): the /releases/latest page 302-redirects to
 # /releases/tag/<tag>, so the tag rides in the redirect target's Location header — no API, no token.
 latest_version() {
     latest_url="https://github.com/${REPO}/releases/latest"

@@ -1,1 +1,1 @@
-../packages/cli/SKILL.md
+../packages/cli/internal/cli/SKILL.md
