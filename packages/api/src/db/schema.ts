@@ -377,6 +377,12 @@ export const notifications = sqliteTable(
     index('notifications_recipient_created').on(t.recipientId, t.createdAt),
     // Supports comment FK maintenance when a comment is hard-deleted through a site/thread cascade.
     index('notifications_comment').on(t.commentId),
+    // Serves the retention purge's `readAt IS NOT NULL AND createdAt < cutoff` (lib/retention.ts).
+    // Neither index above helps — both lead with recipientId — so the purge would full-scan every
+    // run. `readAt` leads so the IS NOT NULL half is a range scan that skips unread rows entirely,
+    // `createdAt` second for the cutoff. Added by migration 0028 but never declared here, so the
+    // squashed baseline would have silently dropped it.
+    index('notifications_read_created').on(t.readAt, t.createdAt),
   ],
 )
 
