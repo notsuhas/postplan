@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"glance/internal/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,7 @@ func TestLoginCommand(t *testing.T) {
 		if !strings.Contains(out.String(), "WXYZ") || !strings.Contains(out.String(), "Logged in") {
 			t.Fatalf("out = %q", out.String())
 		}
-		cfg := readConfig()
+		cfg := config.Read()
 		if cfg == nil || cfg.Token != "AT-123" || cfg.ApiUrl != srv.URL {
 			t.Fatalf("config = %+v", cfg)
 		}
@@ -69,7 +70,7 @@ func TestLoginCommand(t *testing.T) {
 func TestLogoutCommand(t *testing.T) {
 	t.Run("revoked-clears-and-confirms", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		_ = writeConfig(Config{ApiUrl: "https://x", Token: "tok"})
+		_ = config.Write(config.Config{ApiUrl: "https://x", Token: "tok"})
 		srv, reqs := recordingServer(t, func(r *capturedReq) (int, string) { return 200, `{}` })
 		c, out := newTestClient(srv.URL, "tok")
 		if err := c.logout(); err != nil {
@@ -81,7 +82,7 @@ func TestLogoutCommand(t *testing.T) {
 		if (*reqs)[0].auth != "Bearer tok" {
 			t.Fatalf("auth = %q", (*reqs)[0].auth)
 		}
-		if readConfig() != nil {
+		if config.Read() != nil {
 			t.Error("config file should be removed after logout")
 		}
 		if !strings.Contains(out.String(), "Logged out") {
@@ -93,7 +94,7 @@ func TestLogoutCommand(t *testing.T) {
 	// claim the session was revoked — a warning goes to stderr so the user knows the token may live on.
 	t.Run("server-500-warns-but-still-clears-local", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
-		_ = writeConfig(Config{ApiUrl: "https://x", Token: "tok"})
+		_ = config.Write(config.Config{ApiUrl: "https://x", Token: "tok"})
 		srv, reqs := recordingServer(t, func(r *capturedReq) (int, string) { return 500, `boom` })
 		c, out := newTestClient(srv.URL, "tok")
 		var warn strings.Builder
@@ -104,7 +105,7 @@ func TestLogoutCommand(t *testing.T) {
 		if len(*reqs) != 1 {
 			t.Fatalf("expected one revoke attempt, got %+v", *reqs)
 		}
-		if readConfig() != nil {
+		if config.Read() != nil {
 			t.Error("local token must be cleared even when revocation fails")
 		}
 		if !strings.Contains(warn.String(), "may remain valid") {

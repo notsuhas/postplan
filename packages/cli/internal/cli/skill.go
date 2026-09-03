@@ -12,6 +12,7 @@ import (
 //
 // Lives beside this file because go:embed cannot reach above its own package directory. The
 // repo-root glance-cli/SKILL.md symlink points here, so the skills installer still finds it.
+//
 //go:embed SKILL.md
 var skillMD string
 

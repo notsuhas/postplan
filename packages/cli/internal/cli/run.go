@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"glance/internal/config"
 	"os"
 )
 
@@ -50,7 +51,7 @@ var authedCmds = map[string]func(*client, []string) error{
 func dispatch(cmd string, rest []string) error {
 	switch cmd {
 	case "login":
-		return newClient(apiBase(), "", os.Stdout).login()
+		return newClient(config.APIBase(), "", os.Stdout).login()
 	case "version":
 		fmt.Println(Version)
 		return nil
@@ -59,12 +60,12 @@ func dispatch(cmd string, rest []string) error {
 	case "skill":
 		return newClient("", "", os.Stdout).skillCmd(rest)
 	case "logout":
-		// Deliberately NOT apiToken(): logout is a session verb and must act on the credential
+		// Deliberately NOT config.APIToken(): logout is a session verb and must act on the credential
 		// `glance login` stored. Letting GLANCE_TOKEN shadow it means an exported API key gets
 		// POSTed to /api/auth/logout, which answers 400 (a key is revoked from the keys screen,
 		// not by logging out) — and logout then still removes config.json, so the user's real
 		// session token would be gone locally while staying valid server-side.
-		cfg := readConfig()
+		cfg := config.Read()
 		base, token := "", ""
 		if cfg != nil {
 			base, token = cfg.ApiUrl, cfg.Token
@@ -76,10 +77,10 @@ func dispatch(cmd string, rest []string) error {
 		// config. Resolving the token from the env but the URL from disk only would half-wire it —
 		// a CI container with GLANCE_TOKEN and GLANCE_API_URL exported but no ~/.glance/config.json
 		// (a baked-in binary, no installer run) would pass requireAuth() on the non-empty token and
-		// then fail every request with `unsupported protocol scheme ""`. apiBase()'s local-dev
+		// then fail every request with `unsupported protocol scheme ""`. config.APIBase()'s local-dev
 		// fallback keeps the clean "Not logged in" path intact when neither is set: the base is
 		// non-empty, the token is not, and requireAuth() catches it.
-		return run(newClient(apiBase(), apiToken(), os.Stdout), rest)
+		return run(newClient(config.APIBase(), config.APIToken(), os.Stdout), rest)
 	}
 	printHelp()
 	if cmd != "" {

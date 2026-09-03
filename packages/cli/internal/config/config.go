@@ -1,4 +1,4 @@
-package cli
+package config
 
 import (
 	"encoding/json"
@@ -12,18 +12,18 @@ type Config struct {
 	Token  string `json:"token,omitempty"`
 }
 
-func configDir() string {
+func Dir() string {
 	h, _ := os.UserHomeDir()
 	return filepath.Join(h, ".glance")
 }
 
-func configPath() string {
-	return filepath.Join(configDir(), "config.json")
+func Path() string {
+	return filepath.Join(Dir(), "config.json")
 }
 
-// readConfig returns nil on any error (missing/corrupt), mirroring the JS try/catch -> null.
-func readConfig() *Config {
-	data, err := os.ReadFile(configPath())
+// Read returns nil on any error (missing/corrupt), mirroring the JS try/catch -> null.
+func Read() *Config {
+	data, err := os.ReadFile(Path())
 	if err != nil {
 		return nil
 	}
@@ -34,8 +34,8 @@ func readConfig() *Config {
 	return &c
 }
 
-func writeConfig(cfg Config) error {
-	dir := configDir()
+func Write(cfg Config) error {
+	dir := Dir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -65,17 +65,17 @@ func writeConfig(cfg Config) error {
 		os.Remove(tmpName)
 		return err
 	}
-	return os.Rename(tmpName, configPath())
+	return os.Rename(tmpName, Path())
 }
 
 // Instance URL precedence: explicit env override -> persisted config -> local dev default. Uses
 // the `|| not ??` semantics: a blank/whitespace GLANCE_API_URL falls through instead of yielding
 // a bad base URL.
-func apiBase() string {
+func APIBase() string {
 	if v := strings.TrimSpace(os.Getenv("GLANCE_API_URL")); v != "" {
 		return v
 	}
-	if c := readConfig(); c != nil && c.ApiUrl != "" {
+	if c := Read(); c != nil && c.ApiUrl != "" {
 		return c.ApiUrl
 	}
 	return "http://localhost:8787"
@@ -83,11 +83,11 @@ func apiBase() string {
 
 // Token precedence: explicit env override -> persisted config. Uses the `|| not ??` semantics: a
 // blank/whitespace GLANCE_TOKEN falls through instead of yielding a bad token.
-func apiToken() string {
+func APIToken() string {
 	if v := strings.TrimSpace(os.Getenv("GLANCE_TOKEN")); v != "" {
 		return v
 	}
-	if c := readConfig(); c != nil {
+	if c := Read(); c != nil {
 		return c.Token
 	}
 	return ""

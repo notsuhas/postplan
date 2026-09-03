@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"glance/internal/argparse"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 // meta endpoint (authed) mints a content URL carrying a short-lived user-bound token in the path;
 // the content fetch itself is UNauthenticated (the path carries the auth, as the iframe does).
 func (c *client) read(argv []string) error {
-	positional, flags := parseArgs(argv, nil)
+	positional, flags := argparse.ParseArgs(argv, nil)
 	target := ""
 	if len(positional) > 0 {
 		target = positional[0]

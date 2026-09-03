@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"glance/internal/selfupdate"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +20,7 @@ import (
 // /download/<tag>/<asset>{.gz,.sha256}. sumOverride (if non-empty) replaces the real checksum.
 func releaseAssets(t *testing.T, tag string, binary []byte, sumOverride string) *httptest.Server {
 	t.Helper()
-	asset := assetName(goAssetPlatform(), goAssetArch())
+	asset := selfupdate.AssetName(goAssetPlatform(), goAssetArch())
 	var gz bytes.Buffer
 	zw := gzip.NewWriter(&gz)
 	_, _ = zw.Write(binary)
@@ -142,10 +143,10 @@ func TestDownloadAndSwap(t *testing.T) {
 
 func TestUpdateStateRoundTrip(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	if got := readState(); got != (UpdateState{}) {
+	if got := readState(); got != (selfupdate.UpdateState{}) {
 		t.Fatalf("empty state = %+v", got)
 	}
-	saveState(UpdateState{LastCheckedAt: 42, UpdatedTo: "1.2.3"})
+	saveState(selfupdate.UpdateState{LastCheckedAt: 42, UpdatedTo: "1.2.3"})
 	got := readState()
 	if got.LastCheckedAt != 42 || got.UpdatedTo != "1.2.3" {
 		t.Fatalf("roundtrip = %+v", got)

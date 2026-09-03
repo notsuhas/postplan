@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"glance/internal/argparse"
 	"io"
 	"net/url"
 	"strings"
@@ -88,7 +89,7 @@ type replyArgs struct {
 // Positionals are pinned: [0]=space/slug, [1]=threadId, [2]=message. A `--` sentinel stops
 // flag parsing so a dash-leading or literal message survives. PURE - no I/O.
 func parseReplyArgs(argv []string) (*replyArgs, error) {
-	positional, flags := parseArgs(argv, map[string]bool{"no-tag": true})
+	positional, flags := argparse.ParseArgs(argv, map[string]bool{"no-tag": true})
 	for k := range flags {
 		if k != "tag" && k != "no-tag" {
 			return nil, errors.New("Unknown flag: --" + k + "\n" + replyUsage)

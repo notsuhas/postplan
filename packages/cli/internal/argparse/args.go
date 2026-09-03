@@ -1,11 +1,11 @@
-package cli
+package argparse
 
 // Parse `--flag value` pairs and positionals. Flags named in booleanFlags are valueless
 // (`--open` -> true) and do NOT consume the next token, so a positional after them survives
 // (e.g. `comments --open x/y` keeps `x/y`). Every other flag is a value-flag (string); a
 // trailing value-flag with no token yields "" (mirrors JS `argv[++i] ?? ”`). A bare `--`
 // stops flag parsing: everything after it is positional (dash-leading values survive).
-func parseArgs(argv []string, booleanFlags map[string]bool) (positional []string, flags map[string]any) {
+func ParseArgs(argv []string, booleanFlags map[string]bool) (positional []string, flags map[string]any) {
 	positional = []string{}
 	flags = map[string]any{}
 	for i := 0; i < len(argv); i++ {

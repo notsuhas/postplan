@@ -1,4 +1,4 @@
-package cli
+package argparse
 
 import (
 	"reflect"
@@ -8,7 +8,7 @@ import (
 func TestParseArgs(t *testing.T) {
 	// boolean flags are valueless and must NOT eat the next token
 	t.Run("boolean-flag-not-eat-token", func(t *testing.T) {
-		pos, flags := parseArgs([]string{"x/y", "--open", "--json"}, map[string]bool{"open": true, "json": true})
+		pos, flags := ParseArgs([]string{"x/y", "--open", "--json"}, map[string]bool{"open": true, "json": true})
 		if flags["open"] != true || flags["json"] != true {
 			t.Fatalf("bool flags = %v", flags)
 		}
@@ -19,7 +19,7 @@ func TestParseArgs(t *testing.T) {
 
 	// value flags still consume the following token
 	t.Run("value-flags-still-consume", func(t *testing.T) {
-		pos, flags := parseArgs([]string{"--space", "docs", "--name", "r"}, nil)
+		pos, flags := ParseArgs([]string{"--space", "docs", "--name", "r"}, nil)
 		if flags["space"] != "docs" || flags["name"] != "r" {
 			t.Fatalf("value flags = %v", flags)
 		}
@@ -30,7 +30,7 @@ func TestParseArgs(t *testing.T) {
 
 	// a positional after a boolean flag survives
 	t.Run("boolean-then-positional", func(t *testing.T) {
-		pos, flags := parseArgs([]string{"--open", "x/y"}, map[string]bool{"open": true, "json": true})
+		pos, flags := ParseArgs([]string{"--open", "x/y"}, map[string]bool{"open": true, "json": true})
 		if !reflect.DeepEqual(pos, []string{"x/y"}) {
 			t.Fatalf("positional = %v", pos)
 		}
@@ -41,7 +41,7 @@ func TestParseArgs(t *testing.T) {
 
 	// trailing value flag with no token -> empty string (mirrors JS `argv[++i] ?? ''`)
 	t.Run("trailing-value-flag-empty", func(t *testing.T) {
-		_, flags := parseArgs([]string{"--file"}, nil)
+		_, flags := ParseArgs([]string{"--file"}, nil)
 		if flags["file"] != "" {
 			t.Fatalf("file = %v, want empty string", flags["file"])
 		}
@@ -49,7 +49,7 @@ func TestParseArgs(t *testing.T) {
 
 	// everything after a bare `--` is positional, even dash-leading tokens
 	t.Run("dash-dash-stops-flag-parsing", func(t *testing.T) {
-		pos, flags := parseArgs([]string{"x/y", "--open", "--", "--not-a-flag", "--tag"}, map[string]bool{"open": true})
+		pos, flags := ParseArgs([]string{"x/y", "--open", "--", "--not-a-flag", "--tag"}, map[string]bool{"open": true})
 		if !reflect.DeepEqual(pos, []string{"x/y", "--not-a-flag", "--tag"}) {
 			t.Fatalf("positional = %v", pos)
 		}

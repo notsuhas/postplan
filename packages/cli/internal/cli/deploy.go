@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"glance/internal/argparse"
+	"glance/internal/slug"
 	"io/fs"
 	"mime/multipart"
 	"os"
@@ -83,7 +85,7 @@ func (c *client) personalSpace() (string, error) {
 }
 
 func (c *client) deploy(argv []string) error {
-	positional, flags := parseArgs(argv, map[string]bool{"include-hidden": true})
+	positional, flags := argparse.ParseArgs(argv, map[string]bool{"include-hidden": true})
 	path := ""
 	if len(positional) > 0 {
 		path = positional[0]
@@ -175,9 +177,9 @@ func (c *client) deploy(argv []string) error {
 	} else if marker != nil {
 		name = marker.Name
 	} else {
-		name = slugify(derived)
+		name = slug.Slugify(derived)
 	}
-	if !isValidSlug(name) {
+	if !slug.IsValidSlug(name) {
 		return fmt.Errorf("Couldn't derive a valid name from %q. Pass --name <slug> (lowercase, 3–40 chars).", filepath.Base(root))
 	}
 

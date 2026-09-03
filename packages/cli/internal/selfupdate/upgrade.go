@@ -1,4 +1,4 @@
-package cli
+package selfupdate
 
 import (
 	"net/url"
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const checkIntervalMS = int64(24 * 60 * 60 * 1000)
+const CheckIntervalMS = int64(24 * 60 * 60 * 1000)
 
 // UpdateState persists across runs in ~/.glance/update.json.
 type UpdateState struct {
@@ -17,7 +17,7 @@ type UpdateState struct {
 
 // Numeric dotted-part compare (release tags are plain vX.Y.Z). Non-numeric parts count as 0, so a
 // malformed or non-CLI tag (e.g. a screenshots release) never compares newer and never triggers a swap.
-func compareVersions(a, b string) int {
+func CompareVersions(a, b string) int {
 	pa, pb := versionParts(a), versionParts(b)
 	n := len(pa)
 	if len(pb) > n {
@@ -51,7 +51,7 @@ var tagRe = regexp.MustCompile(`/tag/([^/?#]+)`)
 
 // `<base>/latest` resolves (via redirect) to `.../releases/tag/<tag>` - the tag rides in the final URL.
 // Returns "" when there is no /tag/ segment (no releases).
-func parseLatestTag(u string) string {
+func ParseLatestTag(u string) string {
 	m := tagRe.FindStringSubmatch(u)
 	if m == nil {
 		return ""
@@ -65,7 +65,7 @@ func parseLatestTag(u string) string {
 // Release asset naming - must match release.yml: glance-<arm64|x64>-<darwin|linux>. Returns "" for
 // unsupported platform/arch. Input follows the JS process.platform/process.arch vocabulary
 // ('darwin'/'linux', 'arm64'/'x64'); the caller maps Go's GOARCH ('amd64'->'x64') before calling.
-func assetName(platform, arch string) string {
+func AssetName(platform, arch string) string {
 	if platform != "darwin" && platform != "linux" {
 		return ""
 	}
@@ -75,13 +75,13 @@ func assetName(platform, arch string) string {
 	return "glance-" + arch + "-" + platform
 }
 
-func shouldCheck(state UpdateState, now int64) bool {
-	return state.LastCheckedAt == 0 || now-state.LastCheckedAt > checkIntervalMS
+func ShouldCheck(state UpdateState, now int64) bool {
+	return state.LastCheckedAt == 0 || now-state.LastCheckedAt > CheckIntervalMS
 }
 
 // What (if anything) to tell the user this run, and the state to persist after saying it. PURE.
 // `changed` is false when nothing changed so the caller can skip the state write.
-func planAnnouncement(state UpdateState, current string) (message string, next UpdateState, changed bool) {
+func PlanAnnouncement(state UpdateState, current string) (message string, next UpdateState, changed bool) {
 	if state.UpdatedTo != "" {
 		// Only claim the update if we're actually running it (a manual reinstall may have raced us).
 		if state.UpdatedTo == current {

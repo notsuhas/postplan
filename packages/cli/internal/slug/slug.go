@@ -1,4 +1,4 @@
-package cli
+package slug
 
 import (
 	"regexp"
@@ -13,7 +13,7 @@ var (
 	slugRe       = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$`)
 )
 
-func slugify(raw string) string {
+func Slugify(raw string) string {
 	s := strings.ToLower(raw)
 	s = slugNonAlnum.ReplaceAllString(s, "-")
 	s = slugDashRun.ReplaceAllString(s, "-")
@@ -24,6 +24,6 @@ func slugify(raw string) string {
 	return strings.TrimRight(s, "-")
 }
 
-func isValidSlug(s string) bool {
+func IsValidSlug(s string) bool {
 	return slugRe.MatchString(s)
 }

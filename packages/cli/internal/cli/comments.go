@@ -2,12 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"glance/internal/argparse"
+	"glance/internal/digest"
 	"io"
 	"net/url"
 )
 
 func (c *client) comments(argv []string) error {
-	positional, flags := parseArgs(argv, map[string]bool{"open": true, "json": true})
+	positional, flags := argparse.ParseArgs(argv, map[string]bool{"open": true, "json": true})
 	target := ""
 	if len(positional) > 0 {
 		target = positional[0]
@@ -36,11 +38,11 @@ func (c *client) comments(argv []string) error {
 	if err != nil {
 		return err
 	}
-	threads, err := parseThreads(data)
+	threads, err := digest.ParseThreads(data)
 	if err != nil {
 		return err
 	}
-	digest, err := renderDigest(threads, flags["open"] == true, flags["json"] == true)
+	digest, err := digest.Render(threads, flags["open"] == true, flags["json"] == true)
 	if err != nil {
 		return err
 	}

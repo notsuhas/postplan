@@ -3,6 +3,8 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"glance/internal/argparse"
+	"glance/internal/slug"
 	"strings"
 )
 
@@ -11,7 +13,7 @@ import (
 // omitted flag is omitted from the body rather than guessed at here, where a stale guess would
 // silently diverge from the server's collision suffixing.
 func (c *client) fork(argv []string) error {
-	positional, flags := parseArgs(argv, nil)
+	positional, flags := argparse.ParseArgs(argv, nil)
 	target := ""
 	if len(positional) > 0 {
 		target = positional[0]
@@ -34,7 +36,7 @@ func (c *client) fork(argv []string) error {
 	}
 	if raw, present := flags["name"]; present {
 		newName := raw.(string)
-		if !isValidSlug(newName) {
+		if !slug.IsValidSlug(newName) {
 			return fmt.Errorf("Invalid --name %q. Use a slug (lowercase, 3–40 chars).", newName)
 		}
 		body["slug"] = newName

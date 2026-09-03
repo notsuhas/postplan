@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"glance/internal/config"
+	"glance/internal/selfupdate"
 	"io"
 	"net/http"
 	"os"
@@ -23,23 +25,23 @@ import (
 // running binary. No staged "apply next run" step (darwin/linux only, where rename over a running
 // executable is safe - the running process keeps its inode).
 
-func statePath() string { return filepath.Join(configDir(), "update.json") }
+func statePath() string { return filepath.Join(config.Dir(), "update.json") }
 
-func readState() UpdateState {
+func readState() selfupdate.UpdateState {
 	data, err := os.ReadFile(statePath())
 	if err != nil {
-		return UpdateState{}
+		return selfupdate.UpdateState{}
 	}
-	var s UpdateState
+	var s selfupdate.UpdateState
 	if err := json.Unmarshal(data, &s); err != nil {
-		return UpdateState{}
+		return selfupdate.UpdateState{}
 	}
 	return s
 }
 
 // Update machinery must never break the CLI proper - state writes are best-effort.
-func saveState(s UpdateState) {
-	_ = os.MkdirAll(configDir(), 0o755)
+func saveState(s selfupdate.UpdateState) {
+	_ = os.MkdirAll(config.Dir(), 0o755)
 	if data, err := json.Marshal(s); err == nil {
 		_ = os.WriteFile(statePath(), data, 0o600)
 	}
@@ -54,7 +56,7 @@ func releaseBase() string {
 }
 
 // goAssetPlatform/goAssetArch map Go's runtime vocabulary onto the release asset vocabulary
-// ('amd64' -> 'x64') that assetName + release.yml speak.
+// ('amd64' -> 'x64') that selfupdate.AssetName + release.yml speak.
 func goAssetPlatform() string { return runtime.GOOS }
 
 func goAssetArch() string {
@@ -101,7 +103,7 @@ func fetchLatestTag(base string) (string, error) {
 		return "", err
 	}
 	_ = resp.Body.Close()
-	return parseLatestTag(resp.Request.URL.String()), nil
+	return selfupdate.ParseLatestTag(resp.Request.URL.String()), nil
 }
 
 func getBytes(client *http.Client, url string) ([]byte, error) {
@@ -120,7 +122,7 @@ func getBytes(client *http.Client, url string) ([]byte, error) {
 // binary is written next to the install target (same filesystem) then rename(2)d over it, so a
 // crash or a concurrent updater can never leave a torn binary at the install path.
 func downloadAndSwap(base, tag, execPath string) error {
-	asset := assetName(goAssetPlatform(), goAssetArch())
+	asset := selfupdate.AssetName(goAssetPlatform(), goAssetArch())
 	if asset == "" {
 		return fmt.Errorf("unsupported platform: %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
@@ -197,7 +199,7 @@ func (c *client) upgradeCmd(argv []string) error {
 		return fmt.Errorf("upgrade failed: could not resolve the latest release")
 	}
 	latest := strings.TrimPrefix(tag, "v")
-	if compareVersions(latest, Version) <= 0 {
+	if selfupdate.CompareVersions(latest, Version) <= 0 {
 		if !background {
 			fmt.Fprintf(c.out, "✓ glance %s is up to date.\n", Version)
 		}
@@ -240,7 +242,7 @@ func maybeAutoUpdate() {
 	}
 	st := readState()
 	now := time.Now().UnixMilli()
-	if !shouldCheck(st, now) {
+	if !selfupdate.ShouldCheck(st, now) {
 		return
 	}
 	st.LastCheckedAt = now
@@ -260,7 +262,7 @@ func maybeAutoUpdate() {
 // One line on stderr - never stdout, which gets piped - the first run after a background swap.
 func (c *client) announceUpdate() {
 	st := readState()
-	msg, next, changed := planAnnouncement(st, Version)
+	msg, next, changed := selfupdate.PlanAnnouncement(st, Version)
 	if msg != "" {
 		fmt.Fprintln(c.errOut, msg)
 	}

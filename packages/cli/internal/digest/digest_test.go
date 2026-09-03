@@ -1,4 +1,4 @@
-package cli
+package digest
 
 import (
 	"encoding/json"
@@ -9,11 +9,11 @@ import (
 
 // mustThreads decodes a full server-shape thread array the way the `comments` command does,
 // so the --json passthrough test genuinely round-trips real bytes.
-func mustThreads(t *testing.T, jsonArr string) []digestThread {
+func mustThreads(t *testing.T, jsonArr string) []Thread {
 	t.Helper()
-	threads, err := parseThreads([]byte(jsonArr))
+	threads, err := ParseThreads([]byte(jsonArr))
 	if err != nil {
-		t.Fatalf("parseThreads: %v", err)
+		t.Fatalf("ParseThreads: %v", err)
 	}
 	return threads
 }
@@ -26,7 +26,7 @@ func TestRenderDigest(t *testing.T) {
 			{"id":"b","filePath":"two.md","quote":"q","status":"resolved","comments":[]},
 			{"id":"c","filePath":"one.md","quote":"q","status":"open","comments":[]}
 		]`)
-		out, _ := renderDigest(threads, false, false)
+		out, _ := Render(threads, false, false)
 		for _, want := range []string{"one.md", "two.md", "2 open", "1 resolved"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("output missing %q:\n%s", want, out)
@@ -43,7 +43,7 @@ func TestRenderDigest(t *testing.T) {
 			{"id":"a","filePath":"one.md","quote":null,"status":"open","comments":[]},
 			{"id":"b","filePath":"two.md","quote":null,"status":"resolved","comments":[{"author":"Bob","body":"SECRET_RESOLVED_BODY","deleted":false}]}
 		]`)
-		out, _ := renderDigest(threads, true, false)
+		out, _ := Render(threads, true, false)
 		if strings.Contains(out, "two.md") || strings.Contains(out, "SECRET_RESOLVED_BODY") {
 			t.Errorf("resolved thread leaked with --open:\n%s", out)
 		}
@@ -56,7 +56,7 @@ func TestRenderDigest(t *testing.T) {
 		threads := mustThreads(t, `[
 			{"id":"a","filePath":"one.md","quote":null,"status":"open","comments":[{"author":"Ada","body":"SECRET_DELETED_BODY","deleted":true}]}
 		]`)
-		out, _ := renderDigest(threads, false, false)
+		out, _ := Render(threads, false, false)
 		if !strings.Contains(out, "(deleted)") || !strings.Contains(out, "[deleted]") {
 			t.Errorf("deleted marker missing:\n%s", out)
 		}
@@ -66,7 +66,7 @@ func TestRenderDigest(t *testing.T) {
 	})
 
 	t.Run("empty-friendly", func(t *testing.T) {
-		out, _ := renderDigest([]digestThread{}, false, false)
+		out, _ := Render([]Thread{}, false, false)
 		if out != "No comments." {
 			t.Errorf("got %q", out)
 		}
@@ -74,7 +74,7 @@ func TestRenderDigest(t *testing.T) {
 
 	t.Run("id-in-heading", func(t *testing.T) {
 		threads := mustThreads(t, `[{"id":"t1","filePath":"index.md","quote":null,"status":"open","comments":[]}]`)
-		out, _ := renderDigest(threads, false, false)
+		out, _ := Render(threads, false, false)
 		if !strings.Contains(out, "### index.md · OPEN · t1") {
 			t.Errorf("heading wrong:\n%s", out)
 		}
@@ -85,7 +85,7 @@ func TestRenderDigest(t *testing.T) {
 		threads := mustThreads(t, `[
 			{"id":"e1","filePath":"chart.html","anchorType":"element","quote":null,"anchor":{"selector":"#chart > svg","tag":"svg","preview":"Bar chart","textFallback":"Revenue"},"status":"open","comments":[]}
 		]`)
-		out, _ := renderDigest(threads, false, false)
+		out, _ := Render(threads, false, false)
 		if !strings.Contains(out, "> [svg] Bar chart") {
 			t.Errorf("element anchor line missing:\n%s", out)
 		}
@@ -98,7 +98,7 @@ func TestRenderDigest(t *testing.T) {
 			{"id":"b","filePath":"index.md","status":"resolved","quote":null,"comments":[]}
 		]`
 		threads := mustThreads(t, input)
-		out, err := renderDigest(threads, false, true)
+		out, err := Render(threads, false, true)
 		if err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -124,7 +124,7 @@ func TestVoiceCommentDigest(t *testing.T) {
 	]`)
 
 	t.Run("voice-comment-gets-[voice]-prefix", func(t *testing.T) {
-		out, _ := renderDigest(threads, false, false)
+		out, _ := Render(threads, false, false)
 		if !strings.Contains(out, "- @Sam: [voice] sounds great") {
 			t.Errorf("missing [voice] prefix on the voice comment:\n%s", out)
 		}
@@ -134,7 +134,7 @@ func TestVoiceCommentDigest(t *testing.T) {
 	})
 
 	t.Run("json passes hasAudio through untouched", func(t *testing.T) {
-		out, _ := renderDigest(threads, false, true)
+		out, _ := Render(threads, false, true)
 		var got []map[string]any
 		if err := json.Unmarshal([]byte(out), &got); err != nil {
 			t.Fatalf("json: %v", err)

@@ -1,4 +1,4 @@
-package cli
+package digest
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 // Local mirror of the server ThreadView/CommentView fields the digest reads (the CLI is
 // zero-dep, so we don't import from other packages). The full original bytes are kept in `raw`
 // so --json passes EVERY server field through untouched, even ones the digest never reads.
-type digestComment struct {
+type Comment struct {
 	Author   *string `json:"author"` // display name; kept even when deleted
 	Body     *string `json:"body"`   // null when soft-deleted
 	Deleted  bool    `json:"deleted"`
@@ -17,27 +17,27 @@ type digestComment struct {
 }
 
 // An element ("pinpoint") anchor: a comment pinned to a whole element (chart/table/image).
-type elementAnchor struct {
+type ElementAnchor struct {
 	Selector     string `json:"selector"`
 	Tag          string `json:"tag"`
 	Preview      string `json:"preview"`
 	TextFallback string `json:"textFallback"`
 }
 
-type digestThread struct {
+type Thread struct {
 	ID         string          `json:"id"`
 	FilePath   string          `json:"filePath"`
 	AnchorType *string         `json:"anchorType"` // "text" | "page" | "element"
 	Quote      *string         `json:"quote"`
-	Anchor     *elementAnchor  `json:"anchor"` // element threads only
+	Anchor     *ElementAnchor  `json:"anchor"` // element threads only
 	Status     string          `json:"status"` // "open" | "resolved"
-	Comments   []digestComment `json:"comments"`
+	Comments   []Comment       `json:"comments"`
 	raw        json.RawMessage // the untouched original object, for --json passthrough
 }
 
 // The anchor context line for a thread: an element's tag + preview, or a text quote. Empty for a
 // page/anchorless thread. Keeps `glance comments` useful for element anchors too.
-func anchorLine(t digestThread) string {
+func AnchorLine(t Thread) string {
 	if t.AnchorType != nil && *t.AnchorType == "element" && t.Anchor != nil {
 		label := t.Anchor.Preview
 		if label == "" {
@@ -59,15 +59,15 @@ func anchorLine(t digestThread) string {
 }
 
 // Decode a server thread array, keeping each element's original bytes alongside the parsed
-// digest fields. Mirrors what the `comments` command feeds renderDigest.
-func parseThreads(data []byte) ([]digestThread, error) {
+// digest fields. Mirrors what the `comments` command feeds Render.
+func ParseThreads(data []byte) ([]Thread, error) {
 	var raws []json.RawMessage
 	if err := json.Unmarshal(data, &raws); err != nil {
 		return nil, err
 	}
-	threads := make([]digestThread, 0, len(raws))
+	threads := make([]Thread, 0, len(raws))
 	for _, r := range raws {
-		var t digestThread
+		var t Thread
 		if err := json.Unmarshal(r, &t); err != nil {
 			return nil, err
 		}
@@ -78,7 +78,7 @@ func parseThreads(data []byte) ([]digestThread, error) {
 }
 
 // Render a site's comment threads as a markdown digest (or raw JSON). PURE - no I/O.
-func renderDigest(threads []digestThread, open, jsonOut bool) (string, error) {
+func Render(threads []Thread, open, jsonOut bool) (string, error) {
 	shown := threads
 	if open {
 		shown = shown[:0:0]
@@ -115,7 +115,7 @@ func renderDigest(threads []digestThread, open, jsonOut bool) (string, error) {
 
 	// Group by filePath, preserving first-appearance order, so a file's threads stay adjacent.
 	var order []string
-	byFile := map[string][]digestThread{}
+	byFile := map[string][]Thread{}
 	for _, t := range shown {
 		if _, ok := byFile[t.FilePath]; !ok {
 			order = append(order, t.FilePath)
@@ -126,7 +126,7 @@ func renderDigest(threads []digestThread, open, jsonOut bool) (string, error) {
 	for _, filePath := range order {
 		for _, t := range byFile[filePath] {
 			lines = append(lines, "", fmt.Sprintf("### %s · %s · %s", filePath, strings.ToUpper(t.Status), t.ID))
-			if line := anchorLine(t); line != "" {
+			if line := AnchorLine(t); line != "" {
 				lines = append(lines, line)
 			}
 			for _, c := range t.Comments {

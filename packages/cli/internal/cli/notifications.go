@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"glance/internal/argparse"
 	"io"
 	"strings"
 	"time"
@@ -24,7 +25,7 @@ type notificationsResponse struct {
 }
 
 func (c *client) notifications(args []string) error {
-	_, flags := parseArgs(args, map[string]bool{"json": true, "read": true})
+	_, flags := argparse.ParseArgs(args, map[string]bool{"json": true, "read": true})
 	if flags["read"] == true && flags["json"] == true {
 		return fmt.Errorf("--read and --json cannot be combined")
 	}

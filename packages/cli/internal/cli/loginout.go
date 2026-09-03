@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"glance/internal/config"
 	"net/http"
 	"net/url"
 	"os"
@@ -10,7 +11,7 @@ import (
 )
 
 // login runs the device-code flow: start -> print URL + code -> open a browser -> poll until the
-// user approves, then persist the token. Uses c.baseURL (set from apiBase() by main), and both the
+// user approves, then persist the token. Uses c.baseURL (set from config.APIBase() by main), and both the
 // start and poll requests are UNauthenticated (there's no token yet).
 func (c *client) login() error {
 	api := c.baseURL
@@ -66,7 +67,7 @@ func (c *client) login() error {
 			return err
 		}
 		if data.Status == "complete" && data.AccessToken != "" {
-			if err := writeConfig(Config{ApiUrl: api, Token: data.AccessToken}); err != nil {
+			if err := config.Write(config.Config{ApiUrl: api, Token: data.AccessToken}); err != nil {
 				return err
 			}
 			fmt.Fprintln(c.out, "\n✓ Logged in.")
@@ -91,7 +92,7 @@ func (c *client) logout() error {
 			}
 		}
 	}
-	_ = os.Remove(configPath())
+	_ = os.Remove(config.Path())
 	fmt.Fprintln(c.out, "✓ Logged out.")
 	return nil
 }
