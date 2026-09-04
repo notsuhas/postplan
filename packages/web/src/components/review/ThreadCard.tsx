@@ -6,6 +6,7 @@ import { comments, type CommentItem, type CommentReaction, type Thread } from '@
 import type { Me, ViewerSite } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AudioPlayer } from '@/components/audio/AudioPlayer'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { UserAvatar } from '@/components/UserAvatar'
 import { AnchorChip } from '@/components/review/AnchorChip'
 import { Composer } from '@/components/review/Composer'
@@ -199,14 +200,24 @@ export function ThreadCard({
                     </button>
                   )}
                   {c.authorId === me?.id && (
-                    <button
-                      type="button"
-                      onClick={act(() => comments.remove(site, thread.id, c.id))}
-                      className="flex size-6 items-center justify-center rounded-sm hover:bg-muted"
-                      aria-label="Delete comment"
+                    <ConfirmDialog
+                      title="Delete this comment?"
+                      description="Its text and audio will be removed. This cannot be undone."
+                      confirmLabel="Delete"
+                      destructive
+                      onConfirm={async () => {
+                        await comments.remove(site, thread.id, c.id)
+                        onChanged({ pushed: false })
+                      }}
                     >
-                      <Trash2 className="size-3.5 text-muted-foreground hover:text-destructive" />
-                    </button>
+                      <button
+                        type="button"
+                        className="flex size-6 items-center justify-center rounded-sm hover:bg-muted"
+                        aria-label="Delete comment"
+                      >
+                        <Trash2 className="size-3.5 text-muted-foreground hover:text-destructive" />
+                      </button>
+                    </ConfirmDialog>
                   )}
                 </div>
               )}

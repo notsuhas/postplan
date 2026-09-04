@@ -502,3 +502,21 @@ describe('ThreadCard — inline edit', () => {
     expect(screen.queryByRole('button', { name: 'Edit comment' })).toBeNull()
   })
 })
+
+describe('ThreadCard — deletion', () => {
+  test('requires confirmation before removing a comment', async () => {
+    const remove = spyOn(comments, 'remove').mockImplementation(() => Promise.resolve({ ok: true }))
+    const { onChanged } = renderCard({ comments: [mkComment({ id: 'c1', authorId: ME.id })] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete comment' }))
+    expect(remove).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(remove).toHaveBeenCalledWith(SITE, 't1', 'c1')
+    expect(onChanged).toHaveBeenCalledWith({ pushed: false })
+    remove.mockRestore()
+  })
+})
