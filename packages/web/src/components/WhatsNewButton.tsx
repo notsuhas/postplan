@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react'
 import { Suspense, useState } from 'react'
 import { Await, Link } from 'react-router'
+import { toast } from 'sonner'
 import { ReleaseBody, ReleaseImage, formatReleaseDate } from '@/components/ReleaseBody'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,7 +65,12 @@ function WhatsNewPanel({ initial }: { initial: WhatsNewList }) {
   function catchUp() {
     const { state, persist } = catchUpWhatsNew(data)
     setData(state)
-    if (persist) void whatsNew.seen(persist).catch(() => {})
+    if (persist) {
+      void whatsNew.seen(persist).catch(() => {
+        toast.error('Could not save release-note progress')
+        void whatsNew.list().then(setData, () => {})
+      })
+    }
   }
 
   return (
