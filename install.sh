@@ -145,9 +145,11 @@ add_to_path() {
     profile="$(detect_profile)"
     if [ -n "$profile" ]; then
         if ! grep -qF "$dir" "$profile" 2>/dev/null; then
-            echo "" >> "$profile"
-            echo "# Added by postplan installer" >> "$profile"
-            echo "export PATH=\"${dir}:\$PATH\"" >> "$profile"
+            {
+                echo ""
+                echo "# Added by postplan installer"
+                echo "export PATH=\"${dir}:\$PATH\""
+            } >> "$profile"
             say "Added $dir to PATH in $profile — restart your shell or run: source $profile"
         fi
     else
