@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRevalidator } from 'react-router'
 import { ExternalLink, FolderUp, UploadCloud } from 'lucide-react'
 import { toast } from 'sonner'
@@ -27,11 +27,36 @@ import { defaultSpaceSlug } from '@/lib/spaces'
 import { uploadFiles } from '@/lib/uploadWithProgress'
 import { cn } from '@/lib/utils'
 
+interface IUploadTarget {
+  space: string
+  slug: string
+  visibility: Visibility
+}
+
 type UploadState =
   | { phase: 'idle' }
+  | { phase: 'preparing'; files: DroppedFile[]; target: IUploadTarget }
   | { phase: 'uploading'; pct: number; count: number }
   | { phase: 'done'; url: string }
-  | { phase: 'error'; message: string }
+  | { phase: 'error'; message: string; files: DroppedFile[] }
+
+interface IUploadAttempt {
+  target: IUploadTarget
+  files: DroppedFile[]
+  replace: boolean
+}
+
+interface IPendingReplace {
+  target: IUploadTarget
+  files: DroppedFile[]
+}
+
+interface IDeployCard {
+  spaces: SpaceSummary[]
+  onBusyChange?: (busy: boolean) => void
+}
+
+const targetKey = (target: Pick<IUploadTarget, 'space' | 'slug'>): string => `${target.space}\0${target.slug}`
 
 // Guess a slug from what was dropped: the top folder name, or — for loose files —
 // any one file's name with its extension stripped. Pre-fills the input so the user
@@ -45,7 +70,8 @@ function deriveSlug(files: DroppedFile[]): string {
 
 // Drop a folder → get a URL. Renders chrome-free (no outer card/heading) — the record-first
 // dashboard embeds it in the UploadDialog, which supplies its own title/description.
-export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
+export function DeployCard(props: IDeployCard) {
+  const { spaces, onBusyChange } = props
   const revalidator = useRevalidator()
   const folderInput = useRef<HTMLInputElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -53,6 +79,8 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
   // has no client route, so a fetcher.load matches the `*` not-found splat and throws a
   // 404 into the AppShell error boundary (renders the 404 page, URL stuck on /dashboard).
   const checkSeq = useRef(0)
+  const preparingRef = useRef(false)
+  const uploadAbortRef = useRef<AbortController | null>(null)
 
   const [space, setSpace] = useState(() => defaultSpaceSlug(spaces))
   const [slug, setSlug] = useState('')
@@ -60,83 +88,144 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
   const [dragActive, setDragActive] = useState(false)
   const [upload, setUpload] = useState<UploadState>({ phase: 'idle' })
   // Controlled replace-confirm: holds the files awaiting an overwrite decision.
-  const [pendingReplace, setPendingReplace] = useState<DroppedFile[] | null>(null)
+  const [pendingReplace, setPendingReplace] = useState<IPendingReplace | null>(null)
   // Files dropped before a slug was set — held until the user confirms via Deploy.
   const [staged, setStaged] = useState<DroppedFile[] | null>(null)
 
-  const [conflict, setConflict] = useState<SlugExists | null>(null)
+  const [conflict, setConflict] = useState<{ key: string; value: SlugExists } | null>(null)
+  const [checkError, setCheckError] = useState(false)
   const [checking, setChecking] = useState(false)
-  const takenByOther = conflict?.exists === true && conflict.owned === false
-  const ownedConflict = conflict?.exists === true && conflict.owned === true
-  const available = conflict?.exists === false
+  const currentTarget = { space, slug, visibility }
+  const currentConflict = conflict?.key === targetKey(currentTarget) ? conflict.value : null
+  const takenByOther = currentConflict?.exists === true && currentConflict.owned === false
+  const ownedConflict = currentConflict?.exists === true && currentConflict.owned === true
+  const available = currentConflict?.exists === false
 
-  const busy = upload.phase === 'uploading'
+  const busy = upload.phase === 'preparing' || upload.phase === 'uploading'
+  const locked = busy
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
-  async function checkSlug(targetSlug = slug) {
-    if (!targetSlug || !space) return
+  useEffect(
+    () => () => {
+      checkSeq.current += 1
+      uploadAbortRef.current?.abort()
+      onBusyChange?.(false)
+    },
+    [onBusyChange],
+  )
+
+  function invalidateConflict() {
+    checkSeq.current += 1
+    setChecking(false)
+    setConflict(null)
+    setCheckError(false)
+  }
+
+  async function probeTarget(target: IUploadTarget): Promise<SlugExists | null> {
+    if (!target.slug || !target.space) return null
     const seq = ++checkSeq.current
     setChecking(true)
+    setCheckError(false)
     try {
-      const res = await api.get<SlugExists>(`/api/sites/${space}/${targetSlug}/exists`)
-      if (seq === checkSeq.current) setConflict(res)
-    } catch {
-      if (seq === checkSeq.current) setConflict(null)
+      const result = await api.get<SlugExists>(`/api/sites/${target.space}/${target.slug}/exists`)
+      if (seq !== checkSeq.current) return null
+      setConflict({ key: targetKey(target), value: result })
+      return result
+    } catch (error) {
+      if (seq !== checkSeq.current) return null
+      setConflict(null)
+      setCheckError(true)
+      throw error
     } finally {
       if (seq === checkSeq.current) setChecking(false)
     }
   }
 
-  async function doUpload(files: DroppedFile[], replace: boolean) {
-    setUpload({ phase: 'uploading', pct: 0, count: files.length })
+  function checkSlug(target: IUploadTarget = currentTarget) {
+    void probeTarget(target).catch(() => {})
+  }
+
+  async function doUpload(attempt: IUploadAttempt) {
+    if (uploadAbortRef.current) return
+    const controller = new AbortController()
+    uploadAbortRef.current = controller
+    onBusyChange?.(true)
+    setStaged(null)
+    setUpload({ phase: 'uploading', pct: 0, count: attempt.files.length })
     try {
-      const res = await uploadFiles(`/api/upload/${space}/${slug}`, files, {
-        visibility,
-        replace,
-        onProgress: (pct) => setUpload({ phase: 'uploading', pct, count: files.length }),
+      const res = await uploadFiles(`/api/upload/${attempt.target.space}/${attempt.target.slug}`, attempt.files, {
+        visibility: attempt.target.visibility,
+        replace: attempt.replace,
+        signal: controller.signal,
+        onProgress: (pct) => {
+          if (!controller.signal.aborted) {
+            setUpload({ phase: 'uploading', pct, count: attempt.files.length })
+          }
+        },
       })
       setUpload({ phase: 'done', url: res.url })
-      setStaged(null)
+      setConflict({ key: targetKey(attempt.target), value: { exists: true, owned: true } })
       toast.success('Deployed', { description: res.url })
-      void checkSlug() // now owned
       revalidator.revalidate()
     } catch (err) {
+      if (controller.signal.aborted) return
       const message = err instanceof Error ? err.message : 'Upload failed'
-      setUpload({ phase: 'error', message })
+      setUpload({ phase: 'error', message, files: attempt.files })
       toast.error('Upload failed', { description: message })
+    } finally {
+      if (uploadAbortRef.current === controller) uploadAbortRef.current = null
+      onBusyChange?.(false)
     }
   }
 
-  function startUpload(files: DroppedFile[]) {
+  async function startUpload(files: DroppedFile[]) {
     if (!space || !slug) {
       toast.error('Pick a space and a slug first.')
       return
     }
-    if (files.length === 0) return
-    if (takenByOther) {
-      toast.error('That URL is taken by someone else.')
-      return
+    if (files.length === 0 || preparingRef.current || uploadAbortRef.current) return
+    preparingRef.current = true
+    const target = { ...currentTarget }
+    onBusyChange?.(true)
+    setUpload({ phase: 'preparing', files, target })
+    setStaged(null)
+    try {
+      const latest = await probeTarget(target)
+      if (!latest) return
+      if (latest.exists && !latest.owned) {
+        setUpload({ phase: 'idle' })
+        setStaged(files)
+        toast.error('That URL is taken by someone else. Pick a different slug.')
+        return
+      }
+      if (latest.exists) {
+        setUpload({ phase: 'idle' })
+        setPendingReplace({ files, target })
+        return
+      }
+      await doUpload({ files, target, replace: false })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not check URL availability'
+      setUpload({ phase: 'error', message, files })
+    } finally {
+      preparingRef.current = false
+      onBusyChange?.(false)
     }
-    if (ownedConflict) {
-      setPendingReplace(files) // open controlled AlertDialog
-      return
-    }
-    void doUpload(files, false)
   }
 
   // Dropped/picked files. With a slug already set, deploy straight away ("drop, get a
   // URL"). Otherwise guess a slug from the folder/file name, pre-fill it, and stage the
   // files so the user can edit the slug before hitting Deploy.
   function handleIncoming(files: DroppedFile[]) {
-    if (files.length === 0) return
+    if (files.length === 0 || locked) return
     if (slug) {
-      startUpload(files)
+      void startUpload(files)
       return
     }
     const derived = deriveSlug(files)
     if (derived) {
       setSlug(derived)
-      void checkSlug(derived)
+      checkSlug({ ...currentTarget, slug: derived })
     }
     setStaged(files)
   }
@@ -151,9 +240,10 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
             value={space}
             onChange={(v) => {
               setSpace(v)
-              setConflict(null) // the slug's availability is space-scoped — re-check under the new space
+              invalidateConflict()
             }}
             spaces={spaces}
+            disabled={locked}
           />
         </div>
 
@@ -164,19 +254,19 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
             value={slug}
             onChange={(e) => {
               setSlug(e.target.value.toLowerCase())
-              setConflict(null) // invalidate the stale check until re-run (onBlur / deploy)
+              invalidateConflict()
             }}
             onBlur={() => checkSlug()}
             placeholder="my-runbook"
             className="font-mono"
-            disabled={busy}
+            disabled={locked}
           />
         </div>
 
         <div className="space-y-1.5">
           <Label>Visibility</Label>
           <div>
-            <VisibilityMenu value={visibility} onChange={setVisibility} disabled={busy} />
+            <VisibilityMenu value={visibility} onChange={setVisibility} disabled={locked} />
           </div>
         </div>
       </div>
@@ -191,6 +281,7 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
           available={available}
           takenByOther={takenByOther}
           ownedConflict={ownedConflict}
+          error={checkError}
         />
       </div>
 
@@ -199,7 +290,7 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
         available={available}
         takenByOther={takenByOther}
         ownedConflict={ownedConflict}
-        busy={busy}
+        busy={locked}
         onDragActive={setDragActive}
         onChooseFolder={() => folderInput.current?.click()}
         onChooseFiles={() => fileInput.current?.click()}
@@ -215,6 +306,7 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
         // @ts-expect-error non-standard attribute required for folder selection
         webkitdirectory=""
         hidden
+        disabled={locked}
         onChange={(e) => {
           if (e.target.files) handleIncoming(filesFromInput(e.target.files))
           e.target.value = '' // allow re-selecting the same folder
@@ -225,6 +317,7 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
         type="file"
         multiple
         hidden
+        disabled={locked}
         onChange={(e) => {
           if (e.target.files) handleIncoming(filesFromInput(e.target.files))
           e.target.value = '' // allow re-selecting the same file
@@ -245,7 +338,7 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
             </Button>
             <Button
               size="sm"
-              onClick={() => startUpload(staged)}
+              onClick={() => void startUpload(staged)}
               disabled={!slug || !space || takenByOther || checking}
             >
               <UploadCloud />
@@ -267,6 +360,28 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
             <Spinner className="size-3.5" />
             {upload.pct}% · {upload.count} files
           </p>
+        </div>
+      )}
+
+      {upload.phase === 'preparing' && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+          <Spinner className="size-3.5" />
+          Checking destination…
+        </p>
+      )}
+
+      {upload.phase === 'error' && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3"
+        >
+          <div>
+            <p className="font-medium text-destructive text-sm">Upload failed</p>
+            <p className="text-muted-foreground text-xs">{upload.message}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void startUpload(upload.files)} disabled={locked}>
+            Retry {upload.files.length === 1 ? 'file' : `${upload.files.length} files`}
+          </Button>
         </div>
       )}
 
@@ -305,7 +420,7 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
           <AlertDialogTitle>
             Replace{' '}
             <span className="font-mono">
-              {space}/{slug}
+              {pendingReplace?.target.space}/{pendingReplace?.target.slug}
             </span>
             ?
           </AlertDialogTitle>
@@ -316,9 +431,9 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
           <Button
             variant="destructive"
             onClick={() => {
-              const files = pendingReplace
+              const pending = pendingReplace
               setPendingReplace(null)
-              if (files) void doUpload(files, true)
+              if (pending) void doUpload({ ...pending, replace: true })
             }}
           >
             Replace
@@ -342,12 +457,14 @@ function SlugStatus({
   available,
   takenByOther,
   ownedConflict,
+  error,
 }: {
   slug: string
   checking: boolean
   available: boolean
   takenByOther: boolean
   ownedConflict: boolean
+  error: boolean
 }) {
   if (!slug) return null
   if (checking)
@@ -361,6 +478,7 @@ function SlugStatus({
   if (ownedConflict)
     return <span className="font-medium text-primary">you already own this — uploading replaces it</span>
   if (available) return <span className="font-medium text-success">available</span>
+  if (error) return <span className="font-medium text-destructive">could not check availability</span>
   return null
 }
 

@@ -11,9 +11,9 @@ import {
 import { ChevronDown, Download, Mic, Plus, Rocket, Star, Terminal, Upload, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { CopyButton } from '@/components/CopyButton'
-import { DeployCard } from '@/components/DeployCard'
 import { GettingStarted } from '@/components/GettingStarted'
 import { RecordDialog } from '@/components/record/RecordDialog'
+import { UploadDialog } from '@/components/UploadDialog'
 import {
   actionsColumn,
   CopyOpenActions,
@@ -608,28 +608,6 @@ function InstallDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
           <CopyButton text={installCmd} label="Copy" copiedMessage="Install command copied" />
         </div>
         <p className="text-muted-foreground text-xs">Installs to ~/.local/bin/postplan.</p>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function UploadDialog({
-  spaces,
-  open,
-  onOpenChange,
-}: {
-  spaces: SpaceSummary[]
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Upload files</DialogTitle>
-          <DialogDescription>Pick a destination, then drop your files.</DialogDescription>
-        </DialogHeader>
-        <DeployCard spaces={spaces} />
       </DialogContent>
     </Dialog>
   )

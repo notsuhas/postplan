@@ -19,6 +19,7 @@ export function uploadFiles(
     replace?: boolean
     title?: string
     onProgress?: (pct: number) => void
+    signal?: AbortSignal
   },
 ): Promise<UploadResult> {
   const form = new FormData()
@@ -37,6 +38,13 @@ export function uploadFiles(
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
+    const abort = () => xhr.abort()
+    const cleanup = () => opts.signal?.removeEventListener('abort', abort)
+    if (opts.signal?.aborted) {
+      reject(new DOMException('Upload aborted', 'AbortError'))
+      return
+    }
+    opts.signal?.addEventListener('abort', abort, { once: true })
     xhr.open('POST', url)
     xhr.withCredentials = true
     // D1 bookmark round-trip (issue #79): XHR bypasses the api.ts wrapper, but an upload is the
@@ -47,6 +55,7 @@ export function uploadFiles(
       if (e.lengthComputable) opts.onProgress?.(Math.round((e.loaded / e.total) * 100))
     }
     xhr.onload = () => {
+      cleanup()
       captureDbBookmark(xhr.getResponseHeader(BOOKMARK_HEADER))
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
@@ -65,8 +74,14 @@ export function uploadFiles(
         reject(new UploadError(xhr.status, message))
       }
     }
-    xhr.onerror = () => reject(new Error('Network error during upload'))
-    xhr.onabort = () => reject(new Error('Upload aborted'))
+    xhr.onerror = () => {
+      cleanup()
+      reject(new Error('Network error during upload'))
+    }
+    xhr.onabort = () => {
+      cleanup()
+      reject(new DOMException('Upload aborted', 'AbortError'))
+    }
     xhr.send(form)
   })
 }
