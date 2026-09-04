@@ -709,7 +709,14 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
     return c.json({ error: 'forbidden' }, 403)
   }
 
-  const slug = typeof wantSlug === 'string' ? wantSlug : await freeForkSlug(db, dest.id, site.slug)
+  const visibility = wantVisibility ?? site.visibility
+  let slug: string | null
+  if (visibility === 'unlisted') {
+    const base = typeof wantSlug === 'string' ? wantSlug : `${site.slug.replace(/-[0-9a-f]{32}$/, '')}-copy`
+    slug = slugForVisibility(base, visibility)
+  } else {
+    slug = typeof wantSlug === 'string' ? wantSlug : await freeForkSlug(db, dest.id, site.slug)
+  }
   if (!slug) return c.json({ error: 'could not derive a free slug — name the fork explicitly' }, 409)
 
   const sourceFiles = await db
@@ -741,7 +748,7 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
         description: site.description,
         // The forker picks the tier (the fork dialog defaults its picker to the source's). Omit it
         // and the source's tier is inherited: a fork of a private site is never silently widened.
-        visibility: wantVisibility ?? site.visibility,
+        visibility,
         ownerId: user.id,
         forkedFrom: site.id,
       }),

@@ -23,7 +23,7 @@ const UPLOAD_CONCURRENCY = 10
 type UploadContext = Context<AppEnv>
 type UploadItem = { path: string; file: File }
 type UploadPlanItem = { file: File; row: NewFileRow }
-type ExistingSite = Pick<Site, 'id' | 'ownerId' | 'contentVersion' | 'status'>
+type ExistingSite = Pick<Site, 'id' | 'ownerId' | 'contentVersion' | 'status' | 'visibility'>
 type UploadFacts = {
   spaceId: string | null
   existing: ExistingSite | undefined
@@ -124,7 +124,13 @@ async function readUploadFacts(
   const [spaceRows, existingRows, memberRows, shareRoleRows, existingFileRows] = await batchAll(db, [
     db.select({ id: spaces.id }).from(spaces).where(eq(spaces.slug, spaceSlug)).limit(1),
     db
-      .select({ id: sites.id, ownerId: sites.ownerId, contentVersion: sites.contentVersion, status: sites.status })
+      .select({
+        id: sites.id,
+        ownerId: sites.ownerId,
+        contentVersion: sites.contentVersion,
+        status: sites.status,
+        visibility: sites.visibility,
+      })
       .from(sites)
       .innerJoin(spaces, eq(sites.spaceId, spaces.id))
       .where(slugKey())
@@ -165,6 +171,7 @@ function resolveTarget(
   user: SessionUser,
   siteSlug: string,
   visibility: unknown,
+  hasVisibility: boolean,
   expectedVersion: number | null,
 ): UploadTarget | Response {
   if (!facts.spaceId) return c.json({ error: 'space not found' }, 404)
@@ -194,7 +201,10 @@ function resolveTarget(
 
   return {
     siteId: facts.existing.id,
-    storedSlug: siteSlug,
+    storedSlug:
+      isOwner && hasVisibility && visibility === 'unlisted' && facts.existing.visibility !== 'unlisted'
+        ? slugForVisibility(siteSlug, visibility)
+        : siteSlug,
     isCreate: false,
     actingAsEditor,
     oldKeys: facts.oldKeys,
@@ -273,6 +283,7 @@ async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Re
             contentVersion: sql`${sites.contentVersion} + 1`,
             lastReplacedBy: user.id,
             updatedAt: new Date().toISOString(),
+            slug: target.storedSlug,
             ...(hasVisibility && isVisibility(visibility) ? { visibility } : {}),
             ...(derivedTitle !== null ? { title: sql`coalesce(${sites.title}, ${derivedTitle})` } : {}),
             description,
@@ -325,7 +336,15 @@ async function handleUpload(c: UploadContext): Promise<Response> {
   const db = c.get('db')
   const { spaceSlug, siteSlug } = c.req.param()
   const facts = await readUploadFacts(db, spaceSlug, siteSlug, user.id)
-  const target = resolveTarget(c, facts, user, siteSlug, parsed.visibility, parsed.expectedVersion)
+  const target = resolveTarget(
+    c,
+    facts,
+    user,
+    siteSlug,
+    parsed.visibility,
+    parsed.hasVisibility,
+    parsed.expectedVersion,
+  )
   if (target instanceof Response) return target
 
   const plan = buildPlan(c, parsed.items, target.siteId)

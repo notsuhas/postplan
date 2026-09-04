@@ -196,11 +196,34 @@ describe('POST /api/sites/:space/:site/fork', () => {
     expect(await tier('tier')).toBe('team')
   })
 
+  test('fork.visibility.unlisted: an explicit unlisted fork gets a secret slug and URL', async () => {
+    const { db, app, env } = await setup()
+    const res = await fork(app, env, 'rd', { visibility: 'unlisted', slug: 'shared-copy' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { siteSlug: string; url: string }
+    expect(body.siteSlug).toMatch(/^shared-[0-9a-f]{32}$/)
+    expect(body.url).toBe(`${APP_URL}/rd/${body.siteSlug}`)
+    const copy = (await db.select().from(sitesTable).where(eq(sitesTable.slug, body.siteSlug)))[0]
+    expect(copy?.visibility).toBe('unlisted')
+  })
+
+  test('fork.visibility.unlisted-inherited: copying an unlisted source mints new link entropy', async () => {
+    const { db, app, env } = await setup()
+    await db.update(sitesTable).set({ slug: 'doc-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', visibility: 'unlisted' })
+    const res = await fork(app, env, 'rd', {}, '/api/sites/acme/doc-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/fork')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { siteSlug: string }
+    expect(body.siteSlug).toMatch(/^doc-cop-[0-9a-f]{32}$/)
+    expect(body.siteSlug).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+  })
+
   // Same normalization the PATCH route uses: legacy wire values are mapped, never rejected.
   test('fork.visibility.legacy: `public` normalizes to unlisted rather than 400ing', async () => {
     const { db, app, env } = await setup()
-    expect((await fork(app, env, 'rd', { visibility: 'public', slug: 'legacy' })).status).toBe(200)
-    const copy = (await db.select().from(sitesTable).where(eq(sitesTable.slug, 'legacy')))[0]
+    const res = await fork(app, env, 'rd', { visibility: 'public', slug: 'legacy' })
+    expect(res.status).toBe(200)
+    const { siteSlug } = (await res.json()) as { siteSlug: string }
+    const copy = (await db.select().from(sitesTable).where(eq(sitesTable.slug, siteSlug)))[0]
     expect(copy?.visibility).toBe('unlisted')
   })
 

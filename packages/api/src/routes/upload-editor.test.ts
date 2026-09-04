@@ -111,6 +111,16 @@ describe('upload — editor-share enforcement', () => {
     expect((await siteRow(db)).visibility).toBe('private')
   })
 
+  test('upload.owner.visibility.unlisted: entering unlisted rotates the public URL credential', async () => {
+    const { db, app, env } = await fx()
+    const res = await post(app, env, 'owner', { replace: true, visibility: 'unlisted' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { siteSlug: string; url: string }
+    expect(body.siteSlug).toMatch(/^doc-[0-9a-f]{32}$/)
+    expect(body.url).toBe(`${APP_URL}/acme/${body.siteSlug}`)
+    expect((await siteRow(db)).slug).toBe(body.siteSlug)
+  })
+
   test('upload.editor.archived.403: an editor cannot replace an archived site', async () => {
     const { db, app, env } = await fx()
     await db.update(sites).set({ status: 'archived' }).where(eq(sites.id, 'site'))
