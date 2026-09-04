@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useNavigate, useRevalidator } from 'react-router'
-import { ExternalLink, Trash2, UserMinus, UserPlus } from 'lucide-react'
+import { Crown, ExternalLink, Trash2, UserMinus, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { PeoplePicker, ShareDialog, toggle } from '@/components/ShareDialog'
@@ -156,29 +156,50 @@ function MembersSection({ space }: { space: SpaceDetail }) {
               {owner ? (
                 <Badge variant="secondary">Owner</Badge>
               ) : (
-                <ConfirmDialog
-                  title="Remove this member?"
-                  description={`${member.name ?? member.email} will lose access granted through this space.`}
-                  confirmLabel="Remove member"
-                  destructive
-                  onConfirm={async () => {
-                    await api.delete(`/api/spaces/${space.slug}/members/${member.id}`)
-                    toast.success('Member removed')
-                    revalidator.revalidate()
-                  }}
-                >
-                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                    <UserMinus />
-                    Remove
-                  </Button>
-                </ConfirmDialog>
+                <div className="flex shrink-0 items-center gap-1">
+                  <ConfirmDialog
+                    title="Transfer ownership?"
+                    description={`${member.name ?? member.email} will manage members and this space. You will remain a member.`}
+                    confirmLabel="Transfer ownership"
+                    onConfirm={async () => {
+                      await api.patch(`/api/spaces/${space.slug}/owner`, { userId: member.id })
+                      toast.success('Ownership transferred')
+                      revalidator.revalidate()
+                    }}
+                  >
+                    <Button variant="ghost" size="sm" className="max-sm:size-8 max-sm:p-0">
+                      <Crown />
+                      <span className="max-sm:sr-only">Transfer</span>
+                    </Button>
+                  </ConfirmDialog>
+                  <ConfirmDialog
+                    title="Remove this member?"
+                    description={`${member.name ?? member.email} will lose access granted through this space.`}
+                    confirmLabel="Remove member"
+                    destructive
+                    onConfirm={async () => {
+                      await api.delete(`/api/spaces/${space.slug}/members/${member.id}`)
+                      toast.success('Member removed')
+                      revalidator.revalidate()
+                    }}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive max-sm:size-8 max-sm:p-0"
+                    >
+                      <UserMinus />
+                      <span className="max-sm:sr-only">Remove</span>
+                    </Button>
+                  </ConfirmDialog>
+                </div>
               )}
             </div>
           )
         })}
       </div>
       <p className="text-muted-foreground text-xs">
-        New people must be invited by an admin and sign in once before they appear here.
+        The space owner can add people after they sign in to Postplan once.
       </p>
     </section>
   )

@@ -196,6 +196,54 @@ spaces.delete('/:slug/members/:userId', requireAuth, requireControlGrant, async 
   return c.json({ ok: true })
 })
 
+// PATCH /api/spaces/:slug/owner — hand a group space to an active member.
+spaces.patch('/:slug/owner', requireAuth, requireControlGrant, requireHumanCredential, async (c) => {
+  const user = c.get('user')
+  const db = c.get('db')
+  const slug = c.req.param('slug')
+  const body = await c.req.json().catch(() => null)
+  const userId = typeof body?.userId === 'string' ? body.userId.trim() : ''
+  if (!userId) return c.json({ error: 'userId is required' }, 400)
+
+  const space = (await db.select().from(spacesTable).where(eq(spacesTable.slug, slug)).limit(1))[0]
+  if (!space) return c.json({ error: 'space not found' }, 404)
+  if (space.createdBy !== user.id) return c.json({ error: 'forbidden' }, 403)
+  if (space.type === 'personal') return c.json({ error: 'personal space ownership cannot be transferred' }, 409)
+  if (userId === user.id) return c.json({ error: 'user is already the space owner' }, 400)
+
+  const target = (
+    await db
+      .select({ id: users.id })
+      .from(spaceMembers)
+      .innerJoin(users, eq(spaceMembers.userId, users.id))
+      .where(and(eq(spaceMembers.spaceId, space.id), eq(spaceMembers.userId, userId), isNull(users.disabledAt)))
+      .limit(1)
+  )[0]
+  if (!target) return c.json({ error: 'new owner must be an active space member' }, 409)
+
+  const updated = await db
+    .update(spacesTable)
+    .set({ createdBy: target.id })
+    .where(
+      and(
+        eq(spacesTable.id, space.id),
+        eq(spacesTable.createdBy, user.id),
+        sql`exists (
+          select 1
+          from ${spaceMembers}
+          inner join ${users} on ${spaceMembers.userId} = ${users.id}
+          where ${spaceMembers.spaceId} = ${space.id}
+            and ${spaceMembers.userId} = ${target.id}
+            and ${users.disabledAt} is null
+        )`,
+      ),
+    )
+    .returning({ ownerId: spacesTable.createdBy })
+  if (updated.length === 0) return c.json({ error: 'space or membership changed — reload and try again' }, 409)
+
+  return c.json({ ok: true, ownerId: target.id })
+})
+
 // DELETE /api/spaces/:slug — delete a space (owner or superadmin). Personal spaces are protected.
 spaces.delete('/:slug', requireAuth, requireControlGrant, requireHumanCredential, async (c) => {
   const user = c.get('user')

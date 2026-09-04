@@ -125,6 +125,32 @@ describe('POST /api/sites/:space/:site/move', () => {
     expect(await res.json()).toMatchObject({ conflict: true })
   })
 
+  test('a members site does not move until its audience change is acknowledged', async () => {
+    const { db, kv, app, env } = await setup()
+    await mintUser(db, kv, 'u1')
+    const from = await seedSpace(db, { createdBy: 'u1', slug: 'mine' })
+    const to = await seedSpace(db, { createdBy: 'u1', slug: 'acme' })
+    await seedMember(db, from, 'u1')
+    await seedMember(db, to, 'u1')
+    await seedSite(db, { spaceId: from, ownerId: 'u1', slug: 'doc', visibility: 'members' })
+
+    const refused = await move(app, env, 'mine', 'doc', 'u1', { space: 'acme' })
+    expect(refused.status).toBe(409)
+    expect(await refused.json()).toMatchObject({ audienceChange: true })
+    expect(await (await app.request('/api/sites/mine/doc/exists', { headers: auth('u1') }, env)).json()).toMatchObject({
+      exists: true,
+    })
+
+    const moved = await move(app, env, 'mine', 'doc', 'u1', {
+      space: 'acme',
+      confirmAudienceChange: true,
+    })
+    expect(moved.status).toBe(200)
+    expect(await (await app.request('/api/sites/acme/doc/exists', { headers: auth('u1') }, env)).json()).toMatchObject({
+      exists: true,
+    })
+  })
+
   test('superadmin may NOT move a site they do not own', async () => {
     const { db, kv, app, env } = await setup()
     await mintUser(db, kv, 'admin', 'superadmin')

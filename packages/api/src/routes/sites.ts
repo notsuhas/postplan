@@ -605,7 +605,10 @@ sites.post('/:spaceSlug/:siteSlug/move', requireAuth, requireControlGrant, async
   }
 
   const body = await c.req.json().catch(() => null)
-  const target = (body as { space?: unknown } | null)?.space
+  const { space: target, confirmAudienceChange } = (body as {
+    space?: unknown
+    confirmAudienceChange?: unknown
+  } | null) ?? { space: undefined, confirmAudienceChange: undefined }
   if (typeof target !== 'string' || !target) return c.json({ error: 'space is required' }, 400)
 
   const dest = (
@@ -626,8 +629,18 @@ sites.post('/:spaceSlug/:siteSlug/move', requireAuth, requireControlGrant, async
       .limit(1)
   )[0]
   if (clash) return c.json({ error: 'a site with this slug already exists in that space', conflict: true }, 409)
+  if (site.visibility === 'members' && confirmAudienceChange !== true) {
+    return c.json({ error: 'moving this site changes which space members can access it', audienceChange: true }, 409)
+  }
 
-  await db.update(sitesTable).set({ spaceId: dest.id }).where(eq(sitesTable.id, site.id))
+  const moved = await db
+    .update(sitesTable)
+    .set({ spaceId: dest.id })
+    .where(
+      and(eq(sitesTable.id, site.id), eq(sitesTable.spaceId, site.spaceId), eq(sitesTable.visibility, site.visibility)),
+    )
+    .returning({ id: sitesTable.id })
+  if (moved.length === 0) return c.json({ error: 'site changed — reload and try again' }, 409)
   return c.json({
     ok: true,
     spaceSlug: dest.slug,

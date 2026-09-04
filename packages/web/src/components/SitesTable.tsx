@@ -288,9 +288,12 @@ function MoveDialog({
   const [saving, setSaving] = useState(false)
   const [spaces, setSpaces] = useState<SpaceSummary[]>([])
   const [target, setTarget] = useState('')
+  const [audienceChangeAccepted, setAudienceChangeAccepted] = useState(false)
+  const changesAudience = site.visibility === 'members'
 
   const loadOnMount = useCallback(() => {
     setTarget('')
+    setAudienceChangeAccepted(false)
     setBusy(true)
     api
       .get<SpaceSummary[]>('/api/spaces/mine')
@@ -302,11 +305,12 @@ function MoveDialog({
   }, [site.spaceSlug])
 
   async function save() {
-    if (!target) return
+    if (!target || (changesAudience && !audienceChangeAccepted)) return
     setSaving(true)
     try {
       const { url } = await api.post<{ url: string }>(`/api/sites/${site.spaceSlug}/${site.siteSlug}/move`, {
         space: target,
+        ...(changesAudience && { confirmAudienceChange: true }),
       })
       toast.success('Site moved', { description: url })
       onOpenChange(false)
@@ -335,18 +339,38 @@ function MoveDialog({
             You’re only in one space. Create another space to move sites into it.
           </p>
         ) : (
-          <div className="space-y-1.5">
-            <Label htmlFor={`move-${site.id}`}>Destination space</Label>
-            <SpaceSelect id={`move-${site.id}`} value={target} onChange={setTarget} spaces={spaces} />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor={`move-${site.id}`}>Destination space</Label>
+              <SpaceSelect id={`move-${site.id}`} value={target} onChange={setTarget} spaces={spaces} />
+            </div>
+            {changesAudience && (
+              <label className="flex gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                  checked={audienceChangeAccepted}
+                  onChange={(event) => setAudienceChangeAccepted(event.target.checked)}
+                />
+                <span>
+                  <span className="block font-medium">This changes who can view the site</span>
+                  <span className="mt-1 block text-muted-foreground">
+                    Members of {site.spaceSlug} may lose access, while members of the destination gain access. Direct
+                    shares stay in place.
+                  </span>
+                  <span className="mt-2 block">I understand the audience will change.</span>
+                </span>
+              </label>
+            )}
           </div>
         )}
         <DialogFooter>
           <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={busy || saving || !target}>
+          <Button onClick={save} disabled={busy || saving || !target || (changesAudience && !audienceChangeAccepted)}>
             {saving && <Spinner />}
-            Move
+            {changesAudience ? 'Move and change audience' : 'Move'}
           </Button>
         </DialogFooter>
       </DialogContent>

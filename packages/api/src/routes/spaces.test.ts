@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import type { Hono } from 'hono'
 import { seedFile, seedGroupShare, seedMember, seedSite, seedSpace, seedUserShare } from '../test/harness'
-import { authHeaders as auth, makeRouteApp as setup, mintUser, postAuthRequests } from '../test/route-fixtures'
+import {
+  authHeaders as auth,
+  authKey,
+  makeRouteApp as setup,
+  mintKey,
+  mintUser,
+  postAuthRequests,
+} from '../test/route-fixtures'
 import type { AppEnv } from '../types'
 
 // Spaces routes mounted the way index.ts mounts them (requireSameOrigin global + spaces under
@@ -13,6 +20,17 @@ const invite = (app: Hono<AppEnv>, env: AppEnv['Bindings'], slug: string, id: st
 
 const del = (app: Hono<AppEnv>, env: AppEnv['Bindings'], slug: string, id: string) =>
   app.request(`/api/spaces/${slug}`, { method: 'DELETE', headers: auth(id) }, env)
+
+const transfer = (app: Hono<AppEnv>, env: AppEnv['Bindings'], slug: string, id: string, userId: string) =>
+  app.request(
+    `/api/spaces/${slug}/owner`,
+    {
+      method: 'PATCH',
+      headers: auth(id),
+      body: JSON.stringify({ userId }),
+    },
+    env,
+  )
 
 describe('POST /api/spaces/:slug/members', () => {
   test('re-inviting an existing member is an idempotent 200 (composite-PK collision swallowed)', async () => {
@@ -54,6 +72,63 @@ describe('POST /api/spaces/:slug/members', () => {
 
     const res = await invite(app, env, 'acme', 'u1', { email: 'u2@example.com' })
     expect(res.status).toBe(500)
+  })
+})
+
+describe('PATCH /api/spaces/:slug/owner', () => {
+  test('the owner can transfer a group space to an existing member', async () => {
+    const { db, kv, app, env } = await setup()
+    await mintUser(db, kv, 'owner')
+    await mintUser(db, kv, 'member')
+    await seedSpace(db, { id: 'g', createdBy: 'owner', slug: 'acme' })
+    await seedMember(db, 'g', 'owner')
+    await seedMember(db, 'g', 'member')
+
+    const res = await transfer(app, env, 'acme', 'owner', 'member')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, ownerId: 'member' })
+
+    const asNewOwner = await app.request('/api/spaces/acme', { headers: auth('member') }, env)
+    expect(await asNewOwner.json()).toMatchObject({ isOwner: true, ownerId: 'member', memberCount: 2 })
+
+    const asOldOwner = await app.request('/api/spaces/acme', { headers: auth('owner') }, env)
+    expect(await asOldOwner.json()).toMatchObject({ isMember: true, isOwner: false, ownerId: 'member' })
+    expect((await transfer(app, env, 'acme', 'owner', 'owner')).status).toBe(403)
+  })
+
+  test('refuses a non-member and personal-space transfer', async () => {
+    const { db, kv, app, env } = await setup()
+    await mintUser(db, kv, 'owner')
+    await mintUser(db, kv, 'outsider')
+    await seedSpace(db, { id: 'g', createdBy: 'owner', slug: 'acme' })
+    await seedMember(db, 'g', 'owner')
+    await seedSpace(db, { id: 'p', createdBy: 'owner', slug: 'mine', type: 'personal' })
+    await seedMember(db, 'p', 'owner')
+
+    const outsider = await transfer(app, env, 'acme', 'owner', 'outsider')
+    expect(outsider.status).toBe(409)
+    expect(await outsider.json()).toMatchObject({ error: 'new owner must be an active space member' })
+
+    const personal = await transfer(app, env, 'mine', 'owner', 'outsider')
+    expect(personal.status).toBe(409)
+    expect(await personal.json()).toMatchObject({ error: 'personal space ownership cannot be transferred' })
+  })
+
+  test('an API key cannot transfer human ownership', async () => {
+    const { db, kv, app, env } = await setup()
+    await mintUser(db, kv, 'owner')
+    await mintUser(db, kv, 'member')
+    await seedSpace(db, { id: 'g', createdBy: 'owner', slug: 'acme' })
+    await seedMember(db, 'g', 'owner')
+    await seedMember(db, 'g', 'member')
+    const key = await mintKey(db, 'owner')
+
+    const res = await app.request(
+      '/api/spaces/acme/owner',
+      { method: 'PATCH', headers: authKey(key), body: JSON.stringify({ userId: 'member' }) },
+      env,
+    )
+    expect(res.status).toBe(403)
   })
 })
 
