@@ -37,8 +37,8 @@ const FEATURES = [
     detail: 'Drop a folder in the browser or run postplan deploy. Same upload, same URL.',
   },
   {
-    label: 'private · members · team',
-    detail: 'Three visibility levels per site — from just you to everyone in your org.',
+    label: 'unlisted · private · members · all users',
+    detail: 'Four access levels per site — from a secret link to everyone signed in.',
   },
   {
     label: '$0/month on Cloudflare',
@@ -117,7 +117,7 @@ export function Component() {
         }}
       />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-7 sm:px-8">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-7 sm:px-8">
         <header className="bp-rise flex items-center justify-between">
           <div className="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-tight">
             <span className="inline-block size-2.5 rounded-[3px] bg-primary shadow-[0_0_14px_2px_rgba(245,158,11,0.5)]" />
@@ -263,7 +263,7 @@ export function Component() {
         </main>
 
         <footer
-          className="bp-rise flex items-center justify-between font-mono text-xs text-muted-foreground"
+          className="bp-rise flex flex-wrap items-center justify-between gap-3 font-mono text-xs text-muted-foreground"
           style={{ animationDelay: '440ms' }}
         >
           <span>$0/month · Workers + R2 + D1 + KV</span>
