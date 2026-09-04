@@ -145,10 +145,8 @@ export function makeDb(recorder?: Recorder): HarnessDb {
   // with the same name collapse into ONE key, silently shifting every later field (e.g. selecting
   // spaces.slug AND sites.slug emits two columns named "slug"). LOOSE queries are immune (the d1
   // driver runs them through `stmt.raw()`, positional); bun:sqlite maps positionally in both
-  // modes, so without a guard the harness can never catch the class. Cheap detection: drizzle's
-  // bun driver reads field selects through `stmt.values()` (positional width = true column count),
-  // while bun's `columnNames` collapses duplicate names — a width mismatch on a batched statement
-  // is exactly a result-name collision.
+  // modes, so without a guard the harness can never catch the class. Bun exposes the projected
+  // names directly; duplicate names on a batched result are exactly the unsafe D1 shape.
   const EXEC_METHODS = ['run', 'all', 'get', 'values'] as const
   const origPrepare = sqlite.prepare.bind(sqlite)
   const wrapStmt = (stmt: ReturnType<typeof origPrepare>, sql: string) => {
@@ -159,9 +157,10 @@ export function makeDb(recorder?: Recorder): HarnessDb {
         const out = orig(...args)
         if (inBatch && m === 'values') {
           const row = (out as unknown[][])[0]
-          if (row && row.length !== stmt.columnNames.length)
+          const distinctNames = new Set(stmt.columnNames)
+          if (row && distinctNames.size !== stmt.columnNames.length)
             throw new Error(
-              `D1 batch result-name collision: statement returns ${row.length} columns but only ${stmt.columnNames.length} distinct names — real D1 batch maps rows by name and collapses duplicates, shifting every later field; alias one (.as()). SQL: ${sql.slice(0, 200)}`,
+              `D1 batch result-name collision: statement returns ${row.length} columns but only ${distinctNames.size} distinct names — real D1 batch maps rows by name and collapses duplicates, shifting every later field; alias one (.as()). SQL: ${sql.slice(0, 200)}`,
             )
         }
         return out
@@ -209,9 +208,13 @@ const nextId = (prefix: string) => `${prefix}-${++seedSeq}`
 /** Insert a user; returns its id. Defaults: member role, derived email. */
 export async function seedUser(db: DrizzleD1Database, o: Partial<NewUser> = {}): Promise<string> {
   const id = o.id ?? nextId('u')
-  await db
-    .insert(users)
-    .values({ id, email: o.email ?? `${id}@example.com`, name: o.name ?? null, role: o.role ?? 'member', avatarUrl: o.avatarUrl ?? null })
+  await db.insert(users).values({
+    id,
+    email: o.email ?? `${id}@example.com`,
+    name: o.name ?? null,
+    role: o.role ?? 'member',
+    avatarUrl: o.avatarUrl ?? null,
+  })
   return id
 }
 
@@ -248,7 +251,11 @@ export async function seedSite(
     ...(o.createdAt !== undefined && { createdAt: o.createdAt }),
     // A fresh site's updatedAt == createdAt (no replace yet); default it so createdAt-pinned ordering
     // specs stay deterministic under the updatedAt sort. Override explicitly to simulate a replace.
-    ...(o.updatedAt !== undefined ? { updatedAt: o.updatedAt } : o.createdAt !== undefined ? { updatedAt: o.createdAt } : {}),
+    ...(o.updatedAt !== undefined
+      ? { updatedAt: o.updatedAt }
+      : o.createdAt !== undefined
+        ? { updatedAt: o.createdAt }
+        : {}),
     // Design theme (null = unthemed, the schema default) — themed-serve specs opt in explicitly.
     ...(o.theme !== undefined && { theme: o.theme }),
   })
@@ -748,7 +755,6 @@ export function makeDurableObjectState(name?: string) {
     },
   }
 }
-export type FakeDurableObjectState = ReturnType<typeof makeDurableObjectState>
 
 class FakeWebSocketPair {
   0: FakeWebSocket
