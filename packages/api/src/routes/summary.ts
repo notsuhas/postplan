@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type Context, Hono } from 'hono'
 import { files, siteSummaries, sites, spaces, type SiteSummary } from '../db/schema'
 import { extractText, isSupportedEntry, pickEntry } from '../lib/extract'
+import { aiFailureBody } from '../lib/ai-error'
 import type { ResolvedSite } from '../lib/site-access'
 import { fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
 import { PROMPT_VERSION, summarizeDeps, summarizeSite } from '../lib/summarize'
@@ -117,7 +118,7 @@ summary.post('/:space/:site/summary', async (c) => {
   }
   if (c.env.SUMMARY_LIMITER) {
     const { success } = await c.env.SUMMARY_LIMITER.limit({ key: user.id })
-    if (!success) return c.json({ error: 'rate limited' }, 429)
+    if (!success) return c.json({ error: 'rate limited', code: 'rate_limited', retryable: true } as const, 429)
   }
 
   const entry = pickEntry(fileRows)
@@ -129,7 +130,7 @@ summary.post('/:space/:site/summary', async (c) => {
   if (!extracted?.ok) return c.json({ error: 'nothing to summarize' }, 422)
 
   const generated = await summarizeSite(deps, extracted.text)
-  if (!generated.ok) return c.json({ error: 'generation failed', retryable: true } as const, 502)
+  if (!generated.ok) return c.json(aiFailureBody(generated.failure), generated.failure === 'quota' ? 429 : 502)
 
   // Stamps site.contentVersion as read BEFORE generation, so a mid-flight content bump makes
   // the stored row (correctly) stale rather than claiming coverage of content it never saw.

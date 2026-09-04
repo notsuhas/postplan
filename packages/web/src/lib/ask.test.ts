@@ -84,10 +84,30 @@ describe('askStream', () => {
     expect(tokens).toEqual(['ok'])
   })
 
+  test('rejects an empty successful stream instead of leaving the UI thinking', async () => {
+    stubFetch(sseResponse(['data: {"response":""}\n', 'data: [DONE]\n']))
+    await expect(askStream(site, body, () => {})).rejects.toMatchObject({
+      code: 'empty_ai_response',
+      retryable: true,
+    })
+  })
+
+  test('reads a final SSE frame even when EOF has no newline', async () => {
+    stubFetch(sseResponse(['data: {"response":"final"}']))
+    const tokens: string[] = []
+    await askStream(site, body, (token) => tokens.push(token))
+    expect(tokens).toEqual(['final'])
+  })
+
+  test('rejects provider error frames', async () => {
+    stubFetch(sseResponse(['data: {"error":{"message":"quota"}}\n']))
+    await expect(askStream(site, body, () => {})).rejects.toMatchObject({ code: 'generation_failed' })
+  })
+
   test('a non-2xx response throws ApiError with the server-provided message', async () => {
     globalThis.fetch = (() =>
       Promise.resolve(
-        new Response(JSON.stringify({ error: 'rate limited' }), { status: 429 }),
+        new Response(JSON.stringify({ error: 'rate limited', code: 'rate_limited', retryable: true }), { status: 429 }),
       )) as unknown as typeof fetch
     await expect(askStream(site, body, () => {})).rejects.toThrow(ApiError)
     try {
@@ -97,6 +117,8 @@ describe('askStream', () => {
       expect(e).toBeInstanceOf(ApiError)
       expect((e as ApiError).status).toBe(429)
       expect((e as ApiError).message).toBe('rate limited')
+      expect((e as ApiError).code).toBe('rate_limited')
+      expect((e as ApiError).retryable).toBe(true)
     }
   })
 

@@ -418,7 +418,7 @@ describe('site summary routes', () => {
       failingEnv,
     )
     expect(forced.status).toBe(502)
-    expect(await forced.json()).toEqual({ error: 'generation failed', retryable: true })
+    expect(await forced.json()).toEqual({ error: 'generation failed', code: 'generation_failed', retryable: true })
     const [after] = await seeded.db.select().from(siteSummaries).where(eq(siteSummaries.siteId, siteId))
     expect(after).toEqual(before)
 
@@ -431,7 +431,7 @@ describe('site summary routes', () => {
     })
     const failed = await cold.app.request(url, { method: 'POST', headers: auth(coldPoster), body: '{}' }, coldEnv)
     expect(failed.status).toBe(502)
-    expect(await failed.json()).toEqual({ error: 'generation failed', retryable: true })
+    expect(await failed.json()).toEqual({ error: 'generation failed', code: 'generation_failed', retryable: true })
     expect(await cold.db.$count(siteSummaries)).toBe(0)
     const get = await cold.app.request(url, { headers: auth(coldPoster) }, coldEnv)
     expect(await get.json()).toEqual({ status: 'none', stale: false, currentVersion: 0 })
@@ -451,7 +451,7 @@ describe('site summary routes', () => {
     cold.db.resetCounters()
     const denied = await cold.app.request(url, { method: 'POST', headers: auth(poster), body: '{}' }, deniedEnv)
     expect(denied.status).toBe(429)
-    expect(await denied.json()).toEqual({ error: 'rate limited' })
+    expect(await denied.json()).toEqual({ error: 'rate limited', code: 'rate_limited', retryable: true })
     expect(keys).toEqual([poster])
     expect(aiCalls).toBe(0)
     expect(cold.r2.gets() - r2Before).toBe(0)

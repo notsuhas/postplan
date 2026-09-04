@@ -141,7 +141,7 @@ describe('C33 summary state machine', () => {
       summaryReducer(generating, {
         type: 'postFailed',
         requestToken: 7,
-        error: new ApiError(429, 'rate limited'),
+        error: new ApiError(429, 'rate limited', 'rate_limited', true),
       }),
     ).toEqual({
       kind: 'failed',
@@ -150,6 +150,17 @@ describe('C33 summary state machine', () => {
       rateLimited: true,
       retryForce: false,
     })
+  })
+
+  test('quota exhaustion is not presented as a one-minute rate limit', () => {
+    const generating = { kind: 'generating', requestToken: 8, retryForce: false } as const
+    expect(
+      summaryReducer(generating, {
+        type: 'postFailed',
+        requestToken: 8,
+        error: new ApiError(429, 'AI quota exhausted', 'ai_quota_exhausted', false),
+      }),
+    ).toMatchObject({ kind: 'failed', retryable: false, rateLimited: false })
   })
 
   test('GET status unavailable becomes the honest provider-empty state', () => {

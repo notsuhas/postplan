@@ -55,8 +55,8 @@ function failedState(error: unknown, requestToken: number, prior?: ReadySnapshot
   return {
     kind: 'failed',
     prior,
-    retryable: error instanceof ApiError && (error.status === 429 || error.status === 502),
-    rateLimited: error instanceof ApiError && error.status === 429,
+    retryable: error instanceof ApiError && (error.retryable ?? error.status === 502),
+    rateLimited: error instanceof ApiError && error.code === 'rate_limited',
     retryForce,
     requestToken,
   }

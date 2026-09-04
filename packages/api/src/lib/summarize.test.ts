@@ -31,8 +31,9 @@ describe('site summary generation', () => {
 
     expect(await summarizeSite({ ai: stubAi(() => ({ text: 'x' })) }, 'page text')).toEqual({
       ok: false,
+      failure: 'provider',
     })
-    expect(await summarizeSite({ ai: stubAi(() => ({})) }, 'page text')).toEqual({ ok: false })
+    expect(await summarizeSite({ ai: stubAi(() => ({})) }, 'page text')).toEqual({ ok: false, failure: 'provider' })
     expect(
       await summarizeSite(
         {
@@ -42,7 +43,7 @@ describe('site summary generation', () => {
         },
         'page text',
       ),
-    ).toEqual({ ok: false })
+    ).toEqual({ ok: false, failure: 'provider' })
   })
 
   test('C11: blank page text returns failure without calling the provider', async () => {
@@ -52,12 +53,12 @@ describe('site summary generation', () => {
         workersCalls++
         return { response: 'summary' }
       })
-      expect(await summarizeSite({ ai }, pageText)).toEqual({ ok: false })
+      expect(await summarizeSite({ ai }, pageText)).toEqual({ ok: false, failure: 'provider' })
       expect(workersCalls).toBe(0)
     }
   })
 
   test('no AI binding returns failure', async () => {
-    expect(await summarizeSite({}, 'page text')).toEqual({ ok: false })
+    expect(await summarizeSite({}, 'page text')).toEqual({ ok: false, failure: 'provider' })
   })
 })

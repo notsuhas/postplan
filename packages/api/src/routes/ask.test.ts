@@ -117,7 +117,7 @@ describe('POST /api/sites/:space/:site/ask', () => {
     })
     const response = await post(seeded.app, requestEnv, auth(seeded.user), validBody)
     expect(response.status).toBe(429)
-    expect(await response.json()).toEqual({ error: 'rate limited' })
+    expect(await response.json()).toEqual({ error: 'rate limited', code: 'rate_limited', retryable: true })
     expect(keys).toEqual([seeded.user])
   })
 
@@ -127,6 +127,21 @@ describe('POST /api/sites/:space/:site/ask', () => {
     const response = await post(seeded.app, requestEnv, auth(seeded.user), validBody)
     expect(response.status).toBe(502)
     expect(await response.json()).toEqual({ error: 'AI unavailable' })
+  })
+
+  test('Cloudflare quota exhaustion is a terminal typed 429', async () => {
+    const seeded = await seedApp()
+    const requestEnv = bindings(seeded.env, {
+      AI: { run: async () => Promise.reject({ code: 3036, message: 'quota exceeded' }) },
+      ASK_LIMITER: okLimiter,
+    })
+    const response = await post(seeded.app, requestEnv, auth(seeded.user), validBody)
+    expect(response.status).toBe(429)
+    expect(await response.json()).toEqual({
+      error: 'AI quota exhausted',
+      code: 'ai_quota_exhausted',
+      retryable: false,
+    })
   })
 
   test('happy path streams the mock bytes verbatim and prompts with every labeled section', async () => {
