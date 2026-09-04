@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import type { Hono } from 'hono'
-import { seedFile, seedGroupShare, seedMember, seedSite, seedSpace, seedStar, seedUser, seedUserShare } from '../test/harness'
+import {
+  seedFile,
+  seedGroupShare,
+  seedMember,
+  seedSite,
+  seedSpace,
+  seedStar,
+  seedUser,
+  seedUserShare,
+} from '../test/harness'
 import { makeRouteApp, mintUser as mintFixtureUser } from '../test/route-fixtures'
 import type { AppEnv } from '../types'
 
@@ -19,8 +28,13 @@ const mintUser = (
   role: 'member' | 'superadmin' = 'member',
 ) => mintFixtureUser(db, kv, id, { role })
 
-const view = (app: Hono<AppEnv>, env: AppEnv['Bindings'], space: string, site: string, headers: Record<string, string> = {}) =>
-  app.request(`/api/sites/${space}/${site}`, { headers }, env)
+const view = (
+  app: Hono<AppEnv>,
+  env: AppEnv['Bindings'],
+  space: string,
+  site: string,
+  headers: Record<string, string> = {},
+) => app.request(`/api/sites/${space}/${site}`, { headers }, env)
 
 const exists = (app: Hono<AppEnv>, env: AppEnv['Bindings'], space: string, site: string, id: string) =>
   app.request(`/api/sites/${space}/${site}/exists`, { headers: { Authorization: `Bearer tok-${id}` } }, env)
@@ -55,13 +69,21 @@ describe('GET /api/sites/:space/:site (viewer metadata)', () => {
     expect(db.counters.batchStmts).toBe(1)
   })
 
-  test('no auth → 401 (every tier requires a viewer)', async () => {
+  test('an anonymous reader can open an unlisted app link without receiving private metadata', async () => {
     const { db, app, env } = await setup()
     await seedUser(db, { id: 'u1' })
     const space = await seedSpace(db, { createdBy: 'u1', slug: 'docs' })
-    await seedSite(db, { spaceId: space, ownerId: 'u1', slug: 'report' })
+    await seedSite(db, { spaceId: space, ownerId: 'u1', slug: 'report-a1b2c3', visibility: 'unlisted' })
 
-    expect((await view(app, env, 'docs', 'report')).status).toBe(401)
+    const res = await view(app, env, 'docs', 'report-a1b2c3')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      visibility: 'unlisted',
+      isOwner: false,
+      canReplace: false,
+      contentUrl: `${CONTENT_URL}/docs/report-a1b2c3/`,
+      indexPath: '',
+    })
   })
 
   test('unknown site → 404', async () => {
@@ -102,7 +124,12 @@ describe('GET /api/sites/:space/:site/exists (slug-availability probe)', () => {
     const { db, kv, app, env, space } = await seedProbe()
     await mintUser(db, kv, 'mate')
     await seedMember(db, space, 'mate')
-    expect(await (await exists(app, env, 'docs', 'report', 'mate')).json()).toEqual({ exists: true, owned: false, canReplace: false, contentVersion: 0 })
+    expect(await (await exists(app, env, 'docs', 'report', 'mate')).json()).toEqual({
+      exists: true,
+      owned: false,
+      canReplace: false,
+      contentVersion: 0,
+    })
   })
 
   // The role is not a probe credential: an admin who is neither owner nor member gets the same
@@ -132,7 +159,9 @@ describe('GET /api/sites/:space/:site — indexPath (root-file resolution)', () 
     const site = await seedSite(db, { spaceId: space, ownerId: 'u1', slug: 'take' })
     await seedFile(db, null, site, { path: 'recording.webm', text: 'b' })
 
-    const body = (await (await view(app, env, 'me', 'take', { Authorization: 'Bearer tok-u1' })).json()) as { indexPath: string }
+    const body = (await (await view(app, env, 'me', 'take', { Authorization: 'Bearer tok-u1' })).json()) as {
+      indexPath: string
+    }
     expect(body.indexPath).toBe('recording.webm')
   })
 
@@ -148,8 +177,12 @@ describe('GET /api/sites/:space/:site — indexPath (root-file resolution)', () 
     await seedFile(db, null, noIndex, { path: 'a.html', text: 'b' })
     await seedFile(db, null, noIndex, { path: 'b.html', text: 'b' })
 
-    const idx = (await (await view(app, env, 'me', 'html', { Authorization: 'Bearer tok-u1' })).json()) as { indexPath: string }
-    const dir = (await (await view(app, env, 'me', 'dir', { Authorization: 'Bearer tok-u1' })).json()) as { indexPath: string }
+    const idx = (await (await view(app, env, 'me', 'html', { Authorization: 'Bearer tok-u1' })).json()) as {
+      indexPath: string
+    }
+    const dir = (await (await view(app, env, 'me', 'dir', { Authorization: 'Bearer tok-u1' })).json()) as {
+      indexPath: string
+    }
     expect(idx.indexPath).toBe('index.html')
     expect(dir.indexPath).toBe('')
   })
@@ -269,7 +302,9 @@ describe('GET /api/sites/mine — audio flag (W4-2)', () => {
 
     const res = await app.request('/api/sites/mine', { headers: { Authorization: 'Bearer tok-u1' } }, env)
     expect(res.status).toBe(200)
-    const bySlug = Object.fromEntries(((await res.json()) as { siteSlug: string; audio: boolean }[]).map((s) => [s.siteSlug, s.audio]))
+    const bySlug = Object.fromEntries(
+      ((await res.json()) as { siteSlug: string; audio: boolean }[]).map((s) => [s.siteSlug, s.audio]),
+    )
     expect(bySlug.take).toBe(true)
     expect(bySlug.mixed).toBe(false)
   })

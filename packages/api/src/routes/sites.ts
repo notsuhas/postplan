@@ -48,7 +48,6 @@ export const sites = new Hono<AppEnv>()
 // non-openable candidates and still fill the cap.
 const SEARCH_SCAN_CAP = 200
 
-
 // Escape LIKE metacharacters (`%`, `_`, and the `\` escape char itself) so a user's literal
 // `%`/`_` can't act as wildcards. Pair the bound value with `ESCAPE '\'` in the query.
 function escapeLike(s: string): string {
@@ -169,9 +168,7 @@ sites.post('/', requireAuth, requireControlGrant, async (c) => {
     return c.json({ error: 'invalid title' }, 400)
   }
 
-  const space = (
-    await db.select({ id: spaces.id }).from(spaces).where(eq(spaces.slug, spaceSlug)).limit(1)
-  )[0]
+  const space = (await db.select({ id: spaces.id }).from(spaces).where(eq(spaces.slug, spaceSlug)).limit(1))[0]
   if (!space) return c.json({ error: 'space not found' }, 404)
   if (!(await isSpaceMember(db, space.id, user.id))) return c.json({ error: 'forbidden' }, 403)
 
@@ -221,9 +218,7 @@ sites.get('/mine', requireAuth, async (c) => {
     .where(eq(sitesTable.ownerId, user.id))
     .orderBy(desc(sitesTable.createdAt))
 
-  return c.json(
-    rows.map((r) => toFeedRow(r, c.env.APP_URL)),
-  )
+  return c.json(rows.map((r) => toFeedRow(r, c.env.APP_URL)))
 })
 
 // GET /api/sites/shared — sites shared with the caller (directly or via a group), newest first.
@@ -383,10 +378,26 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
   const access = checkAccess(site, user, facts.isMember, isSharedFromFacts(facts))
   if (!access.ok) return c.json({ error: 'forbidden' }, access.status)
 
-  // Every tier requires an authenticated viewer (checkAccess 401s otherwise), so `user` is
-  // non-null here. The token is bound to `user.id` + scope; the content worker re-runs
-  // checkAccess at serve time so a revoked share / tightened tier stops serving immediately.
-  if (!user) return c.json({ error: 'forbidden' }, 401)
+  // Unlisted is the only anonymous tier. Its unguessable slug is the grant, so it uses the
+  // content worker's untokened path and exposes no manifest, star, role, or edit capability.
+  if (!user) {
+    return c.json({
+      id: site.id,
+      spaceSlug,
+      siteSlug,
+      title: site.title,
+      visibility: site.visibility,
+      status: site.status,
+      theme: site.theme,
+      isOwner: false,
+      canReplace: false,
+      starred: false,
+      contentUrl: `${c.env.CONTENT_URL}/${spaceSlug}/${siteSlug}/`,
+      indexPath: '',
+    })
+  }
+
+  // Authenticated content URLs are user-bound; the content worker re-runs access at serve time.
   const contentUrl = `${c.env.CONTENT_URL}/_t/${await signToken(
     c.env.CONTENT_TOKEN_SECRET,
     user.id,
@@ -624,7 +635,12 @@ sites.post('/:spaceSlug/:siteSlug/move', requireAuth, requireControlGrant, async
   if (clash) return c.json({ error: 'a site with this slug already exists in that space', conflict: true }, 409)
 
   await db.update(sitesTable).set({ spaceId: dest.id }).where(eq(sitesTable.id, site.id))
-  return c.json({ ok: true, spaceSlug: dest.slug, siteSlug: site.slug, url: `${c.env.APP_URL}/${dest.slug}/${site.slug}` })
+  return c.json({
+    ok: true,
+    spaceSlug: dest.slug,
+    siteSlug: site.slug,
+    url: `${c.env.APP_URL}/${dest.slug}/${site.slug}`,
+  })
 })
 
 // A forked slug: `doc` → `doc-copy`, then `doc-copy-2`, `-3`… on collision. Bounded so a pathological
