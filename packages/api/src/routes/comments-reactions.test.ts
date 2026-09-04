@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { commentReactions, users } from '../db/schema'
 import { seedComment, seedMember, seedSite, seedSpace, seedThread } from '../test/harness'
-import { auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
+import { authHeaders as auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
 
 // Emoji reactions on a comment — PUT/DELETE …/comments/:threadId/messages/:commentId/reactions,
 // plus the fold that rides the GET list's existing batch. The routes add NO access rule of their

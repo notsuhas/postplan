@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { siteStars, users } from '../db/schema'
 import { seedMember, seedSite, seedSpace, seedStar, seedUserShare } from '../test/harness'
-import { auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
+import { authHeaders as auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
 
 // Star toggle — POST/DELETE /api/sites/:space/:site/star. The route owns no access model of its
 // own and adds NO rule of its own: it re-runs the same fetchAccessFacts + checkAccess pair every

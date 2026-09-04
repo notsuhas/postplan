@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { buildThreadCreatedView, commentByIdStmt, createThread, threadByIdStmt } from '../db/comments'
 import { seedSite, seedSpace, seedUser } from '../test/harness'
-import { auth, makeRouteApp, mintUser } from '../test/route-fixtures'
+import { authHeaders as auth, makeRouteApp, mintUser } from '../test/route-fixtures'
 
 // S4 C5 (P0): a pushed thread.created payload must be BYTE-IDENTICAL to what GET
 // /:space/:site/comments?filePath=… returns for the same thread — that equality is what stops

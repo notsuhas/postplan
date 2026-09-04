@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { listNotifications, usersEmailsByIds } from '../db/notifications'
-import { APP_URL, auth, makeRouteApp, mintUser } from '../test/route-fixtures'
+import { APP_URL, authHeaders as auth, makeRouteApp, mintUser } from '../test/route-fixtures'
 import { countingKv, makeDb, seedSite, seedSpace, seedUser } from '../test/harness'
 import type { AppEnv } from '../types'
 

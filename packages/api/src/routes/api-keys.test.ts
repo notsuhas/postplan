@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { API_KEY_PREFIX } from '../lib/api-key'
 import { apiKeys as apiKeysTable } from '../db/schema'
 import { FULL_GRANTS, seedApiKey } from '../test/harness'
-import { auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
+import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 import { KEY_DURATIONS, MAX_ACTIVE_KEYS } from './api-keys'
 
 async function scenario() {

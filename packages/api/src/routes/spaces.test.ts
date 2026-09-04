@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import type { Hono } from 'hono'
 import { seedFile, seedGroupShare, seedMember, seedSite, seedSpace, seedUserShare } from '../test/harness'
-import { auth, makeRouteApp as setup, mintUser, postAuthRequests } from '../test/route-fixtures'
+import { authHeaders as auth, makeRouteApp as setup, mintUser, postAuthRequests } from '../test/route-fixtures'
 import type { AppEnv } from '../types'
 
 // Spaces routes mounted the way index.ts mounts them (requireSameOrigin global + spaces under
-// /api/spaces — via the shared route-fixtures app) so CSRF, auth and ownership are exercised
+// /api/spaces — via the shared route-fixtures app) so CSRF, authHeaders as auth and ownership are exercised
 // end to end. POSTPLAN_FILES is a real R2 mock so the delete path's object purge is observable.
 
 const invite = (app: Hono<AppEnv>, env: AppEnv['Bindings'], slug: string, id: string, body: unknown) =>

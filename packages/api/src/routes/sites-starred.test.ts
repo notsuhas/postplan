@@ -2,7 +2,14 @@ import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { siteStars, siteUserShares, sites as sitesTable } from '../db/schema'
 import { seedMember, seedSite, seedSpace, seedStar, seedUserShare } from '../test/harness'
-import { at, auth, makeRouteApp, mintUser, postAuthRequests, type RouteApp } from '../test/route-fixtures'
+import {
+  at,
+  authHeaders as auth,
+  makeRouteApp,
+  mintUser,
+  postAuthRequests,
+  type RouteApp,
+} from '../test/route-fixtures'
 
 // GET /api/sites/starred — the feed behind the Starred tab. Two decisions are load-bearing and
 // both are pinned here: it orders by STAR time (what you pinned most recently), not site time; and

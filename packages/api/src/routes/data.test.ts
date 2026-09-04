@@ -7,7 +7,7 @@ import { generateApiKey, hashApiKey } from '../lib/api-key'
 import type { ApiKeyGrants } from '../lib/api-key'
 import { signDataToken } from '../lib/data-token'
 import { makeDb, seedApiKey, seedMember, seedSite, seedSpace, seedUser } from '../test/harness'
-import { auth, makeRouteApp, mintUser } from '../test/route-fixtures'
+import { authHeaders as auth, makeRouteApp, mintUser } from '../test/route-fixtures'
 import { MAX_DOCS_PER_SITE, dataApi, dataCapsFor, dataToken, intersectCaps } from './data'
 
 const HMAC_A = 'postplan-test-aaa'

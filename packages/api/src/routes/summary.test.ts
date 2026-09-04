@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { siteSummaries, sites } from '../db/schema'
 import { PROMPT_VERSION, WORKERS_MODEL } from '../lib/summarize'
-import { auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
+import { authHeaders as auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
 import { seedFile, seedGroupShare, seedMember, seedSite, seedSpace, seedUserShare } from '../test/harness'
 import type { AppEnv } from '../types'
 import { eq } from 'drizzle-orm'

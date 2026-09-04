@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { Hono } from 'hono'
 import { makeRouteApp } from '../test/route-fixtures'
 import type { AppEnv } from '../types'
 import { auth } from './auth'
@@ -34,7 +35,13 @@ describe('GET /workos guard (creds optional)', () => {
 
 describe('POST /dev-login guard', () => {
   test('accepts localhost and rejects lookalike hosts', async () => {
-    const { app, env } = makeRouteApp()
+    const { db, env } = makeRouteApp()
+    const app = new Hono<AppEnv>()
+    app.use('*', async (c, next) => {
+      c.set('db', db)
+      await next()
+    })
+    app.route('/api/auth', auth)
     const local = await app.request(
       '/api/auth/dev-login',
       { method: 'POST' },

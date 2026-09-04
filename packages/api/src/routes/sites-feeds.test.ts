@@ -3,7 +3,15 @@ import type { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { sites, siteSummaries } from '../db/schema'
 import { seedFile, seedMember, seedSite, seedSpace, seedStar, seedUserShare } from '../test/harness'
-import { APP_URL, at, auth, makeRouteApp, mintUser, postAuthRequests, type RouteApp } from '../test/route-fixtures'
+import {
+  APP_URL,
+  at,
+  authHeaders as auth,
+  makeRouteApp,
+  mintUser,
+  postAuthRequests,
+  type RouteApp,
+} from '../test/route-fixtures'
 import type { AppEnv } from '../types'
 
 // S5b — GET /api/sites/mine and GET /api/sites/team fold the pure-audio badge INTO the site

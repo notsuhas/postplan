@@ -4,7 +4,14 @@ import type { Hono } from 'hono'
 import { siteUserShares } from '../db/schema'
 import { D1_MAX_BOUND_PARAMETERS, FEED_BIND_MARGIN, FEED_ID_CHUNK } from '../lib/d1'
 import { seedFile, seedGroupShare, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
-import { at, auth, makeRouteApp, mintUser, postAuthRequests, type RouteApp } from '../test/route-fixtures'
+import {
+  at,
+  authHeaders as auth,
+  makeRouteApp,
+  mintUser,
+  postAuthRequests,
+  type RouteApp,
+} from '../test/route-fixtures'
 import type { AppEnv } from '../types'
 
 // Phase 5 / S17 — GET /api/sites/shared carries the viewer's direct-share role so the dashboard can

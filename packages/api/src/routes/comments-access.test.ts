@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { verifyDataToken } from '../lib/data-token'
 import { TOKEN_HEADER, WS_PROTOCOL } from '../realtime/protocol'
 import { seedComment, seedMember, seedSite, seedSpace, seedThread, seedUserShare } from '../test/harness'
-import { APP_URL, auth, makeRouteApp, mintUser } from '../test/route-fixtures'
+import { APP_URL, authHeaders as auth, makeRouteApp, mintUser } from '../test/route-fixtures'
 
 // S9 pins for the comments routes' access gate (T9.1), read-your-write ordering (T9.2), and the
 // fused-batch request shape (T9.3). T9.1/T9.2 are characterization: they pin TODAY's exact

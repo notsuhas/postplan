@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
+import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 
 describe('POST /api/admin/users/:id/revoke-cli', () => {
   test('CASE-16: also revokes the user’s D1 API keys — the key stops authenticating afterwards', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { invites } from '../db/schema'
-import { auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
+import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 
 // The shared fixture leaves SUPERADMIN_EMAIL unset; these routes read it, so each test that cares
 // about the admin bypass sets it explicitly rather than relying on a fixture default.

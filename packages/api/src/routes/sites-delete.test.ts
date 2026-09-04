@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { sites } from '../db/schema'
 import { seedMember, seedSite, seedSpace } from '../test/harness'
-import { auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
+import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 
 // DELETE /api/sites/:space/:site — an API key MAY create sites (deploy is the headline use case)
 // but MUST NOT delete them. The deny keys on the credential kind, checked BEFORE the ownership

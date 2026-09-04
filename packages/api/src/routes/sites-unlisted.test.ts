@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { sites } from '../db/schema'
 import { seedMember, seedSite, seedSpace } from '../test/harness'
-import { auth, makeRouteApp, mintUser } from '../test/route-fixtures'
+import { authHeaders as auth, makeRouteApp, mintUser } from '../test/route-fixtures'
 
 describe('PATCH /api/sites visibility', () => {
   test('rotates a guessable slug when a site becomes unlisted', async () => {

@@ -15,7 +15,7 @@ import {
   seedThread,
   seedUserShare,
 } from '../test/harness'
-import { APP_URL, at, auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
+import { APP_URL, at, authHeaders as auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
 
 const FEED_URL = '/api/comments/feed'
 
