@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Link, NavLink, Outlet, useLoaderData, useNavigation } from 'react-router'
-import { Command, KeyRound, LogOut, Moon, Sun, SunMoon } from 'lucide-react'
+import { Command, KeyRound, LayoutDashboard, LogOut, Moon, Shield, Sun, SunMoon } from 'lucide-react'
 import type { RootData } from '@/lib/notifications'
 import { api } from '@/lib/api'
 import { toggleTheme, useTheme } from '@/components/theme'
@@ -58,10 +58,10 @@ export function AppShell() {
         )}
       />
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-2 sm:gap-3 sm:px-6">
           <Link to="/dashboard" className="flex items-center gap-2 font-mono text-sm font-semibold tracking-tight">
             <BrandMark />
-            postplan
+            <span className="hidden min-[360px]:inline">postplan</span>
           </Link>
           {user && (
             <nav className="ml-2 hidden items-center gap-1 sm:flex">
@@ -73,7 +73,7 @@ export function AppShell() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 text-muted-foreground"
+              className="hidden gap-2 text-muted-foreground sm:inline-flex"
               onClick={() => setCmdOpen(true)}
             >
               <Command className="size-3.5" />
@@ -82,11 +82,22 @@ export function AppShell() {
                 ⌘K
               </kbd>
             </Button>
-            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden sm:inline-flex"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+              title="Toggle theme"
+            >
               {theme === 'dark' ? <Moon className="size-4" /> : <Sun className="size-4" />}
             </Button>
-            {user && <HelpButton />}
-            {user && <WhatsNewButton whatsNew={whatsNew} />}
+            {user && (
+              <span className="hidden md:contents">
+                <HelpButton />
+                <WhatsNewButton whatsNew={whatsNew} />
+              </span>
+            )}
             {user && <NotificationsBell notifications={notifications} />}
             {user ? (
               <DropdownMenu>
@@ -107,6 +118,24 @@ export function AppShell() {
                     <div className="truncate font-medium">{user.email}</div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild className="sm:hidden">
+                    <Link to="/dashboard">
+                      <LayoutDashboard />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  {user.role === 'superadmin' && (
+                    <DropdownMenuItem asChild className="sm:hidden">
+                      <Link to="/admin">
+                        <Shield />
+                        Admin
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem className="sm:hidden" onSelect={() => setCmdOpen(true)}>
+                    <Command />
+                    Search
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => toggleTheme()}>
                     <SunMoon />
                     Toggle theme

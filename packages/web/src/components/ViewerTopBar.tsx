@@ -66,16 +66,16 @@ export function ViewerTopBar({
   // Star has a permanent slot in the row, so it is the one action with no menu-item twin.
   const { starred, toggle: toggleStar } = useStar(site)
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3 md:gap-3">
+    <header className="flex h-12 shrink-0 items-center gap-1 border-b bg-background px-2 sm:gap-2 sm:px-3 md:gap-3">
       <Link
         to={site.authenticated ? '/dashboard' : loginHref(location)}
         className="flex shrink-0 items-center gap-2 font-mono font-semibold text-sm tracking-tight"
       >
         <BrandMark />
-        postplan
+        <span className="hidden sm:inline">postplan</span>
       </Link>
 
-      <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-sm">
+      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-muted-foreground text-sm">
         <ChevronRight className="size-3.5 shrink-0 opacity-40" />
         {/* The space slug is the first thing to go on a phone — the file being viewed matters more. */}
         <span className="hidden shrink-0 md:inline">{site.spaceSlug}</span>
@@ -94,10 +94,10 @@ export function ViewerTopBar({
       {site.isOwner ? (
         <ViewerVisibility site={site} />
       ) : (
-        <VisibilityBadge value={site.visibility} className="shrink-0" />
+        <VisibilityBadge value={site.visibility} compactOnMobile className="shrink-0" />
       )}
 
-      <div className="ml-auto flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         {site.authenticated ? (
           <>
             <Button
@@ -120,7 +120,7 @@ export function ViewerTopBar({
               title={commentCount > 0 ? `${commentCount} open comment${commentCount === 1 ? '' : 's'}` : 'Comments'}
             >
               <MessageSquare className="size-3.5" />
-              Comments
+              <span className="hidden sm:inline">Comments</span>
               {commentCount > 0 && (
                 <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-semibold text-[10px] text-primary-foreground leading-none tabular-nums">
                   {commentCount > 9 ? '9+' : commentCount}
@@ -228,7 +228,7 @@ function ViewerVisibility({ site }: { site: ViewerSite }) {
 
   return (
     <span className="shrink-0">
-      <VisibilityMenu trigger="chip" value={visibility} onChange={change} />
+      <VisibilityMenu trigger="chip" value={visibility} onChange={change} compactOnMobile />
     </span>
   )
 }

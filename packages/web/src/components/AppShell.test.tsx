@@ -8,14 +8,14 @@ import { AppShell } from './AppShell'
 
 const USER: Me = { id: 'u1', email: 'a@b.com', name: 'Ada', role: 'member', hasUsedCli: true }
 
-function renderShell() {
+function renderShell(user: Me = USER) {
   const router = createMemoryRouter(
     [
       {
         path: '/',
         Component: AppShell,
         loader: () => ({
-          user: USER,
+          user,
           notifications: Promise.resolve({ items: [], unreadCount: 0 }),
           whatsNew: Promise.resolve({ items: [], unreadCount: 0, throughDate: null }),
         }),
@@ -35,5 +35,13 @@ describe('AppShell avatar menu', () => {
     fireEvent.pointerDown(await screen.findByRole('button', { name: 'Account menu' }), { button: 0 })
     const link = (await screen.findByText('API Keys')).closest('a')
     expect(link?.getAttribute('href')).toBe('/settings/keys')
+  })
+
+  test('keeps dashboard and admin reachable from the account menu', async () => {
+    renderShell({ ...USER, role: 'superadmin' })
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'Account menu' }), { button: 0 })
+
+    expect((await screen.findByRole('menuitem', { name: 'Dashboard' })).getAttribute('href')).toBe('/dashboard')
+    expect((await screen.findByRole('menuitem', { name: 'Admin' })).getAttribute('href')).toBe('/admin')
   })
 })

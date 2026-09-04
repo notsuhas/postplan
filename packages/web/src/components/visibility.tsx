@@ -43,7 +43,15 @@ export const VISIBILITY_META: Record<Visibility, { label: string; hint: string; 
   },
 }
 
-export function VisibilityBadge({ value, className }: { value: Visibility; className?: string }) {
+export function VisibilityBadge({
+  value,
+  className,
+  compactOnMobile = false,
+}: {
+  value: Visibility
+  className?: string
+  compactOnMobile?: boolean
+}) {
   const m = VISIBILITY_META[value]
   const Icon = m.icon
   return (
@@ -51,7 +59,7 @@ export function VisibilityBadge({ value, className }: { value: Visibility; class
       className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', m.badge, className)}
     >
       <Icon className="size-3" />
-      {m.label}
+      <span className={cn(compactOnMobile && 'sr-only sm:not-sr-only')}>{m.label}</span>
     </span>
   )
 }
@@ -61,6 +69,7 @@ export function VisibilityMenu({
   onChange,
   disabled,
   trigger = 'button',
+  compactOnMobile = false,
 }: {
   value: Visibility
   onChange: (v: Visibility) => void
@@ -68,6 +77,7 @@ export function VisibilityMenu({
   // 'chip' renders the status badge itself as the trigger (for dense table rows); 'button' is
   // the standalone form-control look used on the deploy card.
   trigger?: 'button' | 'chip'
+  compactOnMobile?: boolean
 }) {
   const m = VISIBILITY_META[value]
   const Icon = m.icon
@@ -84,7 +94,7 @@ export function VisibilityMenu({
             )}
           >
             <Icon className="size-3" />
-            {m.label}
+            <span className={cn(compactOnMobile && 'sr-only sm:not-sr-only')}>{m.label}</span>
             <ChevronDown className="size-3 opacity-60" />
           </button>
         ) : (
