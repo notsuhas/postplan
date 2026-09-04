@@ -62,7 +62,11 @@ jobs:
       - name: Build sanity (all release targets)
         working-directory: packages/cli
         run: |
-          for t in "darwin arm64" "darwin amd64" "linux arm64" "linux amd64"; do
-            set -- $t
-            CGO_ENABLED=0 GOOS="$1" GOARCH="$2" go build -o /dev/null ./cmd/postplan || exit 1
-          done
+          while read -r goos goarch; do
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -o /dev/null ./cmd/postplan
+          done <<'EOF'
+          darwin arm64
+          darwin amd64
+          linux arm64
+          linux amd64
+          EOF

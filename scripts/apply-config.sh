@@ -11,11 +11,12 @@
 set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 
-[[ -f deploy.env ]] || { echo "deploy.env missing — copy deploy.example.env and fill it in."; exit 1; }
-set -a
-# shellcheck disable=SC1091
-. ./deploy.env
-set +a
+if [[ -f deploy.env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./deploy.env
+  set +a
+fi
 : "${APP_URL:?}" "${CONTENT_URL:?}" "${SUPERADMIN_EMAIL:?}" "${D1_DATABASE_ID:?}" "${KV_NAMESPACE_ID:?}"
 : "${WORKER_NAME:=postplan}" "${CONTENT_WORKER_NAME:=postplan-content}" "${D1_DATABASE_NAME:=postplan-db}"
 : "${R2_BUCKET:=postplan-files}"

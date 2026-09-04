@@ -1,31 +1,13 @@
 name: Deploy
 
-# Auto-deploy to Cloudflare on every push to main (i.e. when a PR merges).
-# Bindings (account_id, D1 id, KV id) live in the committed wrangler.jsonc — they are
-# identifiers, not secrets. The only secret CI needs is a scoped Cloudflare API token.
-#
-# Required GitHub repo secret (Settings -> Secrets and variables -> Actions):
-#   CLOUDFLARE_API_TOKEN  — token with: Workers Scripts:Edit, D1:Edit, Workers KV Storage:Edit,
-#                           Workers R2 Storage:Edit, Account Settings:Read (use the
-#                           "Edit Cloudflare Workers" template + add D1/KV/R2).
-#
-# Worker SECRETS (SESSION_SECRET, CONTENT_TOKEN_SECRET, BOOTSTRAP_TOKEN, GOOGLE_*) are set
-# ONCE via `wrangler secret put` (scripts/setup.sh does this) and PERSIST across deploys —
-# this workflow never touches them.
-
 on:
   push:
     branches: [main]
 
-# Never run two deploys at once; a newer commit QUEUES behind the running deploy rather than
-# cancelling it. Killing a half-applied deploy (migrations + one worker done, the other not) leaves
-# the two workers on mismatched code — worse than waiting, so cancel-in-progress stays false.
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
-# Least privilege for the persisted GITHUB_TOKEN: this job authenticates to Cloudflare via
-# CLOUDFLARE_API_TOKEN (a repo secret), never the GitHub token — so it only needs to read the repo.
 permissions:
   contents: read
 
@@ -37,67 +19,31 @@ jobs:
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          # Pin bun (not `latest`): the token-bearing wrangler steps below must never run on an
-          # unvetted, just-published Bun release.
           bun-version: 1.3.14
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The committed wrangler configs AND the SPA's public/_headers carry YOUR_* / YOUR-SUBDOMAIN
-      # placeholders (real binding IDs are kept out of this public template, via skip-worktree). Wire
-      # the real, non-secret identifiers in from repo Actions Variables BEFORE build:web (so the
-      # _headers CSP copied into dist has the real content origin) and before any wrangler call (else
-      # the deploy 7003s on /accounts/YOUR_ACCOUNT_ID/... ). Plain worker vars (APP_URL, CONTENT_URL,
-      # ALLOWED_HD, SUPERADMIN_EMAIL) ride in as `wrangler deploy --var` flags instead; this step also
-      # exports the resolved public URLs for those deploy steps.
-      - name: Wire Cloudflare binding IDs into config
+      - name: Render deployment config
         env:
-          CF_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
-          CF_D1_DATABASE_ID: ${{ vars.CF_D1_DATABASE_ID }}
-          CF_KV_NAMESPACE_ID: ${{ vars.CF_KV_NAMESPACE_ID }}
-          CF_WORKERS_SUBDOMAIN: ${{ vars.CF_WORKERS_SUBDOMAIN }}
-          # Optional custom-domain public URLs (served via CloudFront in front of the *.workers.dev
-          # origins). When set, the user-facing URLs (APP_URL / CONTENT_URL / SPA frame-src) are
-          # repointed off *.workers.dev to these; the workers KEEP their *.workers.dev endpoints
-          # (those are the CloudFront origins). Unset → stays on *.workers.dev (self-host default).
-          CF_APP_URL: ${{ vars.CF_APP_URL }}
-          CF_CONTENT_URL: ${{ vars.CF_CONTENT_URL }}
-          # Optional Cloudflare Web Analytics beacon token (dash.cloudflare.com → Web Analytics).
-          # Public-by-design (it ships in the served HTML), but kept out of the committed template
-          # so forks don't send RUM to someone else's analytics. Unset → no beacon injected.
+          APP_URL: ${{ vars.CF_APP_URL }}
+          CONTENT_URL: ${{ vars.CF_CONTENT_URL }}
+          SUPERADMIN_EMAIL: ${{ vars.CF_SUPERADMIN_EMAIL }}
+          SUPERADMIN_EMAILS: ${{ vars.CF_SUPERADMIN_EMAILS }}
+          D1_DATABASE_ID: ${{ vars.CF_D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ vars.CF_KV_NAMESPACE_ID }}
+          WORKER_NAME: ${{ vars.CF_WORKER_NAME }}
+          CONTENT_WORKER_NAME: ${{ vars.CF_CONTENT_WORKER_NAME }}
+          D1_DATABASE_NAME: ${{ vars.CF_D1_DATABASE_NAME }}
+          R2_BUCKET: ${{ vars.CF_R2_BUCKET }}
+        run: scripts/apply-config.sh
+
+      - name: Add optional analytics beacon
+        env:
           CF_ANALYTICS_TOKEN: ${{ vars.CF_ANALYTICS_TOKEN }}
         run: |
-          : "${CF_ACCOUNT_ID:?set repo Actions variable CF_ACCOUNT_ID}"
-          : "${CF_D1_DATABASE_ID:?set repo Actions variable CF_D1_DATABASE_ID}"
-          : "${CF_KV_NAMESPACE_ID:?set repo Actions variable CF_KV_NAMESPACE_ID}"
-          : "${CF_WORKERS_SUBDOMAIN:?set repo Actions variable CF_WORKERS_SUBDOMAIN}"
-          for f in packages/api/wrangler.jsonc packages/api/wrangler.content.jsonc packages/web/public/_headers; do
-            sed -i \
-              -e "s/YOUR_ACCOUNT_ID/${CF_ACCOUNT_ID}/g" \
-              -e "s/YOUR_D1_DATABASE_ID/${CF_D1_DATABASE_ID}/g" \
-              -e "s/YOUR_KV_NAMESPACE_ID/${CF_KV_NAMESPACE_ID}/g" \
-              -e "s/YOUR-SUBDOMAIN/${CF_WORKERS_SUBDOMAIN}/g" \
-              "$f"
-          done
-          # Repoint the SPA's CSP to the custom domains, if configured (CloudFront cutover). Runs
-          # AFTER the subdomain substitution above (so the workers.dev URLs exist to match) and
-          # BEFORE build:web (so dist/_headers carries the real content origin).
-          if [ -n "${CF_APP_URL}${CF_CONTENT_URL}" ]; then
-            : "${CF_APP_URL:?set CF_APP_URL when CF_CONTENT_URL is set (custom domain)}"
-            : "${CF_CONTENT_URL:?set CF_CONTENT_URL when CF_APP_URL is set (custom domain)}"
-            sed -i \
-              -e "s#https://postplan-content.${CF_WORKERS_SUBDOMAIN}.workers.dev#${CF_CONTENT_URL}#g" \
-              -e "s#https://postplan.${CF_WORKERS_SUBDOMAIN}.workers.dev#${CF_APP_URL}#g" \
-              packages/web/public/_headers
-          fi
-          echo "APP_URL=${CF_APP_URL:-https://postplan.${CF_WORKERS_SUBDOMAIN}.workers.dev}" >> "$GITHUB_ENV"
-          echo "CONTENT_URL=${CF_CONTENT_URL:-https://postplan-content.${CF_WORKERS_SUBDOMAIN}.workers.dev}" >> "$GITHUB_ENV"
-          # Inject the Cloudflare Web Analytics beacon into the SPA shell, if configured. Runs
-          # BEFORE build:web (vite passes the tag through). The committed index.html stays clean —
-          # dev and beaconless self-hosts never load it. _headers already allowlists the beacon
-          # hosts (script-src static.cloudflareinsights.com, connect-src cloudflareinsights.com).
           if [ -n "${CF_ANALYTICS_TOKEN}" ]; then
+            [[ "${CF_ANALYTICS_TOKEN}" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "invalid analytics token" >&2; exit 1; }
             sed -i "s#</head>#  <script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{\"token\": \"${CF_ANALYTICS_TOKEN}\"}'></script>\n  </head>#" packages/web/index.html
             grep -q cloudflareinsights packages/web/index.html || { echo "beacon injection failed" >&2; exit 1; }
           fi
@@ -105,13 +51,6 @@ jobs:
       - name: Build web
         run: bun run build:web
 
-      # Regenerate the COMMITTED string-module bundles from source so a stale checkout can't ship an
-      # old annotate client, postplan.db client, installer, or What's New catalog. The workers have no
-      # asset pipeline — they import these bundles at build time — build:install also refreshes the
-      # /api/install script from the repo-root install.sh, and build:whatsnew re-bakes the release
-      # notes from src/whats-new/notes/*.md (the main worker's `wrangler deploy` has no prebuild, so
-      # miss this and an authored .md never reaches prod). Deploy what the source says, not whatever
-      # the commit happened to carry. (No Cloudflare token needed here, so it runs before the token steps.)
       - name: Regenerate committed bundles
         working-directory: packages/api
         run: |
@@ -121,18 +60,13 @@ jobs:
           bun run build:whatsnew
           bun run build:themes
 
-      # CLOUDFLARE_API_TOKEN is scoped to ONLY the wrangler steps (not the whole job) so it never
-      # sits in the env of `bun install` / `build:web` / the bundle build, which execute third-party
-      # JS before any Cloudflare call.
-      - name: Apply D1 migrations (remote)
-        working-directory: packages/api
+      - name: Apply D1 migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: bunx wrangler d1 migrations apply postplan-db --remote
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.CF_D1_DATABASE_NAME }}
+        run: bunx wrangler d1 migrations apply "${D1_DATABASE_NAME:-postplan-db}" -c wrangler.jsonc --remote
 
-      # Read replication (issue #79): a DB-level setting with no wrangler command — REST only.
-      # Reads then route to the nearest replica via the Sessions API adopted in the workers;
-      # billing is unchanged (still rows_read/rows_written). PUT is idempotent per deploy.
       - name: Ensure D1 read replication is enabled
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -145,28 +79,14 @@ jobs:
             -d '{"read_replication": {"mode": "auto"}}')"
           echo "$out" | grep -q '"success": *true' || { echo "$out" >&2; exit 1; }
 
-      # Plain worker vars go in as --var flags (merged over the committed vars block, which keeps
-      # its sentinel values). ALLOWED_HD is the allowed Google Workspace domain (e.g. plivo.com) —
-      # non-secret, the OAuth callback re-verifies the signed hd claim. SUPERADMIN_EMAIL is the
-      # first-run superadmin (e.g. you@plivo.com) — wrangler replaces worker vars wholesale each
-      # deploy, so this value must be correct here or the first admin is locked out.
       - name: Deploy main worker
-        working-directory: packages/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ALLOWED_HD: ${{ vars.CF_ALLOWED_HD }}
-          CF_SUPERADMIN_EMAIL: ${{ vars.CF_SUPERADMIN_EMAIL }}
-        run: |
-          : "${CF_ALLOWED_HD:?set repo Actions variable CF_ALLOWED_HD}"
-          : "${CF_SUPERADMIN_EMAIL:?set repo Actions variable CF_SUPERADMIN_EMAIL}"
-          bunx wrangler deploy \
-            --var "APP_URL:${APP_URL}" \
-            --var "CONTENT_URL:${CONTENT_URL}" \
-            --var "ALLOWED_HD:${CF_ALLOWED_HD}" \
-            --var "SUPERADMIN_EMAIL:${CF_SUPERADMIN_EMAIL}"
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+        run: bunx wrangler deploy -c wrangler.jsonc
 
       - name: Deploy content worker
-        working-directory: packages/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: bunx wrangler deploy --config wrangler.content.jsonc --var "APP_URL:${APP_URL}"
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+        run: bunx wrangler deploy -c wrangler.content.jsonc

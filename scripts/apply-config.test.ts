@@ -69,4 +69,23 @@ describe('apply-config.sh', () => {
       expect(Bun.spawnSync(['bash', 'scripts/apply-config.sh'], { cwd: root }).exitCode).not.toBe(0)
     }
   })
+
+  test('renders from the process environment when deploy.env is absent', () => {
+    const root = fixture()
+    rmSync(join(root, 'deploy.env'))
+    const result = Bun.spawnSync(['bash', 'scripts/apply-config.sh'], {
+      cwd: root,
+      env: {
+        ...process.env,
+        APP_URL: 'https://ci.example.com',
+        CONTENT_URL: 'https://ci-content.example.com',
+        SUPERADMIN_EMAIL: 'admin@example.com',
+        D1_DATABASE_ID: '11111111-1111-1111-1111-111111111111',
+        KV_NAMESPACE_ID: '22222222222222222222222222222222',
+      },
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(readFileSync(join(root, 'wrangler.jsonc'), 'utf8')).toContain('https://ci.example.com')
+  })
 })
