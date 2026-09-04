@@ -22,6 +22,7 @@ export type ResolvedSite = {
   status: 'active' | 'archived'
   ownerId: string
   contentVersion: number
+  lastReplacedBy: string | null
   createdAt: string
   updatedAt: string
 }
@@ -36,6 +37,7 @@ const RESOLVED_SITE_COLUMNS = {
   status: sitesTable.status,
   ownerId: sitesTable.ownerId,
   contentVersion: sitesTable.contentVersion,
+  lastReplacedBy: sitesTable.lastReplacedBy,
   createdAt: sitesTable.createdAt,
   updatedAt: sitesTable.updatedAt,
 }

@@ -496,16 +496,13 @@ function toDoc(row: DocumentRow) {
 // Role is not consulted: READ_ALL is a read of the site's data, the same content a superadmin is
 // denied on the page itself — minting it by role would reopen that door through the data plane.
 //
-// SECURITY — editor-share confused-deputy (ACCEPTED residual risk, S9): caps key ONLY on ownerId,
-// so a content EDITOR of this site is indistinguishable from any other non-owner and gets read+create
-// only — they never mint write/read_all. This is deliberate: an editor can plant JS in the site, and
-// when the OWNER opens it that script would run with the owner's caps. Do NOT thread the editor's
-// share-role in here to "grant" them write — that would hand every editor read_all/delete over the
-// owner's postplan.db docs. Signed off as accepted (editor = semi-trusted, git-collaborator model);
-// if that changes, gate on sites.lastReplacedBy (downgrade to viewer until the owner re-deploys).
-// `dataCaps.editor.pin` in data.test.ts locks this.
-export function dataCapsFor(user: Pick<SessionUser, 'id'>, site: Pick<Site, 'ownerId'>): DataCapability[] {
-  return site.ownerId === user.id ? ['read', 'create', 'write', 'read_all'] : ['read', 'create']
+// An editor-authored revision cannot borrow the owner's authority when the owner opens it.
+export function dataCapsFor(
+  user: Pick<SessionUser, 'id'>,
+  site: Pick<Site, 'ownerId' | 'lastReplacedBy'>,
+): DataCapability[] {
+  const ownerApproved = site.lastReplacedBy === null || site.lastReplacedBy === site.ownerId
+  return site.ownerId === user.id && ownerApproved ? ['read', 'create', 'write', 'read_all'] : ['read', 'create']
 }
 
 // Intersect a caller's own caps ceiling (`base`, from dataCapsFor) against an API key's data-plane

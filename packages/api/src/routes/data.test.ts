@@ -126,24 +126,37 @@ describe('postplan.db data plane — happy path', () => {
 describe('P0-4/P0-3: modify authority is distinct from view authority', () => {
   // The role is NOT a cap: read_all is a read of the site's data — the same content a superadmin
   // is denied on the page — so minting it by role would reopen that door through the data plane.
-  test('dataCapsFor: only the owner gets write/read_all; a viewer AND a superadmin get read+create', () => {
-    expect(dataCapsFor({ id: 'userA', role: 'member' }, { ownerId: 'userA' })).toEqual([
+  test('dataCapsFor: only an owner-approved revision gets write/read_all', () => {
+    expect(dataCapsFor({ id: 'userA', role: 'member' }, { ownerId: 'userA', lastReplacedBy: null })).toEqual([
       'read',
       'create',
       'write',
       'read_all',
     ])
-    expect(dataCapsFor({ id: 'root', role: 'superadmin' }, { ownerId: 'userA' })).toEqual(['read', 'create'])
-    expect(dataCapsFor({ id: 'userB', role: 'member' }, { ownerId: 'userA' })).toEqual(['read', 'create'])
+    expect(dataCapsFor({ id: 'userA', role: 'member' }, { ownerId: 'userA', lastReplacedBy: 'editor' })).toEqual([
+      'read',
+      'create',
+    ])
+    expect(dataCapsFor({ id: 'root', role: 'superadmin' }, { ownerId: 'userA', lastReplacedBy: null })).toEqual([
+      'read',
+      'create',
+    ])
+    expect(dataCapsFor({ id: 'userB', role: 'member' }, { ownerId: 'userA', lastReplacedBy: null })).toEqual([
+      'read',
+      'create',
+    ])
   })
 
-  // editor-share residual-risk pin (confused-deputy, S9): dataCapsFor keys on ownerId ONLY, so a
-  // designated editor of someone else's site is indistinguishable from any other non-owner viewer —
-  // it can never mint write/read_all. This is the guard: if a future change threads share-role into
-  // cap minting, an editor could read-all/delete the OWNER's postplan.db docs. Owner path unchanged.
-  test('dataCaps.editor.pin: an editor-share grantee still gets read+create only; owner unchanged', () => {
-    expect(dataCapsFor({ id: 'editor', role: 'member' }, { ownerId: 'owner' })).toEqual(['read', 'create'])
-    expect(dataCapsFor({ id: 'owner', role: 'member' }, { ownerId: 'owner' })).toEqual([
+  test('dataCaps.editor.pin: an editor upload also downgrades the owner until they redeploy', () => {
+    expect(dataCapsFor({ id: 'editor', role: 'member' }, { ownerId: 'owner', lastReplacedBy: 'editor' })).toEqual([
+      'read',
+      'create',
+    ])
+    expect(dataCapsFor({ id: 'owner', role: 'member' }, { ownerId: 'owner', lastReplacedBy: 'editor' })).toEqual([
+      'read',
+      'create',
+    ])
+    expect(dataCapsFor({ id: 'owner', role: 'member' }, { ownerId: 'owner', lastReplacedBy: 'owner' })).toEqual([
       'read',
       'create',
       'write',
