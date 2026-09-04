@@ -11,10 +11,11 @@ import {
   Star,
 } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { toast } from 'sonner'
 import { useStar } from '@/hooks/useStar'
 import { api } from '@/lib/api'
+import { loginHref } from '@/lib/nav'
 import type { ViewerSite, Visibility } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -58,6 +59,7 @@ export function ViewerTopBar({
   // frame prints itself; the browser's print dialog is where the user picks "Save as PDF".
   onPrint?: () => void
 }) {
+  const location = useLocation()
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [forkOpen, setForkOpen] = useState(false)
@@ -65,7 +67,10 @@ export function ViewerTopBar({
   const { starred, toggle: toggleStar } = useStar(site)
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3 md:gap-3">
-      <Link to="/dashboard" className="flex shrink-0 items-center gap-2 font-mono font-semibold text-sm tracking-tight">
+      <Link
+        to={site.authenticated ? '/dashboard' : loginHref(location)}
+        className="flex shrink-0 items-center gap-2 font-mono font-semibold text-sm tracking-tight"
+      >
         <BrandMark />
         postplan
       </Link>
@@ -93,82 +98,96 @@ export function ViewerTopBar({
       )}
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8 rounded-full"
-          title={starred ? 'Remove star' : 'Star this page'}
-          aria-label={starred ? 'Remove star' : 'Star this page'}
-          aria-pressed={starred}
-          onClick={() => void toggleStar()}
-        >
-          <Star className={starred ? 'fill-primary text-primary' : 'opacity-40'} />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onToggleRail}
-          aria-pressed={railOpen}
-          className={cn('gap-1.5', commentCount > 0 && 'text-primary')}
-          title={commentCount > 0 ? `${commentCount} open comment${commentCount === 1 ? '' : 's'}` : 'Comments'}
-        >
-          <MessageSquare className="size-3.5" />
-          Comments
-          {commentCount > 0 && (
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-semibold text-[10px] text-primary-foreground leading-none tabular-nums">
-              {commentCount > 9 ? '9+' : commentCount}
-            </span>
-          )}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-8" aria-label="Menu">
-              <Menu />
+        {site.authenticated ? (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-full"
+              title={starred ? 'Remove star' : 'Star this page'}
+              aria-label={starred ? 'Remove star' : 'Star this page'}
+              aria-pressed={starred}
+              onClick={() => void toggleStar()}
+            >
+              <Star className={starred ? 'fill-primary text-primary' : 'opacity-40'} />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onSelect={onToggleSidebar}>
-              <History />
-              Recently opened
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onSearch}>
-              <Command />
-              Search
-            </DropdownMenuItem>
-            {/* Fork is deliberately NOT gated on site.isOwner (unlike Share): anyone who can read a
-                site can fork it, so a plain viewer gets this too. */}
-            <DropdownMenuItem onSelect={() => setForkOpen(true)}>
-              <GitFork />
-              Fork
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setSummaryOpen(true)}>
-              <Sparkles />
-              TL;DR
-            </DropdownMenuItem>
-            {onPrint && (
-              <DropdownMenuItem onSelect={onPrint}>
-                <Printer />
-                Print / Save as PDF
-              </DropdownMenuItem>
-            )}
-            {site.isOwner && (
-              <DropdownMenuItem onSelect={() => setShareOpen(true)}>
-                <Share2 />
-                Share…
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onToggleRail}
+              aria-pressed={railOpen}
+              className={cn('gap-1.5', commentCount > 0 && 'text-primary')}
+              title={commentCount > 0 ? `${commentCount} open comment${commentCount === 1 ? '' : 's'}` : 'Comments'}
+            >
+              <MessageSquare className="size-3.5" />
+              Comments
+              {commentCount > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-semibold text-[10px] text-primary-foreground leading-none tabular-nums">
+                  {commentCount > 9 ? '9+' : commentCount}
+                </span>
+              )}
+            </Button>
+          </>
+        ) : (
+          <Button asChild size="sm">
+            <Link to={loginHref(location)}>Log in</Link>
+          </Button>
+        )}
+        {(site.authenticated || onPrint) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-8" aria-label="Menu">
+                <Menu />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {site.authenticated && (
+                <>
+                  <DropdownMenuItem onSelect={onToggleSidebar}>
+                    <History />
+                    Recently opened
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={onSearch}>
+                    <Command />
+                    Search
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setForkOpen(true)}>
+                    <GitFork />
+                    Fork
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setSummaryOpen(true)}>
+                    <Sparkles />
+                    TL;DR
+                  </DropdownMenuItem>
+                </>
+              )}
+              {onPrint && (
+                <DropdownMenuItem onSelect={onPrint}>
+                  <Printer />
+                  Print / Save as PDF
+                </DropdownMenuItem>
+              )}
+              {site.isOwner && (
+                <DropdownMenuItem onSelect={() => setShareOpen(true)}>
+                  <Share2 />
+                  Share…
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {/* All three render through a portal, so they can live inside the header without affecting
           layout. Controlled (no inline trigger) — their menu items drive this state. */}
-      <ForkDialog site={site} open={forkOpen} onOpenChange={setForkOpen} />
-      <SummarySheet
-        spaceSlug={site.spaceSlug}
-        siteSlug={site.siteSlug}
-        open={summaryOpen}
-        onOpenChange={setSummaryOpen}
-      />
+      {site.authenticated && <ForkDialog site={site} open={forkOpen} onOpenChange={setForkOpen} />}
+      {site.authenticated && (
+        <SummarySheet
+          spaceSlug={site.spaceSlug}
+          siteSlug={site.siteSlug}
+          open={summaryOpen}
+          onOpenChange={setSummaryOpen}
+        />
+      )}
       {site.isOwner && (
         <ShareDialog
           spaceSlug={site.spaceSlug}

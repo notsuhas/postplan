@@ -16,6 +16,7 @@ const SITE: ViewerSite = {
   title: 'Site',
   visibility: 'team',
   status: 'active',
+  authenticated: true,
   isOwner: false,
   contentUrl: 'https://example.com/',
   indexPath: 'index.html',

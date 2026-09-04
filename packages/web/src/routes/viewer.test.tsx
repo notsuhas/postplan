@@ -42,6 +42,7 @@ const SITE: ViewerSite = {
   title: 'T',
   visibility: 'team',
   status: 'active',
+  authenticated: true,
   isOwner: true,
   contentUrl: 'about:blank#/sp/site/',
   indexPath: 'index.html',

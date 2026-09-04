@@ -19,18 +19,23 @@ const VISIBILITIES: Visibility[] = ['unlisted', 'private', 'members', 'team']
 export const VISIBILITY_META: Record<Visibility, { label: string; hint: string; icon: LucideIcon; badge: string }> = {
   unlisted: {
     label: 'Unlisted',
-    hint: 'Anyone with the link',
+    hint: 'Anyone with the link, no login',
     icon: Globe,
     badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
   },
   private: { label: 'Private', hint: 'Only you', icon: Lock, badge: 'bg-muted text-muted-foreground' },
   members: {
-    label: 'Members',
-    hint: 'This space only',
+    label: 'Space members',
+    hint: 'People added to this space',
     icon: Users,
     badge: 'bg-sky-500/15 text-sky-600 dark:text-sky-300',
   },
-  team: { label: 'Team', hint: 'Everyone in your org', icon: Building2, badge: 'bg-primary/15 text-primary' },
+  team: {
+    label: 'All users',
+    hint: 'Everyone signed in to Postplan',
+    icon: Building2,
+    badge: 'bg-primary/15 text-primary',
+  },
 }
 
 export function VisibilityBadge({ value, className }: { value: Visibility; className?: string }) {
@@ -85,7 +90,7 @@ export function VisibilityMenu({
           </Button>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
+      <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel>Who can see this</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as Visibility)}>
@@ -93,10 +98,12 @@ export function VisibilityMenu({
             const meta = VISIBILITY_META[v]
             const I = meta.icon
             return (
-              <DropdownMenuRadioItem key={v} value={v} className="gap-2">
-                <I className="size-3.5 shrink-0" />
-                <span className="flex-1">{meta.label}</span>
-                <span className="text-xs text-muted-foreground">{meta.hint}</span>
+              <DropdownMenuRadioItem key={v} value={v} className="items-start gap-2 py-2">
+                <I className="mt-0.5 size-3.5 shrink-0" />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-medium leading-none">{meta.label}</span>
+                  <span className="text-muted-foreground text-xs leading-snug">{meta.hint}</span>
+                </span>
               </DropdownMenuRadioItem>
             )
           })}

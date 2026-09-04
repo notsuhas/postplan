@@ -38,7 +38,7 @@ export async function loadViewer(args: {
     throw err
   }
   const entry = resolveEntryPath(args.sitePath, site.indexPath)
-  if (entry === null) return { site, entryPath: null, commentsPromise: null }
+  if (entry === null || !site.authenticated) return { site, entryPath: entry, commentsPromise: null }
   // Fired UNAWAITED: the loader (and thus the iframe) resolves while this is still pending. The
   // catch is attached HERE so a rejection is always observed, even if never consumed.
   const commentsPromise = comments.list(site, entry).catch<PrefetchResult>(() => PREFETCH_FAILED)

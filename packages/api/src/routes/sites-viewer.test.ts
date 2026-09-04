@@ -79,6 +79,7 @@ describe('GET /api/sites/:space/:site (viewer metadata)', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({
       visibility: 'unlisted',
+      authenticated: false,
       isOwner: false,
       canReplace: false,
       contentUrl: `${CONTENT_URL}/docs/report-a1b2c3/`,

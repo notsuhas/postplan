@@ -81,6 +81,7 @@ export interface ViewerSite {
   title: string | null
   visibility: Visibility
   status: SiteStatus
+  authenticated: boolean
   isOwner: boolean
   // The caller's own star on this site, resolved in the viewer's single metadata batch so the
   // top-bar button is correct on first paint.

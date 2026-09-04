@@ -13,6 +13,7 @@ const SITE: ViewerSite = {
   title: 'T',
   visibility: 'team',
   status: 'active',
+  authenticated: true,
   isOwner: false,
   contentUrl: 'https://content.example.com/sp/site/',
   indexPath: 'index.html',
@@ -75,13 +76,23 @@ describe('ViewerTopBar — Comments is an always-present toggle (C2b: Done is go
 describe('ViewerTopBar — the visibility tier rides beside the site name', () => {
   test('a viewer (not the owner) sees the tier as a read-only chip', () => {
     renderTopBar({ site: { ...SITE, visibility: 'members', isOwner: false } })
-    expect(screen.getByText('Members')).toBeTruthy()
+    expect(screen.getByText('Space members')).toBeTruthy()
     // Read-only: the chip is text, not a picker trigger.
-    expect(screen.queryByRole('button', { name: /Members/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Space members/ })).toBeNull()
   })
 
   test('the owner gets the picker trigger for the tier', () => {
     renderTopBar({ site: { ...SITE, visibility: 'private', isOwner: true } })
     expect(screen.getByRole('button', { name: /Private/ })).toBeTruthy()
+  })
+})
+
+describe('ViewerTopBar — anonymous unlisted viewer', () => {
+  test('offers login instead of controls that require an account', () => {
+    renderTopBar({ site: { ...SITE, authenticated: false, visibility: 'unlisted' } })
+    expect(screen.getByRole('link', { name: 'Log in' }).getAttribute('href')).toBe('/login?next=%2F')
+    expect(screen.queryByRole('button', { name: /Comments/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Star this page/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Menu' })).toBeNull()
   })
 })

@@ -16,6 +16,7 @@ const site = (indexPath: string): ViewerSite => ({
   title: 'Demo',
   visibility: 'private',
   status: 'active',
+  authenticated: true,
   isOwner: true,
   contentUrl: 'https://content.test/me/demo/',
   indexPath,
@@ -70,6 +71,15 @@ describe('loadViewer', () => {
     const list = stubList(() => Promise.resolve([]))
     const data = await loadViewer(argsFor())
     expect(data.entryPath).toBeNull()
+    expect(data.commentsPromise).toBeNull()
+    expect(list).not.toHaveBeenCalled()
+  })
+
+  test('anonymous unlisted viewer skips the authenticated comments prefetch', async () => {
+    stubMeta({ ...site('index.html'), authenticated: false, isOwner: false, visibility: 'unlisted' })
+    const list = stubList(() => Promise.resolve([]))
+    const data = await loadViewer(argsFor())
+    expect(data.entryPath).toBe('index.html')
     expect(data.commentsPromise).toBeNull()
     expect(list).not.toHaveBeenCalled()
   })

@@ -60,7 +60,10 @@ function Viewer() {
   // visit still flushes when Me resolves after a splat nav.
   const lastReadyPathRef = useRef<string | null>(null)
   const contentOrigin = useMemo(() => new URL(site.contentUrl).origin, [site.contentUrl])
-  const src = useMemo(() => withAnnotate(appendPath(site.contentUrl, sitePath)), [site.contentUrl, sitePath])
+  const src = useMemo(() => {
+    const contentUrl = appendPath(site.contentUrl, sitePath)
+    return site.authenticated ? withAnnotate(contentUrl) : contentUrl
+  }, [site.authenticated, site.contentUrl, sitePath])
   // `entryPath` (loader-resolved via resolveEntryPath, mirroring the server's normalizePath) is
   // the concrete file this URL serves — at the root that's the API's indexPath (root index.html or
   // the lone-upload fallback, e.g. recording.webm), so audio detection, the player src, and comment
@@ -235,6 +238,7 @@ function Viewer() {
   )
 
   useEffect(() => {
+    if (!site.authenticated) return
     const stream = createCommentStream({
       site: siteRef,
       appOrigin: window.location.origin,
@@ -254,7 +258,7 @@ function Viewer() {
     }
     // All three are stable for the life of a mount (siteRef is memoized on slugs the Component keys
     // on), so this dials ONCE per site and disposes on unmount — never mid-session.
-  }, [siteRef, onPushed, refresh])
+  }, [site.authenticated, siteRef, onPushed, refresh])
 
   // A local write's list refetch, dropped in exactly one case: the room fans this write back to
   // every socket on the site — the author's own included — so a PUSHED change on a CONNECTED stream
@@ -291,13 +295,14 @@ function Viewer() {
   // execute its data-plane requests with OUR token so no credential ever enters the untrusted
   // frame (P0-1). Bound to THIS site — the page cannot ask for another site's data.
   useEffect(() => {
+    if (!site.authenticated) return
     const broker = attachDbBroker({
       site: { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug },
       contentOrigin,
       getSource: () => iframeRef.current?.contentWindow,
     })
     return broker.dispose
-  }, [site.spaceSlug, site.siteSlug, contentOrigin])
+  }, [site.authenticated, site.spaceSlug, site.siteSlug, contentOrigin])
 
   // The rail's reveal has two producers: the one-shot deep link below and clicks on a painted
   // highlight. A click is the source the nonce was built for — the same thread can be clicked over
@@ -327,7 +332,7 @@ function Viewer() {
         // it and orders a fresh fetch, a duplicate or a stale ready (old iframe doc after a splat
         // nav) is ignored outright — including for recordVisit below.
         const { state, decision } = dispatch({ type: 'ready', path: intent.filePath })
-        if (decision.kind === 'refetch') loadThreads(decision.path)
+        if (decision.kind === 'refetch' && site.authenticated) loadThreads(decision.path)
         // 'ignore' covers duplicates too — a duplicate ready no longer double-counts a visit.
         if (decision.kind === 'ignore') return
         if (state.readyPath !== intent.filePath) return
@@ -347,6 +352,7 @@ function Viewer() {
       // UNCONDITIONAL (C2b): commenting is on for anyone with access, not just while the rail is
       // open — a text selection feeds the popover reducer (chip first, composer only on an
       // explicit click) whether or not the rail panel happens to be visible.
+      else if (!site.authenticated) return
       else if (intent.type === 'select')
         dispatchPopover({
           type: 'select',
@@ -387,9 +393,21 @@ function Viewer() {
     // Effect re-runs re-ping, which is harmless — the arbiter ignores duplicate readys.
     iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:ping' }, contentOrigin)
     return () => window.removeEventListener('message', onMsg)
-  }, [contentOrigin, me, site.spaceSlug, site.siteSlug, site.title, threads, dispatch, loadThreads, revealThread])
+  }, [
+    contentOrigin,
+    me,
+    site.authenticated,
+    site.spaceSlug,
+    site.siteSlug,
+    site.title,
+    threads,
+    dispatch,
+    loadThreads,
+    revealThread,
+  ])
 
   useEffect(() => {
+    if (!site.authenticated) return
     api
       .get<Me>('/api/auth/me')
       .then((m) => {
@@ -409,7 +427,7 @@ function Viewer() {
         }
       })
       .catch(() => setMe(null))
-  }, [site.spaceSlug, site.siteSlug, site.title])
+  }, [site.authenticated, site.spaceSlug, site.siteSlug, site.title])
 
   // Consume the loader's prefetch + reset on splat navigation (viewer → another file in the SAME
   // site; cross-site nav remounts via the Component key). A nav brings the loading overlay back and
@@ -455,6 +473,7 @@ function Viewer() {
   // (Keydown only reaches the parent when focus is outside the sandboxed iframe; the header
   // Search button is the always-available fallback.)
   useEffect(() => {
+    if (!site.authenticated) return
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
@@ -463,7 +482,7 @@ function Viewer() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [site.authenticated])
 
   // Scroll an anchor into view in the iframe: element → its selector; text → its quote. What a rail
   // card's click does; nothing about it changes what is LIT, because everything already is for as
@@ -651,15 +670,17 @@ function Viewer() {
         }
       />
 
-      <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} user={me} />
+      {site.authenticated && <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} user={me} />}
 
-      <ViewerSidebar
-        open={sidebarOpen}
-        onOpenChange={setSidebarOpen}
-        userId={me?.id ?? null}
-        currentSpaceSlug={site.spaceSlug}
-        currentSiteSlug={site.siteSlug}
-      />
+      {site.authenticated && (
+        <ViewerSidebar
+          open={sidebarOpen}
+          onOpenChange={setSidebarOpen}
+          userId={me?.id ?? null}
+          currentSpaceSlug={site.spaceSlug}
+          currentSiteSlug={site.siteSlug}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* The loading overlay lives inside this wrapper so its coords match the iframe viewport. */}
@@ -703,7 +724,7 @@ function Viewer() {
                 the frame reports needs no translation to position the chip/popover over it.
                 The POPOVER is unconditional on railOpen (C2b): anyone who can open the site can
                 comment without opening a panel first. */}
-            {!isAudio && (
+            {site.authenticated && !isAudio && (
               <CommentPopover
                 chip={popover.chip}
                 composer={popover.composer}
@@ -727,7 +748,7 @@ function Viewer() {
           </div>
         </div>
 
-        {railOpen && (
+        {site.authenticated && railOpen && (
           <ReviewRail
             site={site}
             me={me}

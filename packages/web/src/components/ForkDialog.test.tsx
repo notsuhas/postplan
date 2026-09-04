@@ -50,7 +50,7 @@ describe('ForkDialog', () => {
 
   test('the visibility picker defaults to the source tier (a fork is never silently widened)', () => {
     renderDialog()
-    expect(screen.getByRole('button', { name: /Members/ })).toBeDefined()
+    expect(screen.getByRole('button', { name: /Space members/ })).toBeDefined()
   })
 
   test('Fork POSTs the name, the derived slug and the chosen visibility — then closes', async () => {

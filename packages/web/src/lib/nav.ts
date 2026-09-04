@@ -36,3 +36,7 @@ export function toLogin(request: Request): Response {
   const url = new URL(request.url)
   return redirect(`/login?next=${encodeURIComponent(url.pathname + url.search)}`)
 }
+
+export function loginHref(location: { pathname: string; search: string }): string {
+  return `/login?next=${encodeURIComponent(location.pathname + location.search)}`
+}
