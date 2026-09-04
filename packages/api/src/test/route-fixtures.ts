@@ -7,9 +7,12 @@ import { generateApiKey, hashApiKey } from '../lib/api-key'
 import { requireSameOrigin } from '../middleware/auth'
 import { admin } from '../routes/admin'
 import { apiKeys } from '../routes/api-keys'
+import { ask } from '../routes/ask'
 import { commentFeed } from '../routes/comment-feed'
 import { comments } from '../routes/comments'
+import { notifications } from '../routes/notifications'
 import { summary } from '../routes/summary'
+import { whatsNew } from '../routes/whats-new'
 import { sites } from '../routes/sites'
 import { slackEvents } from '../routes/slack-events'
 import { spaces } from '../routes/spaces'
@@ -47,9 +50,12 @@ export function makeRouteApp() {
   // Same order as index.ts: sites first, then comments on the same mount (3-segment paths).
   app.route('/api/sites', comments)
   app.route('/api/sites', summary)
+  app.route('/api/sites', ask)
   app.route('/api/comments', commentFeed)
   app.route('/api/slack', slackEvents)
+  app.route('/api/notifications', notifications)
   app.route('/api/api-keys', apiKeys)
+  app.route('/api/whats-new', whatsNew)
   app.route('/api/admin', admin)
   return { app, env, db, kv, r2 }
 }

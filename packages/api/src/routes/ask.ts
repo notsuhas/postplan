@@ -4,7 +4,7 @@ import { siteSummaries, sites, spaces } from '../db/schema'
 import type { ResolvedSite } from '../lib/site-access'
 import { fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
 import { summarizeDeps } from '../lib/summarize'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 export const ask = new Hono<AppEnv>()
@@ -67,7 +67,7 @@ async function gated(c: Context<AppEnv>): Promise<{ site: ResolvedSite; summary:
   return { site, summary: summaryRows[0]?.summary }
 }
 
-ask.use('*', requireAuth)
+ask.use('*', requireAuth, requireControlGrant)
 
 ask.post('/:space/:site/ask', async (c) => {
   const user = c.get('user')

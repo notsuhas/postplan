@@ -53,6 +53,29 @@ describe('requireControlGrant — a key without the control grant cannot change 
     }
   })
 
+  test('it cannot mutate the rest of the control plane', async () => {
+    const ctx = await setup()
+    const dataOnly = await mintKey(ctx.db, 'owner', DATA_ONLY_GRANTS)
+
+    for (const [path, method, body] of [
+      ['/api/sites/acme/deck/ask', 'POST', { question: 'Spend AI' }],
+      ['/api/sites/acme/deck/summary', 'POST', {}],
+      ['/api/sites/acme/deck/comments', 'POST', { filePath: 'index.html', body: 'Spam' }],
+      ['/api/sites/acme/deck/star', 'POST', {}],
+      ['/api/sites/acme/deck/star', 'DELETE', undefined],
+      ['/api/notifications/read', 'POST', {}],
+      ['/api/whats-new/seen', 'POST', {}],
+      ['/api/api-keys', 'POST', { name: 'Escalate' }],
+    ] as const) {
+      const res = await ctx.app.request(
+        path,
+        { method, headers: authKey(dataOnly), ...(body === undefined ? {} : { body: JSON.stringify(body) }) },
+        ctx.env,
+      )
+      expect({ path, method, status: res.status }).toEqual({ path, method, status: 403 })
+    }
+  })
+
   // The other half. A data-only key is a legitimate credential, not a broken one — gating reads
   // would break the very use case the grant exists to express.
   test('it can still READ: the grant gates mutation, not access', async () => {

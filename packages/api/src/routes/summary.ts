@@ -5,7 +5,7 @@ import { extractText, isSupportedEntry, pickEntry } from '../lib/extract'
 import type { ResolvedSite } from '../lib/site-access'
 import { fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
 import { PROMPT_VERSION, summarizeDeps, summarizeSite } from '../lib/summarize'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 export const summary = new Hono<AppEnv>()
@@ -87,7 +87,7 @@ async function gated(
   return { site, row: summaryRows[0], fileRows: fileRows ?? [] }
 }
 
-summary.use('*', requireAuth)
+summary.use('*', requireAuth, requireControlGrant)
 
 summary.get('/:space/:site/summary', async (c) => {
   const gate = await gated(c)

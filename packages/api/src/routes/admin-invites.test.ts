@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { invites } from '../db/schema'
-import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
+import { authHeaders as auth, authKey, DATA_ONLY_GRANTS, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 
 // The shared fixture leaves SUPERADMIN_EMAILS unset; these routes read it, so each test that cares
 // about the admin bypass sets it explicitly rather than relying on a fixture default.
@@ -26,6 +26,19 @@ describe('invites — who may reach the surface at all', () => {
   test('anonymous gets 401', async () => {
     const { app, env } = makeRouteApp()
     expect((await app.request('/api/admin/invites', {}, env)).status).toBe(401)
+  })
+
+  test('a superadmin data-only key cannot mutate the admin control plane', async () => {
+    const { app, db, kv, env } = makeRouteApp()
+    await mintUser(db, kv, 'admin', { role: 'superadmin' })
+    const secret = await mintKey(db, 'admin', DATA_ONLY_GRANTS)
+    const res = await app.request(
+      '/api/admin/invites',
+      { method: 'POST', headers: authKey(secret), body: JSON.stringify({ email: 'guest@example.com' }) },
+      env,
+    )
+    expect(res.status).toBe(403)
+    expect(await db.select().from(invites)).toHaveLength(0)
   })
 })
 

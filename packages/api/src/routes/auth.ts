@@ -4,7 +4,7 @@ import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
 import { events, invites, users } from '../db/schema'
 import { bootstrapSuperadminByEmail, createPersonalSpace, superadminStatus, toSessionUser } from '../db/repo'
 import { NEWEST_RELEASE_DATE } from '../whats-new/catalog'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireControlGrant } from '../middleware/auth'
 import { sanitizeAvatarUrl } from '../lib/avatar'
 import { bootstrapDecision } from '../lib/bootstrap'
 import { createWorkos, isAdminEmail, isWorkosEnabled, primarySuperadminEmail } from '../lib/workos'
@@ -304,7 +304,7 @@ auth.get('/cli/poll', async (c) => {
   return c.json({ status: 'complete', accessToken: rec.token })
 })
 
-auth.post('/cli/approve', requireAuth, async (c) => {
+auth.post('/cli/approve', requireAuth, requireControlGrant, async (c) => {
   const { userCode } = await c.req.json<{ userCode?: string }>()
   if (!userCode) return c.json({ error: 'userCode required' }, 400)
   const deviceCode = await c.env.POSTPLAN_SESSIONS.get(`cli_user:${userCode.toUpperCase()}`)

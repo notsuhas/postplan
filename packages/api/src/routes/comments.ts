@@ -57,7 +57,7 @@ import { fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
 import { decideRange } from '../lib/range'
 import { deleteKeys } from '../lib/storage'
 import { transcribeVoice } from '../lib/transcribe'
-import { cookieAuthed, isSameOrigin, requireAuth } from '../middleware/auth'
+import { cookieAuthed, isSameOrigin, requireAuth, requireControlGrant } from '../middleware/auth'
 import { notifyCommentEvent } from '../realtime/notify'
 import { TOKEN_HEADER } from '../realtime/protocol'
 import { isUpgrade, reissueUpgrade } from '../realtime/upgrade'
@@ -454,7 +454,7 @@ const isMultipart = (c: Context<AppEnv>): boolean =>
   (c.req.header('content-type') ?? '').startsWith('multipart/form-data')
 
 // Every route in this router is a comment route, so auth is required on all of them.
-comments.use('*', requireAuth)
+comments.use('*', requireAuth, requireControlGrant)
 
 // GET — list threads (+ ordered comments). With ?filePath, one file's threads; with NO filePath
 // at all, the whole site's threads. Authz is site-level (siteFromFacts), so the site-wide list

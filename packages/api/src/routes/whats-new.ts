@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getWatermark, setSeen } from '../db/whats-new'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv } from '../types'
 import { NEWEST_RELEASE_DATE, RELEASES } from '../whats-new/catalog'
 import { isCanonicalDate } from '../whats-new/bake'
@@ -11,7 +11,7 @@ import { isCanonicalDate } from '../whats-new/bake'
 
 export const whatsNew = new Hono<AppEnv>()
 
-whatsNew.use('*', requireAuth)
+whatsNew.use('*', requireAuth, requireControlGrant)
 
 // GET — the release archive (newest-first, baked at build time) + this user's unread count + the
 // date to POST back to mark everything seen (the newest release date, or null when the catalog is
