@@ -202,9 +202,7 @@ export function Component() {
 
   // Any feed 401'd — the session lapsed. Bounce to login, preserving where we were.
   if (state.unauthorized) {
-    return (
-      <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />
-    )
+    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />
   }
 
   return (
@@ -373,9 +371,7 @@ function TabPanelSkeleton() {
 }
 
 function TabCount({ n }: { n: number }) {
-  return (
-    <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{n}</span>
-  )
+  return <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{n}</span>
 }
 
 // ─── Team activity ───────────────────────────────────────────────────────────
@@ -438,10 +434,7 @@ function CommentsFeed({ comments }: { comments: CommentFeedItem[] }) {
         const editedSuffix = item.kind !== 'mention' && !!item.editedAt
         return (
           <li key={`${item.kind}:${item.id}`}>
-            <Link
-              to={href}
-              className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-accent"
-            >
+            <Link to={href} className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-accent">
               <span className="mt-0.5 w-16 shrink-0 rounded bg-muted px-1.5 py-0.5 text-center font-mono text-[10px] text-muted-foreground">
                 {item.kind}
               </span>
@@ -523,8 +516,8 @@ function AgentSetup() {
           <h2 className="font-medium">Give this to your agent</h2>
         </div>
         <p className="text-muted-foreground text-sm">
-          Paste it into Claude, Codex, or Cursor — it installs the CLI and the postplan skill, so your
-          agent can ship sites and read review comments straight from your terminal.
+          Paste it into Claude, Codex, or Cursor — it installs the CLI and the postplan skill, so your agent can ship
+          sites and read review comments straight from your terminal.
         </p>
       </div>
       <div className="flex items-center gap-2 rounded-md border bg-background/60 p-2">
@@ -742,12 +735,7 @@ function NewSpaceDialog() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="space-name">Name</Label>
-            <Input
-              id="space-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Platform Docs"
-            />
+            <Input id="space-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Platform Docs" />
           </div>
         </div>
         <DialogFooter>

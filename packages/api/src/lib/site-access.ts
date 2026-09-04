@@ -194,9 +194,7 @@ export function siteAccessFromFacts(facts: AccessFacts, user: SessionUser | null
     site: facts.site,
     isMember: facts.isMember,
     isShared,
-    access: facts.site
-      ? checkAccess(facts.site, user, facts.isMember, isShared)
-      : { ok: false, status: 403 },
+    access: facts.site ? checkAccess(facts.site, user, facts.isMember, isShared) : { ok: false, status: 403 },
   }
 }
 

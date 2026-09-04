@@ -537,7 +537,13 @@ describe('SiteRoom — S10: typing, the first inbound message that is not auth',
     await typing(r, sender, { type: 'typing.stop', threadId: 't1' })
 
     // Same shape as a ping — the receiver has ONE code path, and `expiresAt: 0` is what "over" is.
-    expect(frames(peer).at(-1)).toEqual({ channel: 'comments', type: 'typing', viewerId: 'userA', threadId: 't1', expiresAt: 0 })
+    expect(frames(peer).at(-1)).toEqual({
+      channel: 'comments',
+      type: 'typing',
+      viewerId: 'userA',
+      threadId: 't1',
+      expiresAt: 0,
+    })
     expect([sender.sent, sender.closed, peer.closed]).toEqual([[], [], []])
   })
 
@@ -676,7 +682,7 @@ describe('SiteRoom — deploy wiring', () => {
 })
 
 describe('SiteRoom — comment deploy wiring', () => {
-  test('contract: the request notifyCommentEvent sends is the one SiteRoom.fetch\'s broadcast-comment accepts', async () => {
+  test("contract: the request notifyCommentEvent sends is the one SiteRoom.fetch's broadcast-comment accepts", async () => {
     const r = makeRoom('siteA')
     const { ws } = await subscribe(r, { viewerId: 'userA', channel: 'comments' })
     const names: string[] = []

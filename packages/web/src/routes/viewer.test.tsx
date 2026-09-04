@@ -39,7 +39,9 @@ const { Component } = await import('./viewer')
 // happy-dom actually tries to fetch it over the network on every render, which is slow and noisy
 // (and would be outright flaky off-VPN/offline). Nothing in this file depends on iframe navigation
 // — only on the element's contentWindow (for message `source`) and its measured box (stubbed below).
-;(window as unknown as { happyDOM: { settings: { disableIframePageLoading: boolean } } }).happyDOM.settings.disableIframePageLoading = true
+;(
+  window as unknown as { happyDOM: { settings: { disableIframePageLoading: boolean } } }
+).happyDOM.settings.disableIframePageLoading = true
 
 const SITE: ViewerSite = {
   id: 's1',
@@ -85,7 +87,12 @@ function makeLoaderData({ params }: LoaderFunctionArgs): ViewerLoaderData {
   const site: ViewerSite =
     params.site === SITE.siteSlug
       ? SITE
-      : { ...SITE, id: `s-${params.site}`, siteSlug: params.site ?? '', contentUrl: `${CONTENT_ORIGIN}/${params.space}/${params.site}/` }
+      : {
+          ...SITE,
+          id: `s-${params.site}`,
+          siteSlug: params.site ?? '',
+          contentUrl: `${CONTENT_ORIGIN}/${params.space}/${params.site}/`,
+        }
   return { site, entryPath: 'index.html', commentsPromise: Promise.resolve(THREADS) }
 }
 
@@ -109,8 +116,11 @@ function armIframe(container: HTMLElement) {
   // `source` must be the SAME object parseIntent compares against, and `origin` must match the
   // site's content origin, or the message is dropped.
   const send = (data: unknown) =>
-    window.dispatchEvent(new MessageEvent('message', { data, origin: CONTENT_ORIGIN, source: iframe.contentWindow as unknown as Window }))
-  const paints = () => posted.filter((m) => (m as { type?: string }).type === 'postplan:paint') as { anchors: { id: string }[] }[]
+    window.dispatchEvent(
+      new MessageEvent('message', { data, origin: CONTENT_ORIGIN, source: iframe.contentWindow as unknown as Window }),
+    )
+  const paints = () =>
+    posted.filter((m) => (m as { type?: string }).type === 'postplan:paint') as { anchors: { id: string }[] }[]
   const lastPaintIds = () => (paints().at(-1)?.anchors ?? []).map((a) => a.id).sort()
   const pings = () => posted.filter((m) => (m as { type?: string }).type === 'postplan:ping')
   return { iframe, send, paints, lastPaintIds, pings }
@@ -295,7 +305,13 @@ describe('viewer wiring — adding a comment opens the rail', () => {
       expect(container.querySelector('aside')).toBeNull() // rail closed
 
       // Select text in the page → chip → composer, the real in-place comment path.
-      act(() => send({ type: 'postplan:select', quote: 'the quoted sentence', rect: { top: 10, left: 10, width: 50, height: 12 } }))
+      act(() =>
+        send({
+          type: 'postplan:select',
+          quote: 'the quoted sentence',
+          rect: { top: 10, left: 10, width: 50, height: 12 },
+        }),
+      )
       fireEvent.click(await screen.findByRole('button', { name: 'Comment on selection' }))
       fireEvent.change(screen.getByRole('textbox'), { target: { value: 'this paragraph contradicts the last' } })
       await act(async () => {
@@ -327,7 +343,13 @@ describe('viewer wiring — C on a selection opens the composer (#117)', () => {
       loadIframe(iframe)
       act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
 
-      act(() => send({ type: 'postplan:select', quote: 'the quoted sentence', rect: { top: 10, left: 10, width: 50, height: 12 } }))
+      act(() =>
+        send({
+          type: 'postplan:select',
+          quote: 'the quoted sentence',
+          rect: { top: 10, left: 10, width: 50, height: 12 },
+        }),
+      )
       expect(await screen.findByRole('button', { name: 'Comment on selection' })).not.toBeNull()
       expect(screen.queryByRole('textbox')).toBeNull() // a chip only — select never opens a composer
 
@@ -487,7 +509,12 @@ describe('viewer wiring — pushed comment events (S9)', () => {
       await waitFor(() => expect(lastPaintIds()).toEqual(['t1', 't2']))
       const before = paints().length
 
-      await pushFrame(socket, { type: 'thread.created', siteId: 's1', filePath: 'index.html', thread: mkThread({ id: 't3' }) })
+      await pushFrame(socket, {
+        type: 'thread.created',
+        siteId: 's1',
+        filePath: 'index.html',
+        thread: mkThread({ id: 't3' }),
+      })
 
       await waitFor(() => expect(document.getElementById('thread-t3')).not.toBeNull())
       // Chips repaint for FREE: `paint` derives from `threads`, so the push feeds the existing paint
@@ -500,7 +527,9 @@ describe('viewer wiring — pushed comment events (S9)', () => {
       // thread reaches the page through paintAnchors' whitelist, same as a fetched one — a push
       // path that spread the thread object instead would ship the author's name and comment bodies
       // into the content origin, which is a different trust boundary from the rail.
-      const pushed = paints().at(-1)!.anchors.find((a) => a.id === 't3')!
+      const pushed = paints()
+        .at(-1)!
+        .anchors.find((a) => a.id === 't3')!
       expect(Object.keys(pushed).sort()).toEqual(['anchorType', 'context', 'id', 'quote'])
     } finally {
       list.mockRestore()
@@ -558,7 +587,12 @@ describe('viewer wiring — pushed comment events (S9)', () => {
       act(() => send({ type: 'postplan:ready', filePath: 'page2.html' })) // in-iframe nav → refetch, settled
       await waitFor(() => expect(document.getElementById('thread-p2a')).not.toBeNull())
 
-      await pushFrame(socket, { type: 'thread.created', siteId: 's1', filePath: 'index.html', thread: mkThread({ id: 'old1' }) })
+      await pushFrame(socket, {
+        type: 'thread.created',
+        siteId: 's1',
+        filePath: 'index.html',
+        thread: mkThread({ id: 'old1' }),
+      })
       await pushFrame(socket, {
         type: 'thread.created',
         siteId: 's1',
@@ -682,7 +716,9 @@ describe('viewer wiring — pushed comment events (S9)', () => {
 
   test('while the stream is CONNECTED, the local user’s own create does not refetch the list', async () => {
     const list = spyOn(comments, 'list').mockResolvedValue(THREADS)
-    const create = spyOn(comments, 'create').mockResolvedValue(mkThread({ id: 'mine', anchorType: 'page', quote: null }))
+    const create = spyOn(comments, 'create').mockResolvedValue(
+      mkThread({ id: 'mine', anchorType: 'page', quote: null }),
+    )
     const mentionable = spyOn(comments, 'mentionable').mockResolvedValue([])
     try {
       const { container, socket } = await mounted(list) // socket opened
@@ -710,7 +746,9 @@ describe('viewer wiring — pushed comment events (S9)', () => {
 
   test('while the stream is NOT connected, the same create still refetches', async () => {
     const list = spyOn(comments, 'list').mockResolvedValue(THREADS)
-    const create = spyOn(comments, 'create').mockResolvedValue(mkThread({ id: 'mine', anchorType: 'page', quote: null }))
+    const create = spyOn(comments, 'create').mockResolvedValue(
+      mkThread({ id: 'mine', anchorType: 'page', quote: null }),
+    )
     const mentionable = spyOn(comments, 'mentionable').mockResolvedValue([])
     try {
       const { container } = renderViewer('/sp/site?review=1')

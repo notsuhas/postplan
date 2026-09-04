@@ -13,7 +13,11 @@ const PHOTO = 'https://lh3.googleusercontent.com/a/ACg8ocABC=s96-c'
 function setup() {
   const db = makeDb()
   const kv = makeKv()
-  const env = { APP_URL: 'https://postplan.example.com', SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv } as AppEnv['Bindings']
+  const env = {
+    APP_URL: 'https://postplan.example.com',
+    SESSION_SECRET: 's',
+    POSTPLAN_SESSIONS: kv,
+  } as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
     c.set('db', db)

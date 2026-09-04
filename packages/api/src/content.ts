@@ -146,10 +146,22 @@ app.get('/_t/:token/:space/:site/*', async (c) => {
 app.get('/:space/:site/*', (c) => serve(c, c.req.param('space'), c.req.param('site'), restOf(c.req.url, 2), null))
 
 // `userId` is the token-bound viewer for gated requests, or null for public requests.
-async function serve(c: Ctx, spaceSlug: string, siteSlug: string, rest: string, userId: string | null): Promise<Response> {
+async function serve(
+  c: Ctx,
+  spaceSlug: string,
+  siteSlug: string,
+  rest: string,
+  userId: string | null,
+): Promise<Response> {
   const db = getDb(c)
   const reqPath = normalizePath(rest)
-  const cols = { path: files.path, storageKey: files.storageKey, mimeType: files.mimeType, size: files.size, etag: files.etag }
+  const cols = {
+    path: files.path,
+    storageKey: files.storageKey,
+    mimeType: files.mimeType,
+    size: files.size,
+    etag: files.etag,
+  }
   // ONE D1 round trip: the slug-keyed access facts (site / user / membership / shares) plus the
   // file row, fused into a single batch. The file statement joins by BOTH slugs too (the site id
   // is unknown before the batch runs), and every statement returns empty rows rather than
@@ -271,7 +283,11 @@ async function serve(c: Ctx, spaceSlug: string, siteSlug: string, rest: string, 
     const annotate = c.req.query('postplan_annotate') === '1'
     const nonce = annotate ? crypto.randomUUID().replace(/-/g, '') : null
     const doc = nonce
-      ? injectAnnotate(renderMarkdownDoc(path, html), { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL }, nonce)
+      ? injectAnnotate(
+          renderMarkdownDoc(path, html),
+          { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL },
+          nonce,
+        )
       : renderMarkdownDoc(path, html)
     const res = c.html(doc, 200, {
       'content-security-policy': markdownCsp(frameAncestors, nonce, themeHref !== null),
@@ -323,7 +339,18 @@ async function serve(c: Ctx, spaceSlug: string, siteSlug: string, rest: string, 
   // everything else (audio today; any other binary falls out the same door for free).
   const rangeable = !isHtml
   if (rangeable) headers.set('accept-ranges', 'bytes')
-  return serveStoredObject(c, { storageKey, size, etag: file.etag, headers, rangeable, isHtml, mime, view, selfOrigin, themeHref })
+  return serveStoredObject(c, {
+    storageKey,
+    size,
+    etag: file.etag,
+    headers,
+    rangeable,
+    isHtml,
+    mime,
+    view,
+    selfOrigin,
+    themeHref,
+  })
 }
 
 /** The storage tail of serve(): conditional (If-None-Match) handling, both Range flows (sized

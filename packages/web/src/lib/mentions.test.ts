@@ -66,7 +66,9 @@ describe('C21 — notificationHref: deep-link into the viewer review rail', () =
   })
 
   test('missing file → site root with review flag', () => {
-    expect(notificationHref({ siteLabel: 'acme/doc', filePath: null, threadId: 't1' })).toBe('/acme/doc?thread=t1&review=1')
+    expect(notificationHref({ siteLabel: 'acme/doc', filePath: null, threadId: 't1' })).toBe(
+      '/acme/doc?thread=t1&review=1',
+    )
   })
 
   test('strips a leading slash on the file path', () => {

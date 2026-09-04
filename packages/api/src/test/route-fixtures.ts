@@ -103,11 +103,7 @@ export const auth = (id: string) => authKey(`tok-${id}`)
 /** Seed a live `glk_`-prefixed API key for an EXISTING user (mint their session/CLI identity
  *  first via `mintUser`), returning the plaintext secret to send as a Bearer token. Defaults to
  *  FULL_GRANTS; pass `grants` to mint a narrower key (e.g. `control: false`). */
-export async function mintKey(
-  db: RouteApp['db'],
-  userId: string,
-  grants?: ApiKeyGrants,
-): Promise<string> {
+export async function mintKey(db: RouteApp['db'], userId: string, grants?: ApiKeyGrants): Promise<string> {
   const secret = generateApiKey()
   await seedApiKey(db, { userId, hash: await hashApiKey(secret), ...(grants && { grants }) })
   return secret

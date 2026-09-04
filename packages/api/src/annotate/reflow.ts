@@ -39,7 +39,12 @@ const hits = (r: { top: number; left: number; width: number; height: number }, p
  *  Text is tested before elements: a quote inside an element-anchored container is the more
  *  specific of two overlapping anchors, and the click means the one the user can actually see the
  *  highlight on. Returns null for a click anywhere else — that click is the page's own, untouched. */
-export function anchorIdAtPoint(textAnchors: TextAnchor[], elementAnchors: ElementAnchor[], point: Point, doc: Document): string | null {
+export function anchorIdAtPoint(
+  textAnchors: TextAnchor[],
+  elementAnchors: ElementAnchor[],
+  point: Point,
+  doc: Document,
+): string | null {
   for (const a of textAnchors) {
     const range = a.quote ? findRange(a.quote, doc, a.context) : null
     if (range && Array.from(range.getClientRects()).some((r) => hits(r, point))) return a.id

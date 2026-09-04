@@ -124,7 +124,12 @@ async function unfurlLinks(c: Context<AppEnv>, event: LinkSharedEvent): Promise<
         siteSlug: parsed.siteSlug,
         description: site.description,
         updatedAt: site.updatedAt,
-        imageUrl: await signedOgImageUrl(c.env.CONTENT_TOKEN_SECRET, c.env.CONTENT_URL, parsed.spaceSlug, parsed.siteSlug),
+        imageUrl: await signedOgImageUrl(
+          c.env.CONTENT_TOKEN_SECRET,
+          c.env.CONTENT_URL,
+          parsed.spaceSlug,
+          parsed.siteSlug,
+        ),
       }
       return urls.map((url) => [url, buildUnfurlAttachment(card, url, now)] as const)
     }),

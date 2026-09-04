@@ -56,8 +56,7 @@ const MAX_FIELD = 2000 // chars per text field, bounds a single message
 // most that, so anything longer is noise the server would trim anyway.
 export const MAX_CONTEXT = 64
 
-const str = (v: unknown, max = MAX_FIELD): string | null =>
-  typeof v === 'string' && v.length <= max ? v : null
+const str = (v: unknown, max = MAX_FIELD): string | null => (typeof v === 'string' && v.length <= max ? v : null)
 
 // Like `str`, but CLAMPS an over-cap string to the cap rather than rejecting it — used for the
 // free-text selection quote so a long highlight still opens the composer (anchored on the head of

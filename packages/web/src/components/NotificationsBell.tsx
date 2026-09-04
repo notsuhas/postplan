@@ -1,11 +1,7 @@
 import { Bell } from 'lucide-react'
 import { Suspense, useEffect, useState } from 'react'
 import { Await, useNavigate } from 'react-router'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { UserAvatar } from '@/components/UserAvatar'
 import { notificationHref } from '@/lib/mentions'
@@ -96,7 +92,9 @@ function BellMenu({ initial }: { initial: NotificationList }) {
                       !n.read && 'bg-primary/5',
                     )}
                   >
-                    <span className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', n.read ? 'bg-transparent' : 'bg-primary')} />
+                    <span
+                      className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', n.read ? 'bg-transparent' : 'bg-primary')}
+                    />
                     <UserAvatar userId={n.actorId} name={n.actorName} className="mt-0.5 size-6" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">

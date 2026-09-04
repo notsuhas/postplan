@@ -240,11 +240,12 @@ describe('comments routes — T9.4 relationship denials are side-effect-free', (
     // A second thread on the SAME site: the comment exists, the thread exists, they just don't match.
     const otherThread = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
     db.resetCounters()
-    for (const init of [
-      { method: 'PATCH', body: JSON.stringify({ body: 'x' }) },
-      { method: 'DELETE' },
-    ]) {
-      const res = await app.request(url('acme', 'doc', `/${otherThread}/messages/${commentId}`), { ...init, headers: auth(owner) }, env)
+    for (const init of [{ method: 'PATCH', body: JSON.stringify({ body: 'x' }) }, { method: 'DELETE' }]) {
+      const res = await app.request(
+        url('acme', 'doc', `/${otherThread}/messages/${commentId}`),
+        { ...init, headers: auth(owner) },
+        env,
+      )
       expect(res.status).toBe(404)
       expect(await res.json()).toEqual({ error: 'not found' })
     }
@@ -258,11 +259,12 @@ describe('comments routes — T9.4 relationship denials are side-effect-free', (
     // threadId/commentId agree with each other — only the SITE in the path is wrong.
     const foreign = await seedForeignSite(db, owner)
     db.resetCounters()
-    for (const init of [
-      { method: 'PATCH', body: JSON.stringify({ body: 'x' }) },
-      { method: 'DELETE' },
-    ]) {
-      const res = await app.request(url('acme', 'doc', `/${foreign.threadId}/messages/${foreign.commentId}`), { ...init, headers: auth(owner) }, env)
+    for (const init of [{ method: 'PATCH', body: JSON.stringify({ body: 'x' }) }, { method: 'DELETE' }]) {
+      const res = await app.request(
+        url('acme', 'doc', `/${foreign.threadId}/messages/${foreign.commentId}`),
+        { ...init, headers: auth(owner) },
+        env,
+      )
       expect(res.status).toBe(404)
       expect(await res.json()).toEqual({ error: 'not found' })
     }
@@ -326,7 +328,11 @@ describe('comments routes — T9.4 relationship denials are side-effect-free', (
     const r2Before = r2.store.size
     db.resetCounters()
     for (const extra of ['', `/${threadId}/replies`]) {
-      const res = await app.request(url('acme', 'doc', extra), { method: 'POST', headers: multipartAuth(outsider), body: voiceForm() }, aiSpy)
+      const res = await app.request(
+        url('acme', 'doc', extra),
+        { method: 'POST', headers: multipartAuth(outsider), body: voiceForm() },
+        aiSpy,
+      )
       expect(res.status).toBe(403)
       expect(await res.json()).toEqual({ error: 'forbidden' })
     }
@@ -355,7 +361,11 @@ describe('comments routes — T9.5 mutations fuse target reads into the access b
     const { threadId } = await seedCommentedSite(db, owner)
     const foreign = await seedForeignSite(db, owner)
     const reply = (tid: string) =>
-      app.request(url('acme', 'doc', `/${tid}/replies`), { method: 'POST', headers: auth(commenter), body: JSON.stringify({ body: 'hi' }) }, env)
+      app.request(
+        url('acme', 'doc', `/${tid}/replies`),
+        { method: 'POST', headers: auth(commenter), body: JSON.stringify({ body: 'hi' }) },
+        env,
+      )
 
     db.resetCounters()
     expect((await reply(threadId)).status).toBe(201)
@@ -376,7 +386,11 @@ describe('comments routes — T9.5 mutations fuse target reads into the access b
     const owner = await mintUser(db, kv, 'owner')
     const { threadId } = await seedCommentedSite(db, owner)
     const patch = (status: string) =>
-      app.request(url('acme', 'doc', `/${threadId}`), { method: 'PATCH', headers: auth(owner), body: JSON.stringify({ status }) }, env)
+      app.request(
+        url('acme', 'doc', `/${threadId}`),
+        { method: 'PATCH', headers: auth(owner), body: JSON.stringify({ status }) },
+        env,
+      )
 
     db.resetCounters()
     expect((await patch('resolved')).status).toBe(200)
@@ -456,7 +470,12 @@ describe('comments routes — T9.5 mutations fuse target reads into the access b
     const { threadId } = await seedCommentedSite(ctx.db, owner, 'private')
     const foreign = await seedForeignSite(ctx.db, owner)
     // Audio-bearing comment on the FOREIGN site; deleted-voice + text + live-voice on acme/doc.
-    const foreignVoice = await seedComment(ctx.db, { threadId: foreign.threadId, authorId: owner, body: 'x', audioKey: 'comment-audio/f.webm' })
+    const foreignVoice = await seedComment(ctx.db, {
+      threadId: foreign.threadId,
+      authorId: owner,
+      body: 'x',
+      audioKey: 'comment-audio/f.webm',
+    })
     const deletedVoice = await seedComment(ctx.db, {
       threadId,
       authorId: owner,
@@ -465,7 +484,12 @@ describe('comments routes — T9.5 mutations fuse target reads into the access b
       deletedAt: new Date().toISOString(),
     })
     const textId = await seedComment(ctx.db, { threadId, authorId: owner, body: 'text' })
-    const liveVoice = await seedComment(ctx.db, { threadId, authorId: owner, body: 'x', audioKey: 'comment-audio/l.webm' })
+    const liveVoice = await seedComment(ctx.db, {
+      threadId,
+      authorId: owner,
+      body: 'x',
+      audioKey: 'comment-audio/l.webm',
+    })
     const matrix: [string, string, number][] = [
       [owner, foreignVoice, 404], // comment whose thread lives on ANOTHER site
       [owner, deletedVoice, 404], // soft-deleted voice comment
@@ -611,11 +635,10 @@ describe('comments routes — S6 GET .../comments/socket (authenticated WS upgra
     const { app, env, db, kv } = makeRouteApp()
     const owner = await mintUser(db, kv, 'owner')
     await seedCommentedSite(db, owner)
-    const res = await app.request(
-      socketUrl('acme', 'doc'),
-      { headers: { ...auth(owner), ...wsHeaders() } },
-      { ...(env as object), DATA_TOKEN_SECRET: HMAC } as never,
-    )
+    const res = await app.request(socketUrl('acme', 'doc'), { headers: { ...auth(owner), ...wsHeaders() } }, {
+      ...(env as object),
+      DATA_TOKEN_SECRET: HMAC,
+    } as never)
     expect(res.status).toBe(503)
   })
 
@@ -624,11 +647,10 @@ describe('comments routes — S6 GET .../comments/socket (authenticated WS upgra
     const owner = await mintUser(db, kv, 'owner')
     await seedCommentedSite(db, owner)
     const room = recordingRoom()
-    const res = await app.request(
-      socketUrl('acme', 'doc'),
-      { headers: { ...auth(owner), ...wsHeaders() } },
-      { ...(env as object), SITE_ROOM: room.ns } as never,
-    )
+    const res = await app.request(socketUrl('acme', 'doc'), { headers: { ...auth(owner), ...wsHeaders() } }, {
+      ...(env as object),
+      SITE_ROOM: room.ns,
+    } as never)
     expect(res.status).toBe(503)
   })
 
@@ -731,86 +753,111 @@ describe('comments routes — S6 GET .../comments/socket (authenticated WS upgra
     expect(silent.headers.get('Sec-WebSocket-Protocol')).toBeNull()
   })
 
-  test('CSWSH: cookie-authed + foreign Origin → 403, DO never touched; cookie-authed + APP_URL ' +
-    'Origin (or Sec-Fetch-Site: same-origin) still upgrades', async () => {
-    const { app, env, db, kv } = makeRouteApp()
-    const owner = await mintUser(db, kv, 'owner')
-    await seedCommentedSite(db, owner)
-    const room = recordingRoom()
-    // Presence of the cookie, not its validity, is the signal (matches requireSameOrigin) — the
-    // Bearer token still authenticates the request; a foreign Origin alone must deny it.
-    const res = await app.request(
-      socketUrl('acme', 'doc'),
-      { headers: { ...auth(owner), cookie: '__Host-postplan_session=x', Origin: 'https://evil.example.com', ...wsHeaders() } },
-      withRoom(env, room),
-    )
-    expect(res.status).toBe(403)
-    expect(room.requests).toHaveLength(0)
-
-    // 'same-site' is NOT 'same-origin': the sandboxed content origin (postplan-content.*.workers.dev)
-    // shares this app's registrable domain (workers.dev is a public suffix) but is untrusted — a
-    // predicate loosened to accept same-site would let that origin ride the session cookie and
-    // hijack the socket. isSameOrigin's own doc comment says never to loosen it; pin the refusal.
-    // No Origin header (matches the secFetchSite success case below) — Sec-Fetch-Site is the ONLY
-    // signal under test; auth()'s Origin: APP_URL would pass the gate on its own and prove nothing.
-    const sameSiteRoom = recordingRoom()
-    const sameSite = await app.request(
-      socketUrl('acme', 'doc'),
-      {
-        headers: {
-          Authorization: `Bearer tok-${owner}`,
-          'Content-Type': 'application/json',
-          cookie: '__Host-postplan_session=x',
-          'Sec-Fetch-Site': 'same-site',
-          ...wsHeaders(),
+  test(
+    'CSWSH: cookie-authed + foreign Origin → 403, DO never touched; cookie-authed + APP_URL ' +
+      'Origin (or Sec-Fetch-Site: same-origin) still upgrades',
+    async () => {
+      const { app, env, db, kv } = makeRouteApp()
+      const owner = await mintUser(db, kv, 'owner')
+      await seedCommentedSite(db, owner)
+      const room = recordingRoom()
+      // Presence of the cookie, not its validity, is the signal (matches requireSameOrigin) — the
+      // Bearer token still authenticates the request; a foreign Origin alone must deny it.
+      const res = await app.request(
+        socketUrl('acme', 'doc'),
+        {
+          headers: {
+            ...auth(owner),
+            cookie: '__Host-postplan_session=x',
+            Origin: 'https://evil.example.com',
+            ...wsHeaders(),
+          },
         },
-      },
-      withRoom(env, sameSiteRoom),
-    )
-    expect(sameSite.status).toBe(403)
-    expect(sameSiteRoom.requests).toHaveLength(0)
+        withRoom(env, room),
+      )
+      expect(res.status).toBe(403)
+      expect(room.requests).toHaveLength(0)
 
-    const sameOrigin = await app.request(
-      socketUrl('acme', 'doc'),
-      { headers: { ...auth(owner), cookie: '__Host-postplan_session=x', ...wsHeaders() } }, // auth() sets Origin: APP_URL
-      withRoom(env, recordingRoom()),
-    )
-    expect(sameOrigin.status).toBe(101)
-
-    const secFetchSite = await app.request(
-      socketUrl('acme', 'doc'),
-      {
-        headers: {
-          Authorization: `Bearer tok-${owner}`,
-          'Content-Type': 'application/json',
-          cookie: '__Host-postplan_session=x',
-          'Sec-Fetch-Site': 'same-origin',
-          ...wsHeaders(),
+      // 'same-site' is NOT 'same-origin': the sandboxed content origin (postplan-content.*.workers.dev)
+      // shares this app's registrable domain (workers.dev is a public suffix) but is untrusted — a
+      // predicate loosened to accept same-site would let that origin ride the session cookie and
+      // hijack the socket. isSameOrigin's own doc comment says never to loosen it; pin the refusal.
+      // No Origin header (matches the secFetchSite success case below) — Sec-Fetch-Site is the ONLY
+      // signal under test; auth()'s Origin: APP_URL would pass the gate on its own and prove nothing.
+      const sameSiteRoom = recordingRoom()
+      const sameSite = await app.request(
+        socketUrl('acme', 'doc'),
+        {
+          headers: {
+            Authorization: `Bearer tok-${owner}`,
+            'Content-Type': 'application/json',
+            cookie: '__Host-postplan_session=x',
+            'Sec-Fetch-Site': 'same-site',
+            ...wsHeaders(),
+          },
         },
-      },
-      withRoom(env, recordingRoom()),
-    )
-    expect(secFetchSite.status).toBe(101)
-  })
+        withRoom(env, sameSiteRoom),
+      )
+      expect(sameSite.status).toBe(403)
+      expect(sameSiteRoom.requests).toHaveLength(0)
 
-  test('the room is addressed by site.id, never the URL slugs: an identical slug on a DIFFERENT ' +
-    'site reaches a DIFFERENT room, and the caller\'s own site always reaches the same one', async () => {
-    const { app, env, db, kv } = makeRouteApp()
-    const owner = await mintUser(db, kv, 'owner')
-    const { siteId: siteA } = await seedCommentedSite(db, owner) // acme/doc
-    const spaceB = await seedSpace(db, { createdBy: owner, slug: 'other' })
-    const siteB = await seedSite(db, { spaceId: spaceB, ownerId: owner, slug: 'doc', visibility: 'team' })
+      const sameOrigin = await app.request(
+        socketUrl('acme', 'doc'),
+        { headers: { ...auth(owner), cookie: '__Host-postplan_session=x', ...wsHeaders() } }, // auth() sets Origin: APP_URL
+        withRoom(env, recordingRoom()),
+      )
+      expect(sameOrigin.status).toBe(101)
 
-    const roomA1 = recordingRoom()
-    await app.request(socketUrl('acme', 'doc'), { headers: { ...auth(owner), ...wsHeaders() } }, withRoom(env, roomA1))
-    const roomA2 = recordingRoom()
-    await app.request(socketUrl('acme', 'doc'), { headers: { ...auth(owner), ...wsHeaders() } }, withRoom(env, roomA2))
-    const roomB = recordingRoom()
-    await app.request(socketUrl('other', 'doc'), { headers: { ...auth(owner), ...wsHeaders() } }, withRoom(env, roomB))
+      const secFetchSite = await app.request(
+        socketUrl('acme', 'doc'),
+        {
+          headers: {
+            Authorization: `Bearer tok-${owner}`,
+            'Content-Type': 'application/json',
+            cookie: '__Host-postplan_session=x',
+            'Sec-Fetch-Site': 'same-origin',
+            ...wsHeaders(),
+          },
+        },
+        withRoom(env, recordingRoom()),
+      )
+      expect(secFetchSite.status).toBe(101)
+    },
+  )
 
-    expect(roomA1.names).toEqual([siteA])
-    expect(roomA2.names).toEqual([siteA]) // same site, same slug, same room — every time
-    expect(roomB.names).toEqual([siteB]) // same SLUG ("doc"), different site → different room
-    expect(siteA).not.toBe(siteB)
-  })
+  test(
+    'the room is addressed by site.id, never the URL slugs: an identical slug on a DIFFERENT ' +
+      "site reaches a DIFFERENT room, and the caller's own site always reaches the same one",
+    async () => {
+      const { app, env, db, kv } = makeRouteApp()
+      const owner = await mintUser(db, kv, 'owner')
+      const { siteId: siteA } = await seedCommentedSite(db, owner) // acme/doc
+      const spaceB = await seedSpace(db, { createdBy: owner, slug: 'other' })
+      const siteB = await seedSite(db, { spaceId: spaceB, ownerId: owner, slug: 'doc', visibility: 'team' })
+
+      const roomA1 = recordingRoom()
+      await app.request(
+        socketUrl('acme', 'doc'),
+        { headers: { ...auth(owner), ...wsHeaders() } },
+        withRoom(env, roomA1),
+      )
+      const roomA2 = recordingRoom()
+      await app.request(
+        socketUrl('acme', 'doc'),
+        { headers: { ...auth(owner), ...wsHeaders() } },
+        withRoom(env, roomA2),
+      )
+      const roomB = recordingRoom()
+      await app.request(
+        socketUrl('other', 'doc'),
+        { headers: { ...auth(owner), ...wsHeaders() } },
+        withRoom(env, roomB),
+      )
+
+      expect(roomA1.names).toEqual([siteA])
+      expect(roomA2.names).toEqual([siteA]) // same site, same slug, same room — every time
+      expect(roomB.names).toEqual([siteB]) // same SLUG ("doc"), different site → different room
+      expect(siteA).not.toBe(siteB)
+    },
+  )
 })

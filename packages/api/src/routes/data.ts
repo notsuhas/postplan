@@ -136,7 +136,13 @@ function credential(c: DataCtx): string | null {
 // Method → required capability, enforced structurally for every current AND future route on
 // this surface — a new endpoint cannot ship without a capability check. POST maps to `create`
 // (every viewer may submit attributed documents); PUT/DELETE stay behind `write` (owner-only).
-const METHOD_CAP: Record<string, DataCapability> = { GET: 'read', HEAD: 'read', POST: 'create', PUT: 'write', DELETE: 'write' }
+const METHOD_CAP: Record<string, DataCapability> = {
+  GET: 'read',
+  HEAD: 'read',
+  POST: 'create',
+  PUT: 'write',
+  DELETE: 'write',
+}
 dataApi.use('*', async (c, next) => {
   const cap = METHOD_CAP[c.req.method]
   if (!cap || !hasCap(c.get('claims'), cap)) return c.json({ error: 'forbidden' }, 403)
@@ -336,7 +342,10 @@ dataApi.put('/:collection/:docId', async (c) => {
         type: 'update',
         at: now,
       }),
-      db.update(documents).set({ json: parsed.value, updatedAt: now }).where(scoped(claims, collection, docId)),
+      db
+        .update(documents)
+        .set({ json: parsed.value, updatedAt: now })
+        .where(scoped(claims, collection, docId)),
     ])
     await notifyChange(c, logged[0])
     return c.json({ id: docId, data: parsed.value, createdAt: existing.createdAt, updatedAt: now })

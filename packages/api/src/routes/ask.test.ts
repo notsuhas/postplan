@@ -57,15 +57,23 @@ const countingLimiter = (success: boolean, onCall: (input: { key: string }) => v
   },
 })
 
-const post = (app: ReturnType<typeof setup>['app'], env: AppEnv['Bindings'], headers: Record<string, string>, body: unknown) =>
-  app.request(url, { method: 'POST', headers, body: JSON.stringify(body) }, env)
+const post = (
+  app: ReturnType<typeof setup>['app'],
+  env: AppEnv['Bindings'],
+  headers: Record<string, string>,
+  body: unknown,
+) => app.request(url, { method: 'POST', headers, body: JSON.stringify(body) }, env)
 
 describe('POST /api/sites/:space/:site/ask', () => {
   test('unauthenticated → 401', async () => {
     const { app, env } = setup()
     const response = await app.request(
       url,
-      { method: 'POST', headers: { Origin: APP_URL, 'Content-Type': 'application/json' }, body: JSON.stringify(validBody) },
+      {
+        method: 'POST',
+        headers: { Origin: APP_URL, 'Content-Type': 'application/json' },
+        body: JSON.stringify(validBody),
+      },
       env,
     )
     expect(response.status).toBe(401)
@@ -89,7 +97,12 @@ describe('POST /api/sites/:space/:site/ask', () => {
       { name: 'oversized quote', body: { question: 'why?', quote: 'x'.repeat(2001) } },
     ]
     for (const { name, body } of cases) {
-      const response = await post(seeded.app, bindings(seeded.env, { AI: countingAi(textStream('')) }), auth(seeded.user), body)
+      const response = await post(
+        seeded.app,
+        bindings(seeded.env, { AI: countingAi(textStream('')) }),
+        auth(seeded.user),
+        body,
+      )
       expect(response.status, name).toBe(400)
       expect(await response.json(), name).toEqual({ error: 'invalid request' })
     }

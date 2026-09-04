@@ -128,7 +128,13 @@ describe('applyCommentEvent', () => {
     const t1 = mkThread({ id: 't1', comments: [mkComment({ id: 'c0' })] })
     const t2 = mkThread({ id: 't2' })
     const newComment = mkComment({ id: 'c1' })
-    const event: CommentEvent = { type: 'comment.created', siteId: SITE, filePath: FILE, threadId: 't1', comment: newComment }
+    const event: CommentEvent = {
+      type: 'comment.created',
+      siteId: SITE,
+      filePath: FILE,
+      threadId: 't1',
+      comment: newComment,
+    }
     const result = applyCommentEvent([t1, t2], event, FILE)
     expect(result[0].comments).toEqual([t1.comments[0], newComment])
     expect(result[1]).toBe(t2)
@@ -141,7 +147,13 @@ describe('applyCommentEvent', () => {
     const t1 = mkThread({ id: 't1', comments: [mkComment({ id: 'c0' })] })
     const t2 = mkThread({ id: 't2', comments: [] })
     const newComment = mkComment({ id: 'c1' })
-    const event: CommentEvent = { type: 'comment.created', siteId: SITE, filePath: FILE, threadId: 't2', comment: newComment }
+    const event: CommentEvent = {
+      type: 'comment.created',
+      siteId: SITE,
+      filePath: FILE,
+      threadId: 't2',
+      comment: newComment,
+    }
     const result = applyCommentEvent([t1, t2], event, FILE)
     expect(result[1].id).toBe('t2')
     expect(result[1].comments).toEqual([newComment])

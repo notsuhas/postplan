@@ -14,7 +14,13 @@ export interface UploadResult {
 export function uploadFiles(
   endpoint: string,
   files: DroppedFile[],
-  opts: { visibility?: string; theme?: string | null; replace?: boolean; title?: string; onProgress?: (pct: number) => void },
+  opts: {
+    visibility?: string
+    theme?: string | null
+    replace?: boolean
+    title?: string
+    onProgress?: (pct: number) => void
+  },
 ): Promise<UploadResult> {
   const form = new FormData()
   // Only send visibility on CREATE. On replace the picker still defaults to 'team', so sending it

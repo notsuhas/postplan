@@ -58,14 +58,22 @@ async function setup(o: { room?: boolean } = { room: true }) {
   return { db, r2, kv, app, env, room }
 }
 
-async function mintUser(db: ReturnType<typeof makeDb>, kv: ReturnType<typeof makeKv>, o: { id: string; role?: 'member' | 'superadmin' }) {
+async function mintUser(
+  db: ReturnType<typeof makeDb>,
+  kv: ReturnType<typeof makeKv>,
+  o: { id: string; role?: 'member' | 'superadmin' },
+) {
   const id = await seedUser(db, { id: o.id, role: o.role ?? 'member' })
   const tok = `tok-${id}`
   await kv.put(`cli:${tok}`, JSON.stringify({ id, email: `${id}@example.com`, name: null, role: o.role ?? 'member' }))
   return id
 }
 
-const auth = (id: string) => ({ Authorization: `Bearer tok-${id}`, Origin: APP_URL, 'Content-Type': 'application/json' })
+const auth = (id: string) => ({
+  Authorization: `Bearer tok-${id}`,
+  Origin: APP_URL,
+  'Content-Type': 'application/json',
+})
 
 async function seedSiteWithFile(
   db: ReturnType<typeof makeDb>,
@@ -88,11 +96,18 @@ const audioForm = (bytes: Uint8Array, extra: Record<string, string> = {}, type =
   for (const [k, v] of Object.entries(extra)) fd.set(k, v)
   return fd
 }
-const voice = (id: string, body: FormData) => ({ method: 'POST', headers: { Authorization: `Bearer tok-${id}`, Origin: APP_URL }, body })
+const voice = (id: string, body: FormData) => ({
+  method: 'POST',
+  headers: { Authorization: `Bearer tok-${id}`, Origin: APP_URL },
+  body,
+})
 
 async function listThreads(app: Hono<AppEnv>, env: AppEnv['Bindings']) {
   const res = await app.request(url('?filePath=index.html'), { headers: auth('owner') }, env)
-  return (await res.json()) as Array<{ id: string; comments: Array<{ id: string; body: string | null; hasAudio: boolean }> }>
+  return (await res.json()) as Array<{
+    id: string
+    comments: Array<{ id: string; body: string | null; hasAudio: boolean }>
+  }>
 }
 
 describe('S5 C1/C2 — a successful JSON create/reply pushes exactly one matching event', () => {
@@ -101,7 +116,11 @@ describe('S5 C1/C2 — a successful JSON create/reply pushes exactly one matchin
     const owner = await mintUser(db, kv, { id: 'owner' })
     const { siteId } = await seedSiteWithFile(db, owner)
 
-    const res = await app.request(url(), { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: 'hello world' }) }, env)
+    const res = await app.request(
+      url(),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: 'hello world' }) },
+      env,
+    )
     expect(res.status).toBe(201)
     const out = (await res.json()) as { threadId: string; openingCommentId: string }
     expect(out.threadId).toBeTruthy()
@@ -160,7 +179,11 @@ describe('S5 C3 — voice create/reply push, hasAudio true with the transcript a
     await seedSiteWithFile(db, owner)
 
     const fd = audioForm(new Uint8Array([1, 2, 3]), { filePath: 'index.html' })
-    const res = await app.request(url(), voice(owner, fd), aiEnv(env, async () => ({ text: 'hello there' })))
+    const res = await app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'hello there' })),
+    )
     expect(res.status).toBe(201)
     const out = (await res.json()) as { threadId: string; openingCommentId: string }
 
@@ -175,7 +198,10 @@ describe('S5 C3 — voice create/reply push, hasAudio true with the transcript a
     expect(opening.hasAudio).toBe(true)
     expect(opening.body).toBe('hello there')
 
-    const listed = await listThreads(app, aiEnv(env, async () => ({ text: 'hello there' })))
+    const listed = await listThreads(
+      app,
+      aiEnv(env, async () => ({ text: 'hello there' })),
+    )
     expect(thread).toEqual(listed.find((t) => t.id === out.threadId))
     // Same narrowing pin as the JSON create path — the voice create route has its own
     // `c.json(...)` call, so a revert there is a separate mutant from the JSON one.
@@ -189,7 +215,11 @@ describe('S5 C3 — voice create/reply push, hasAudio true with the transcript a
     const threadId = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
 
     const fd = audioForm(new Uint8Array([4, 5, 6]))
-    const res = await app.request(url(`/${threadId}/replies`), voice(owner, fd), aiEnv(env, async () => ({ text: 'a spoken reply' })))
+    const res = await app.request(
+      url(`/${threadId}/replies`),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'a spoken reply' })),
+    )
     expect(res.status).toBe(201)
     const out = (await res.json()) as { id: string }
 
@@ -211,7 +241,11 @@ describe('S5 C4 (P0) — no phantoms: a write that never happened pushes nothing
     const { app, env, db, kv, room } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, owner)
-    const res = await app.request(url(), { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: '' }) }, env)
+    const res = await app.request(
+      url(),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: '' }) },
+      env,
+    )
     expect(res.status).toBe(400)
     expect(room.requests).toEqual([])
   })
@@ -220,7 +254,11 @@ describe('S5 C4 (P0) — no phantoms: a write that never happened pushes nothing
     const { app, env, db, kv, room } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, owner)
-    const res = await app.request(url(), { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: 'hello' }) }, env)
+    const res = await app.request(
+      url(),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: 'hello' }) },
+      env,
+    )
     expect(res.status).toBe(400)
     expect(room.requests).toEqual([])
   })
@@ -263,7 +301,11 @@ describe('S5 C5 — SITE_ROOM unbound: all four write paths behave exactly as th
     const { app, env, db, kv } = await setup({ room: false })
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, owner)
-    const res = await app.request(url(), { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: 'hello' }) }, env)
+    const res = await app.request(
+      url(),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: 'hello' }) },
+      env,
+    )
     expect(res.status).toBe(201)
     const out = (await res.json()) as { threadId: string; openingCommentId: string }
     expect(out.threadId).toBeTruthy()
@@ -288,7 +330,11 @@ describe('S5 C5 — SITE_ROOM unbound: all four write paths behave exactly as th
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, owner)
     const fd = audioForm(new Uint8Array([1, 2, 3]), { filePath: 'index.html' })
-    const res = await app.request(url(), voice(owner, fd), aiEnv(env, async () => ({ text: 'hi' })))
+    const res = await app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'hi' })),
+    )
     expect(res.status).toBe(201)
   })
 
@@ -298,7 +344,11 @@ describe('S5 C5 — SITE_ROOM unbound: all four write paths behave exactly as th
     const { siteId } = await seedSiteWithFile(db, owner)
     const threadId = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
     const fd = audioForm(new Uint8Array([4, 5, 6]))
-    const res = await app.request(url(`/${threadId}/replies`), voice(owner, fd), aiEnv(env, async () => ({ text: 'hi' })))
+    const res = await app.request(
+      url(`/${threadId}/replies`),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'hi' })),
+    )
     expect(res.status).toBe(201)
   })
 })

@@ -119,11 +119,16 @@ export function lookupSlackId(deps: SlackHttpDeps, email: string): Promise<strin
  *  link back onto a Postplan account. An `ok` response with no readable email is DEFINITIVE (a bot, a
  *  guest, or a workspace that never granted `users:read.email`), not a transient failure. */
 export function lookupSlackEmail(deps: SlackHttpDeps, userId: string): Promise<string | null> {
-  return cachedLookup(deps, `${EMAIL_CACHE_PREFIX}${userId}`, `${INFO_URL}?user=${encodeURIComponent(userId)}`, (data) => {
-    if (!data.ok) return 'transient'
-    const email = data.user?.profile?.email
-    return typeof email === 'string' && email !== '' ? { value: email } : 'not-found'
-  })
+  return cachedLookup(
+    deps,
+    `${EMAIL_CACHE_PREFIX}${userId}`,
+    `${INFO_URL}?user=${encodeURIComponent(userId)}`,
+    (data) => {
+      if (!data.ok) return 'transient'
+      const email = data.user?.profile?.email
+      return typeof email === 'string' && email !== '' ? { value: email } : 'not-found'
+    },
+  )
 }
 
 /** The per-event context shared by every DM: the actor and the link/snippet fields. */
@@ -147,8 +152,7 @@ export const escapeSlack = (s: string): string => s.replace(/&/g, '&amp;').repla
 
 /** Slack's hyperlink idiom, `<url|label>`. The `&` in a query string must be entity-escaped even
  *  inside the URL (mrkdwn's rule), and the label is escaped like any other text. */
-export const slackLink = (url: string, label: string): string =>
-  `<${url.replace(/&/g, '&amp;')}|${escapeSlack(label)}>`
+export const slackLink = (url: string, label: string): string => `<${url.replace(/&/g, '&amp;')}|${escapeSlack(label)}>`
 
 // The verb clause per reason (owner > participant > share precedence is decided upstream). The
 // wording is Slack-only — the in-app bell keeps its terse "commented" (no schema change).
@@ -241,7 +245,10 @@ export async function deliverSlack(deps: SlackDeps, event: SlackEvent, recipient
       if (!channel) continue
       // slackPost is best-effort by contract (see its docstring); the try/catch here is the
       // per-recipient isolation for the lookup, so one bad DM never aborts the remaining fan-out.
-      await slackPost(deps, POST_URL, { channel, text: formatSlackMessage({ ...event, reason: r.reason }, deps.appUrl) })
+      await slackPost(deps, POST_URL, {
+        channel,
+        text: formatSlackMessage({ ...event, reason: r.reason }, deps.appUrl),
+      })
     } catch {
       // Per-recipient isolation — swallow so one bad DM never fails the comment that already committed.
     }

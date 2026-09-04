@@ -16,7 +16,7 @@ html {
 body {
   background: var(--postplan-bg);
   color: var(--postplan-fg);
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Georgia, "Times New Roman", serif;
   line-height: 1.6;
 }
 /* Masthead: centered headline between a heavy rule and a double rule. */
@@ -32,11 +32,13 @@ h1 {
   position: relative;
 }
 h1::after {
-  content: '';
+  content: "";
   display: block;
   border-bottom: 1px solid var(--postplan-rule);
   position: absolute;
-  left: 0; right: 0; bottom: 3px;
+  left: 0;
+  right: 0;
+  bottom: 3px;
 }
 h2 {
   font-size: 1.35rem;
@@ -44,7 +46,11 @@ h2 {
   border-bottom: 1px solid var(--postplan-fine);
   padding-bottom: 0.2em;
 }
-h3 { font-size: 1.05rem; font-style: italic; font-weight: 700; }
+h3 {
+  font-size: 1.05rem;
+  font-style: italic;
+  font-weight: 700;
+}
 /* The drop cap on the story's opening paragraph (NOT the byline under the masthead). */
 h2:first-of-type + p::first-letter {
   float: left;
@@ -53,12 +59,31 @@ h2:first-of-type + p::first-letter {
   padding: 0.04em 0.08em 0 0;
   font-weight: 700;
 }
-p { text-align: justify; hyphens: auto; }
-small { color: var(--postplan-muted); font-style: italic; }
-strong, b { font-weight: 700; }
-mark { background: #f3e9c7; padding: 0 0.15em; }
-a { color: var(--postplan-fg); text-decoration: underline; text-decoration-color: var(--postplan-muted); text-underline-offset: 2px; }
-a:hover { text-decoration-color: var(--postplan-fg); }
+p {
+  text-align: justify;
+  hyphens: auto;
+}
+small {
+  color: var(--postplan-muted);
+  font-style: italic;
+}
+strong,
+b {
+  font-weight: 700;
+}
+mark {
+  background: #f3e9c7;
+  padding: 0 0.15em;
+}
+a {
+  color: var(--postplan-fg);
+  text-decoration: underline;
+  text-decoration-color: var(--postplan-muted);
+  text-underline-offset: 2px;
+}
+a:hover {
+  text-decoration-color: var(--postplan-fg);
+}
 hr {
   border: 0;
   border-top: 1px solid var(--postplan-rule);
@@ -75,12 +100,26 @@ blockquote {
   text-align: center;
   color: var(--postplan-fg);
 }
-blockquote::before { content: '“'; font-size: 1.6em; line-height: 0; vertical-align: -0.3em; margin-right: 0.05em; }
-code, kbd, samp, pre {
-  font-family: 'Courier New', ui-monospace, monospace;
+blockquote::before {
+  content: "“";
+  font-size: 1.6em;
+  line-height: 0;
+  vertical-align: -0.3em;
+  margin-right: 0.05em;
+}
+code,
+kbd,
+samp,
+pre {
+  font-family: "Courier New", ui-monospace, monospace;
   font-size: 0.92em;
 }
-code, kbd, samp { background: #f0ece0; padding: 0.08em 0.3em; }
+code,
+kbd,
+samp {
+  background: #f0ece0;
+  padding: 0.08em 0.3em;
+}
 pre {
   background: #f0ece0;
   border-top: 1px solid var(--postplan-rule);
@@ -88,12 +127,29 @@ pre {
   padding: 1rem;
   overflow: auto;
 }
-pre code { background: none; padding: 0; }
+pre code {
+  background: none;
+  padding: 0;
+}
 /* Financial-pages table: heavy top rule, small-caps heads, fine row rules. */
-table { border-collapse: collapse; border-top: 2px solid var(--postplan-rule); }
-th { font-variant: small-caps; letter-spacing: 0.04em; font-size: 0.95em; text-align: left; }
-th, td { border-bottom: 1px solid var(--postplan-fine); padding: 0.4rem 0.9rem 0.4rem 0; }
-thead th { border-bottom: 1px solid var(--postplan-rule); }
+table {
+  border-collapse: collapse;
+  border-top: 2px solid var(--postplan-rule);
+}
+th {
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  font-size: 0.95em;
+  text-align: left;
+}
+th,
+td {
+  border-bottom: 1px solid var(--postplan-fine);
+  padding: 0.4rem 0.9rem 0.4rem 0;
+}
+thead th {
+  border-bottom: 1px solid var(--postplan-rule);
+}
 button {
   background: var(--postplan-fg);
   color: var(--postplan-bg);
@@ -105,8 +161,12 @@ button {
   letter-spacing: 0.06em;
   cursor: pointer;
 }
-button:hover { background: #3a382f; }
-input, select, textarea {
+button:hover {
+  background: #3a382f;
+}
+input,
+select,
+textarea {
   background: #ffffff;
   color: var(--postplan-fg);
   border: 1px solid var(--postplan-muted);
@@ -114,15 +174,44 @@ input, select, textarea {
   padding: 0.45rem 0.7rem;
   font-family: inherit;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--postplan-fg); outline-offset: 1px; }
-::selection { background: #e8dfc4; }
-figure { margin: 1.5rem 0; }
-img { border: 1px solid var(--postplan-fine); }
-figcaption { color: var(--postplan-muted); font-size: 0.85em; font-style: italic; border-bottom: 1px solid var(--postplan-fine); padding-bottom: 0.4rem; }
-fieldset { border: 1px solid var(--postplan-rule); padding: 1.25rem; }
-legend { font-variant: small-caps; letter-spacing: 0.05em; padding: 0 0.4em; }
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--postplan-fg);
+  outline-offset: 1px;
+}
+::selection {
+  background: #e8dfc4;
+}
+figure {
+  margin: 1.5rem 0;
+}
+img {
+  border: 1px solid var(--postplan-fine);
+}
+figcaption {
+  color: var(--postplan-muted);
+  font-size: 0.85em;
+  font-style: italic;
+  border-bottom: 1px solid var(--postplan-fine);
+  padding-bottom: 0.4rem;
+}
+fieldset {
+  border: 1px solid var(--postplan-rule);
+  padding: 1.25rem;
+}
+legend {
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+  padding: 0 0.4em;
+}
 
 /* Reading measure: flowing text caps at ~72ch so a bare full-width document stays readable.
  * Tables, code blocks, and headings run full width; author containers narrower than the cap
  * are unaffected. */
-p, ul, ol, dl { max-width: 72ch; }
+p,
+ul,
+ol,
+dl {
+  max-width: 72ch;
+}

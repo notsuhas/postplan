@@ -1,7 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { type Context, Hono } from 'hono'
 import type { BatchItem, BatchResponse } from 'drizzle-orm/batch'
-import { type ElementAnchor, type StoredTextContext, normalizeText, parseElementAnchor, parseTextContext } from '../lib/anchor'
+import {
+  type ElementAnchor,
+  type StoredTextContext,
+  normalizeText,
+  parseElementAnchor,
+  parseTextContext,
+} from '../lib/anchor'
 import {
   addComment,
   assembleThreadViews,
@@ -288,7 +294,11 @@ async function deliverSlackForComment(
     // merging two email sources — a deliberate simplicity trade for a handful of avoidable reads.
     const emails = await usersEmailsByIds(db, [...new Set(audience.map((a) => a.id))])
     const recipients: SlackRecipient[] = audience.map((a) => ({ ...a, email: emails.get(a.id) ?? null }))
-    await deliverSlack(slackDepsFromEnv(c.env), { actorName: actor.name, actorEmail: actor.email, ...event }, recipients)
+    await deliverSlack(
+      slackDepsFromEnv(c.env),
+      { actorName: actor.name, actorEmail: actor.email, ...event },
+      recipients,
+    )
   } catch {
     // Slack delivery is best-effort and isolated — a fault here never fails the comment.
   }
@@ -329,8 +339,18 @@ function pushCommentCreated(
   comment: Comment,
 ): Promise<void> {
   const author = c.get('user')
-  const { comment: view } = buildCommentCreatedView(thread.id, { comment, authorName: author.name, authorEmail: author.email })
-  return notifyCommentEvent(c, { type: 'comment.created', siteId: site.id, filePath: thread.filePath, threadId: thread.id, comment: view })
+  const { comment: view } = buildCommentCreatedView(thread.id, {
+    comment,
+    authorName: author.name,
+    authorEmail: author.email,
+  })
+  return notifyCommentEvent(c, {
+    type: 'comment.created',
+    siteId: site.id,
+    filePath: thread.filePath,
+    threadId: thread.id,
+    comment: view,
+  })
 }
 
 type ThreadFields = {
@@ -690,7 +710,13 @@ async function replyVoiceComment(c: Context<AppEnv>, site: ResolvedSite, thread:
   const { commentId, audioKey, body } = ingested
   let added: Comment
   try {
-    added = await addComment(c.get('db'), { threadId: thread.id, authorId: c.get('user').id, body, commentId, audioKey })
+    added = await addComment(c.get('db'), {
+      threadId: thread.id,
+      authorId: c.get('user').id,
+      body,
+      commentId,
+      audioKey,
+    })
   } catch (e) {
     await deleteKeys(c.env.POSTPLAN_FILES, [audioKey]) // compensation: don't orphan the R2 object
     throw e

@@ -238,9 +238,7 @@ describe('T1.4 live transitions on the same token', () => {
       s,
       t,
       () =>
-        s.db
-          .delete(siteUserShares)
-          .where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, viewer))),
+        s.db.delete(siteUserShares).where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, viewer))),
       403,
     )
   })
@@ -334,9 +332,7 @@ describe('T1.6 fetchAccessFacts assembles hand-seeded facts', () => {
     const s = setup()
     const { viewer, siteId } = await base(s)
     await seedUserShare(s.db, siteId, viewer)
-    await s.db
-      .delete(siteUserShares)
-      .where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, viewer)))
+    await s.db.delete(siteUserShares).where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, viewer)))
     const { facts } = await fetchAccessFacts(s.db, 'sp', 'site', viewer)
     expect(facts.site?.id).toBe(siteId)
     expect(facts.user).toEqual({ id: viewer, email: 'viewer@example.com', name: 'Viewer', role: 'member' })
@@ -426,7 +422,11 @@ describe('T1.7 fault injection and branch parity', () => {
     ])
     const hits = [
       { url: `/_t/${t}/sp/site/doc.md?raw=1`, contains: '# Title', arity: SERVE_BATCH_ARITY },
-      { url: `/_t/${t}/sp/site/index.html?postplan_annotate=1`, contains: 'window.__POSTPLAN__', arity: INDEX_BATCH_ARITY },
+      {
+        url: `/_t/${t}/sp/site/index.html?postplan_annotate=1`,
+        contains: 'window.__POSTPLAN__',
+        arity: INDEX_BATCH_ARITY,
+      },
       { url: `/_t/${t}/sp/site/doc.md`, contains: '<h1>Title</h1>', arity: SERVE_BATCH_ARITY },
     ]
     for (const hit of hits) {

@@ -2,7 +2,17 @@ import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { files, sites } from '../db/schema'
-import { makeDb, makeKv, makeR2, seedFile, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
+import {
+  makeDb,
+  makeKv,
+  makeR2,
+  seedFile,
+  seedMember,
+  seedSite,
+  seedSpace,
+  seedUser,
+  seedUserShare,
+} from '../test/harness'
 import type { AppEnv } from '../types'
 import { upload } from './upload'
 
@@ -29,7 +39,12 @@ async function fx() {
   await seedUserShare(db, site, 'ed', 'editor')
   await seedUserShare(db, site, 'vw', 'viewer')
 
-  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv, POSTPLAN_FILES: r2 } as unknown as AppEnv['Bindings']
+  const env = {
+    APP_URL,
+    SESSION_SECRET: 's',
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
+  } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
     c.set('db', db)
@@ -46,13 +61,26 @@ function post(app: Hono<AppEnv>, env: AppEnv['Bindings'], token: string, opts: O
   if (opts.visibility !== undefined) fd.append('visibility', opts.visibility)
   if (opts.expectedVersion !== undefined) fd.append('expectedVersion', String(opts.expectedVersion))
   const q = opts.replace ? '?replace=true' : ''
-  return app.request(`/api/upload/acme/${opts.slug ?? 'doc'}${q}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd }, env)
+  return app.request(
+    `/api/upload/acme/${opts.slug ?? 'doc'}${q}`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd },
+    env,
+  )
 }
 
 const siteRow = (db: Awaited<ReturnType<typeof fx>>['db']) =>
-  db.select().from(sites).where(eq(sites.id, 'site')).limit(1).then((r) => r[0])
+  db
+    .select()
+    .from(sites)
+    .where(eq(sites.id, 'site'))
+    .limit(1)
+    .then((r) => r[0])
 const fileKeys = (db: Awaited<ReturnType<typeof fx>>['db']) =>
-  db.select({ k: files.storageKey }).from(files).where(eq(files.siteId, 'site')).then((r) => r.map((x) => x.k))
+  db
+    .select({ k: files.storageKey })
+    .from(files)
+    .where(eq(files.siteId, 'site'))
+    .then((r) => r.map((x) => x.k))
 
 describe('upload — editor-share enforcement', () => {
   test('upload.editor.replace.200: a non-member editor replaces another owner’s site', async () => {
@@ -130,7 +158,10 @@ describe('upload — editor replace never derives a title', () => {
   test('null-title site + titled HTML via editor replace: title stays null', async () => {
     const { db, app, env } = await fx()
     const fd = new FormData()
-    fd.append('files', new File(['<html><head><title>Hijack</title></head><body>x</body></html>'], 'index.html', { type: 'text/html' }))
+    fd.append(
+      'files',
+      new File(['<html><head><title>Hijack</title></head><body>x</body></html>'], 'index.html', { type: 'text/html' }),
+    )
     fd.append('expectedVersion', '0')
     const res = await app.request(
       '/api/upload/acme/doc?replace=true',

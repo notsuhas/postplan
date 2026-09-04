@@ -180,9 +180,7 @@ spaces.delete('/:slug/members/:userId', requireAuth, requireControlGrant, async 
   if (space.createdBy !== user.id) return c.json({ error: 'forbidden' }, 403)
   if (userId === space.createdBy) return c.json({ error: 'cannot remove the space owner' }, 400)
 
-  await db
-    .delete(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, space.id), eq(spaceMembers.userId, userId)))
+  await db.delete(spaceMembers).where(and(eq(spaceMembers.spaceId, space.id), eq(spaceMembers.userId, userId)))
   return c.json({ ok: true })
 })
 

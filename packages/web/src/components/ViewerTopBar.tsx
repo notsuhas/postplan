@@ -1,4 +1,15 @@
-import { ChevronRight, Command, GitFork, History, Menu, MessageSquare, Printer, Share2, Sparkles, Star } from 'lucide-react'
+import {
+  ChevronRight,
+  Command,
+  GitFork,
+  History,
+  Menu,
+  MessageSquare,
+  Printer,
+  Share2,
+  Sparkles,
+  Star,
+} from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
@@ -82,7 +93,11 @@ export function ViewerTopBar({
 
       {/* Right after the name, so "what site is this — private / members / team" is answered
           without opening a dialog. The owner gets the live picker; everyone else a read-only chip. */}
-      {site.isOwner ? <ViewerVisibility site={site} /> : <VisibilityBadge value={site.visibility} className="shrink-0" />}
+      {site.isOwner ? (
+        <ViewerVisibility site={site} />
+      ) : (
+        <VisibilityBadge value={site.visibility} className="shrink-0" />
+      )}
 
       {/* Design theme: the owner gets a live switcher (hidden on phones — visibility wins the
           space); a re-skin needs a reload since the theme is injected server-side at serve time. */}

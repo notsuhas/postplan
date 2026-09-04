@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"postplan/internal/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"postplan/internal/config"
 	"strings"
 	"sync/atomic"
 	"testing"

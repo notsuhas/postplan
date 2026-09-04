@@ -71,7 +71,16 @@ export interface StepResult {
 }
 
 export function initialArbiter(expected: string | null): ArbiterState {
-  return { gen: 0, expected, staleHint: null, confirmed: false, readyPath: null, inFlight: null, pending: null, buffered: [] }
+  return {
+    gen: 0,
+    expected,
+    staleHint: null,
+    confirmed: false,
+    readyPath: null,
+    inFlight: null,
+    pending: null,
+    buffered: [],
+  }
 }
 
 /** The one place a list becomes visible: every buffered push is folded in, in arrival order, and the
@@ -116,7 +125,9 @@ export function stepArbiter(state: ArbiterState, event: ArbiterEvent): StepResul
       }
       if (!provisional) return applied(next, path, event.data)
       if (state.confirmed) {
-        return state.readyPath === path ? applied(next, path, event.data) : { state: next, decision: { kind: 'discard' } }
+        return state.readyPath === path
+          ? applied(next, path, event.data)
+          : { state: next, decision: { kind: 'discard' } }
       }
       // No ready yet: park it. If no ready ever arrives, it is never applied.
       return { state: { ...next, pending: { path, data: event.data } }, decision: { kind: 'none' } }
@@ -139,7 +150,8 @@ export function stepArbiter(state: ArbiterState, event: ArbiterEvent): StepResul
       // land, and applying the push now would be applying it to the list that one replaces. Held
       // pushes are folded in by `applied` — including onto a LATER read if this one fails, which is
       // why the buffer is not cleared on a discard/error.
-      if (state.inFlight === null && state.pending === null) return { state, decision: { kind: 'live', apply: event.apply } }
+      if (state.inFlight === null && state.pending === null)
+        return { state, decision: { kind: 'live', apply: event.apply } }
       return { state: { ...state, buffered: [...state.buffered, event.apply] }, decision: { kind: 'none' } }
     }
 

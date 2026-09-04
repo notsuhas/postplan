@@ -5,9 +5,6 @@
     "types": []
   },
   "include": ["src/**/*.ts", "worker-configuration.d.ts", "drizzle.config.ts"],
-  // src/annotate/client.ts is BROWSER code (DOM globals), bundled separately to a string by
-  // scripts/build-annotate.ts — not part of the worker compile. The generated bundle.ts (plain
-  // string exports) IS compiled normally.
   "exclude": [
     "src/**/*.test.ts",
     "src/test/**",

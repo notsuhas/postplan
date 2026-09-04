@@ -281,7 +281,12 @@ describe('0025_api_keys migration + seedApiKey', () => {
   test('seedApiKey through the harness round-trips every column on read-back', async () => {
     const db = makeDb()
     const uid = await seedUser(db)
-    const id = await seedApiKey(db, { userId: uid, name: 'ci token', hash: 'a'.repeat(64), expiresAt: '2999-01-01T00:00:00.000Z' })
+    const id = await seedApiKey(db, {
+      userId: uid,
+      name: 'ci token',
+      hash: 'a'.repeat(64),
+      expiresAt: '2999-01-01T00:00:00.000Z',
+    })
     const [row] = await db.select().from(apiKeys).where(eq(apiKeys.id, id))
     expect(row).toMatchObject({
       id,

@@ -4,7 +4,17 @@
 import { Hono } from 'hono'
 import contentApp from '../content'
 import { signToken } from '../lib/token'
-import { makeCaches, makeDb, makeR2, makeRecorder, seedFile, seedMember, seedSite, seedSpace, seedUser } from './harness'
+import {
+  makeCaches,
+  makeDb,
+  makeR2,
+  makeRecorder,
+  seedFile,
+  seedMember,
+  seedSite,
+  seedSpace,
+  seedUser,
+} from './harness'
 
 const tokenKey = 'test-secret'
 

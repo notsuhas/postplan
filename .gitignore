@@ -35,6 +35,7 @@ bun-debug.log*
 .idea/
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 
 # omc state (not part of the product)
 .omc/

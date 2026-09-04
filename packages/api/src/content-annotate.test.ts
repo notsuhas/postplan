@@ -14,7 +14,11 @@ const tokenKey = 'test-secret'
 function setup() {
   const db = makeDb()
   const r2 = makeR2()
-  const env = { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: tokenKey, POSTPLAN_FILES: r2 } as unknown as Parameters<typeof contentApp.request>[2]
+  const env = {
+    APP_URL: 'https://postplan.example.com',
+    CONTENT_TOKEN_SECRET: tokenKey,
+    POSTPLAN_FILES: r2,
+  } as unknown as Parameters<typeof contentApp.request>[2]
   const app = new Hono()
   app.use('*', async (c, next) => {
     c.set('db', db)

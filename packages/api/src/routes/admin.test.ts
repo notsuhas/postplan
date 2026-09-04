@@ -12,11 +12,7 @@ describe('POST /api/admin/users/:id/revoke-cli', () => {
     const before = await app.request('/api/api-keys', { headers: authKey(secret) }, env)
     expect(before.status).toBe(200)
 
-    const res = await app.request(
-      '/api/admin/users/owner/revoke-cli',
-      { method: 'POST', headers: auth('admin') },
-      env,
-    )
+    const res = await app.request('/api/admin/users/owner/revoke-cli', { method: 'POST', headers: auth('admin') }, env)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true })
 

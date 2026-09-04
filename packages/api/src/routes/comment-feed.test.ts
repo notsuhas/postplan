@@ -309,27 +309,21 @@ describe('comment feed route — C4.3 live access transitions', () => {
     await seedUserShare(db, siteId, userId)
     expect(await feedIds()).toEqual(bothArms)
 
-    await db
-      .delete(siteUserShares)
-      .where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, userId)))
+    await db.delete(siteUserShares).where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, userId)))
     expect(await feedIds()).toEqual([])
 
     await seedGroupShare(db, siteId, groupSpaceId)
     await seedMember(db, groupSpaceId, userId)
     expect(await feedIds()).toEqual(bothArms)
 
-    await db
-      .delete(spaceMembers)
-      .where(and(eq(spaceMembers.spaceId, groupSpaceId), eq(spaceMembers.userId, userId)))
+    await db.delete(spaceMembers).where(and(eq(spaceMembers.spaceId, groupSpaceId), eq(spaceMembers.userId, userId)))
     expect(await feedIds()).toEqual([])
 
     await db.update(sites).set({ visibility: 'members' }).where(eq(sites.id, siteId))
     await seedMember(db, siteSpaceId, userId)
     expect(await feedIds()).toEqual(bothArms)
 
-    await db
-      .delete(spaceMembers)
-      .where(and(eq(spaceMembers.spaceId, siteSpaceId), eq(spaceMembers.userId, userId)))
+    await db.delete(spaceMembers).where(and(eq(spaceMembers.spaceId, siteSpaceId), eq(spaceMembers.userId, userId)))
     expect(await feedIds()).toEqual([])
 
     await seedUserShare(db, siteId, userId)
@@ -345,9 +339,7 @@ describe('comment feed route — C4.3 live access transitions', () => {
     await db.update(sites).set({ status: 'active' }).where(eq(sites.id, siteId))
     expect(await feedIds()).toEqual(bothArms)
 
-    await db
-      .delete(siteUserShares)
-      .where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, userId)))
+    await db.delete(siteUserShares).where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, userId)))
     expect(await feedIds()).toEqual([])
   })
 })

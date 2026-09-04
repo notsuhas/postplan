@@ -64,7 +64,12 @@ export type CommentStream = {
 }
 
 export function createCommentStream(
-  opts: { site: CommentStreamSite; appOrigin: string; onEvent: (event: CommentStreamEvent) => void; onReconnect: () => void },
+  opts: {
+    site: CommentStreamSite
+    appOrigin: string
+    onEvent: (event: CommentStreamEvent) => void
+    onReconnect: () => void
+  },
   deps: { newSocket: (url: string, protocols: string[]) => CommentStreamSocket; reconnectMs?: number } = {
     newSocket: (url, protocols) => new WebSocket(url, protocols) as unknown as CommentStreamSocket,
   },

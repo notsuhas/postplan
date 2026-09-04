@@ -18,7 +18,10 @@ async function setup() {
   await seedSpace(db, { id: 'acme', slug: 'acme', createdBy: 'owner' })
   await seedMember(db, 'acme', 'owner')
   const site = await seedSite(db, { id: 'site', spaceId: 'acme', ownerId: 'owner', slug: 'doc', visibility: 'private' })
-  for (const [id, role] of [['ed', 'editor'], ['vw', 'viewer']] as const) {
+  for (const [id, role] of [
+    ['ed', 'editor'],
+    ['vw', 'viewer'],
+  ] as const) {
     await mintUser(db, kv, id, { email: `${id}@e.com` })
     await seedUserShare(db, site, id, role)
   }

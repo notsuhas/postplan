@@ -2,7 +2,7 @@
   "name": "postplan",
   "private": true,
   "type": "module",
-  "description": "An open-source alternative to Claude Artifacts for every coding agent \u2014 self-hosted on Cloudflare.",
+  "description": "An open-source alternative to Claude Artifacts for every coding agent — self-hosted on Cloudflare.",
   "author": "Plivo Inc.",
   "license": "MIT",
   "repository": {
@@ -27,6 +27,9 @@
     "packages/api",
     "packages/web"
   ],
+  "overrides": {
+    "esbuild": "0.28.2"
+  },
   "scripts": {
     "dev": "trap 'kill 0' SIGINT; bun run dev:api & bun run dev:content & bun run dev:web & wait",
     "dev:api": "bunx wrangler dev -c wrangler.jsonc --local --port 8787 --persist-to .wrangler-shared",
@@ -37,15 +40,17 @@
     "test": "bun run --filter '*' test",
     "lint": "biome lint .",
     "format": "biome check --write .",
-    "cf-typegen": "bunx wrangler types -c wrangler.jsonc packages/api/worker-configuration.d.ts",
+    "cf-typegen": "bunx wrangler types -c wrangler.example.jsonc packages/api/worker-configuration.d.ts",
     "db:generate": "cd packages/api && bunx drizzle-kit generate",
     "db:migrate:local": "bunx wrangler d1 migrations apply postplan-db -c wrangler.jsonc --local --persist-to .wrangler-shared",
     "db:migrate:remote": "bunx wrangler d1 migrations apply postplan-db -c wrangler.jsonc --remote",
     "deploy": "scripts/apply-config.sh && bun run build:web && bunx wrangler deploy -c wrangler.jsonc && bunx wrangler deploy -c wrangler.content.jsonc"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.0",
+    "@biomejs/biome": "^2.5.12",
+    "@types/bun": "^1.4.0",
+    "fallow": "3.22.0",
     "typescript": "^7.0.2",
-    "wrangler": "^4.100.0"
+    "wrangler": "^4.129.0"
   }
 }

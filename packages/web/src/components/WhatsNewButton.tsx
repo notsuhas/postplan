@@ -3,7 +3,14 @@ import { Suspense, useState } from 'react'
 import { Await, Link } from 'react-router'
 import { ReleaseBody, ReleaseImage, formatReleaseDate } from '@/components/ReleaseBody'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { catchUpWhatsNew, type Release, unreadReleases, type WhatsNewList, whatsNew } from '@/lib/whatsNew'
 
@@ -69,15 +76,7 @@ function WhatsNewPanel({ initial }: { initial: WhatsNewList }) {
 
 // The unread releases, raised once on arrival. EVERY dismissal path — the X, Esc, the backdrop,
 // "Got it" — lands on the same onOpenChange(false), so there is one catch-up, not one per button.
-function WhatsNewDialog({
-  releases,
-  open,
-  onDismiss,
-}: {
-  releases: Release[]
-  open: boolean
-  onDismiss: () => void
-}) {
+function WhatsNewDialog({ releases, open, onDismiss }: { releases: Release[]; open: boolean; onDismiss: () => void }) {
   const many = releases.length > 1
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onDismiss()}>

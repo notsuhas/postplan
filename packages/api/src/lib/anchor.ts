@@ -36,7 +36,12 @@ export const ELEMENT_ANCHOR_LIMITS = { selector: 1024, tag: 64, preview: 200, te
 /** Build the stored element anchor from client-suggested fields: trim + bound every field, lowercase
  *  the tag, collapse whitespace in the human-facing preview/fallback. The selector is REQUIRED —
  *  a blank one throws (an element anchor with no selector is meaningless). */
-export function buildElementAnchor(input: { selector: string; tag?: string; preview?: string; textFallback?: string }): ElementAnchor {
+export function buildElementAnchor(input: {
+  selector: string
+  tag?: string
+  preview?: string
+  textFallback?: string
+}): ElementAnchor {
   const selector = (input.selector ?? '').trim().slice(0, ELEMENT_ANCHOR_LIMITS.selector)
   if (!selector) throw new Error('element anchor requires a non-empty selector')
   return {
@@ -57,7 +62,14 @@ export function parseElementAnchor(raw: unknown): { anchor: ElementAnchor } | { 
   if (!str(a.selector).trim()) return { error: 'element anchor requires a selector' }
   for (const [field, cap] of Object.entries(ELEMENT_ANCHOR_LIMITS))
     if (str(a[field]).length > cap) return { error: 'element anchor field too long' }
-  return { anchor: buildElementAnchor({ selector: str(a.selector), tag: str(a.tag), preview: str(a.preview), textFallback: str(a.textFallback) }) }
+  return {
+    anchor: buildElementAnchor({
+      selector: str(a.selector),
+      tag: str(a.tag),
+      preview: str(a.preview),
+      textFallback: str(a.textFallback),
+    }),
+  }
 }
 
 // --- Text-quote context -----------------------------------------------------------------------

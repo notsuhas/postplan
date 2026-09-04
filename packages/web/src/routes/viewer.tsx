@@ -180,7 +180,10 @@ function Viewer() {
   )
 
   // Stable site ref for fetches: slugs never change within a mount (Component keys on them).
-  const siteRef = useMemo(() => ({ spaceSlug: site.spaceSlug, siteSlug: site.siteSlug }), [site.spaceSlug, site.siteSlug])
+  const siteRef = useMemo(
+    () => ({ spaceSlug: site.spaceSlug, siteSlug: site.siteSlug }),
+    [site.spaceSlug, site.siteSlug],
+  )
 
   // The ask panel's one streaming call. Stable on siteRef alone — the question/anchor/token-sink/
   // signal all come from the caller, so this never needs to change identity within a mount.
@@ -351,7 +354,10 @@ function Viewer() {
   // not a trust oracle — nothing here writes without a subsequent explicit user action.
   useEffect(() => {
     function onMsg(e: MessageEvent) {
-      const intent: Intent | null = parseIntent(e, { origin: contentOrigin, source: iframeRef.current?.contentWindow ?? null })
+      const intent: Intent | null = parseIntent(e, {
+        origin: contentOrigin,
+        source: iframeRef.current?.contentWindow ?? null,
+      })
       if (!intent) return
       if (intent.type === 'ready') {
         // Audio has no iframe/'ready'; for HTML this is where the SPA learns the current file.
@@ -373,7 +379,13 @@ function Viewer() {
         // SPA learns it, since the URL doesn't change on in-page navigation. Skip until Me resolves
         // (never record to an unknown/shared-machine user); the me-effect below flushes the ref once
         // Me resolves, so a 'ready' that beats the /api/auth/me fetch on a fresh load isn't dropped.
-        if (me) recordVisit(me.id, { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug, title: site.title, filePath: intent.filePath })
+        if (me)
+          recordVisit(me.id, {
+            spaceSlug: site.spaceSlug,
+            siteSlug: site.siteSlug,
+            title: site.title,
+            filePath: intent.filePath,
+          })
       }
       // UNCONDITIONAL (C2b): commenting is on for anyone with access, not just while the rail is
       // open — a text selection feeds the popover reducer (chip first, composer only on an
@@ -418,7 +430,18 @@ function Viewer() {
     // Effect re-runs re-ping, which is harmless — the arbiter ignores duplicate readys.
     iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:ping' }, contentOrigin)
     return () => window.removeEventListener('message', onMsg)
-  }, [contentOrigin, me, site.spaceSlug, site.siteSlug, site.title, threads, dispatch, loadThreads, revealThread, applyViewTheme])
+  }, [
+    contentOrigin,
+    me,
+    site.spaceSlug,
+    site.siteSlug,
+    site.title,
+    threads,
+    dispatch,
+    loadThreads,
+    revealThread,
+    applyViewTheme,
+  ])
 
   useEffect(() => {
     api
@@ -431,7 +454,12 @@ function Viewer() {
         // Flush whatever file the iframe already reported ready for — on a fresh load 'ready' usually
         // beats this fetch, and the intent handler's `if (me)` gate above would otherwise drop it.
         if (lastReadyPathRef.current) {
-          recordVisit(m.id, { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug, title: site.title, filePath: lastReadyPathRef.current })
+          recordVisit(m.id, {
+            spaceSlug: site.spaceSlug,
+            siteSlug: site.siteSlug,
+            title: site.title,
+            filePath: lastReadyPathRef.current,
+          })
         }
       })
       .catch(() => setMe(null))
@@ -501,7 +529,8 @@ function Viewer() {
       if (thread.anchorType === 'element' && thread.anchor)
         win.postMessage({ type: 'postplan:focus', selector: thread.anchor.selector }, contentOrigin)
       // Context rides along so focusing lands on the SAME occurrence the paint highlighted.
-      else if (thread.quote) win.postMessage({ type: 'postplan:focus', quote: thread.quote, context: thread.context }, contentOrigin)
+      else if (thread.quote)
+        win.postMessage({ type: 'postplan:focus', quote: thread.quote, context: thread.context }, contentOrigin)
     },
     [contentOrigin],
   )
@@ -527,7 +556,13 @@ function Viewer() {
     // page waits on the iframe's `loaded` onLoad; audio renders no iframe, so `loaded` never fires
     // and gating on it left `?thread=` on an audio page permanently dead — audio is ready as soon
     // as its thread has arrived.
-    if (deepLinkFocused.current || !deepLinkThreadId || !railOpen || !deepLinkReady({ isAudio, loaded, hasThread: !!target })) return
+    if (
+      deepLinkFocused.current ||
+      !deepLinkThreadId ||
+      !railOpen ||
+      !deepLinkReady({ isAudio, loaded, hasThread: !!target })
+    )
+      return
     deepLinkFocused.current = true
     // Scroll the iframe to the anchor; the rail reveals + scrolls the thread card itself (ReviewRail
     // owns the open/resolved filter, so it can un-hide a resolved target).
@@ -579,8 +614,11 @@ function Viewer() {
   }
 
   const createThread = (body: string, mentions: string[]) =>
-    submitThread('Failed to add comment', composing, (path, anchor) => comments.create(site, pendingToInput(path, body, anchor), mentions), () =>
-      setComposing(null),
+    submitThread(
+      'Failed to add comment',
+      composing,
+      (path, anchor) => comments.create(site, pendingToInput(path, body, anchor), mentions),
+      () => setComposing(null),
     )
 
   // Voice sibling: the anchor fields come from the same pending anchor (body is the server-side
@@ -614,7 +652,12 @@ function Viewer() {
 
   const createPopoverThread = (body: string, mentions: string[]) =>
     popoverWrite((anchor, onWritten) =>
-      submitThread('Failed to add comment', anchor, (path, a) => comments.create(site, pendingToInput(path, body, a), mentions), onWritten),
+      submitThread(
+        'Failed to add comment',
+        anchor,
+        (path, a) => comments.create(site, pendingToInput(path, body, a), mentions),
+        onWritten,
+      ),
     )
 
   const createPopoverVoiceThread = (blob: Blob) =>

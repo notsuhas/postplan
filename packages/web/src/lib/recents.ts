@@ -48,7 +48,10 @@ export function applyVisit(entries: RecentEntry[], entry: RecentEntry): RecentEn
   return [normalized, ...withoutDup].slice(0, MAX_SITES)
 }
 
-export function applyRemoveEntry(entries: RecentEntry[], match: { spaceSlug: string; siteSlug: string }): RecentEntry[] {
+export function applyRemoveEntry(
+  entries: RecentEntry[],
+  match: { spaceSlug: string; siteSlug: string },
+): RecentEntry[] {
   return entries.filter((e) => siteKey(e) !== siteKey(match))
 }
 

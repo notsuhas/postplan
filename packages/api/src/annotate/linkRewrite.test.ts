@@ -25,7 +25,9 @@ describe('withAnnotateParam — same-origin in-frame link rewrite', () => {
   })
 
   test('a link that already carries the param is unchanged', () => {
-    expect(withAnnotateParam('page2.html?postplan_annotate=1', base)).toBe('https://example.com/dir/page2.html?postplan_annotate=1')
+    expect(withAnnotateParam('page2.html?postplan_annotate=1', base)).toBe(
+      'https://example.com/dir/page2.html?postplan_annotate=1',
+    )
   })
 
   test('an unparseable href yields null, never throws', () => {

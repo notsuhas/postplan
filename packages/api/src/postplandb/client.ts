@@ -89,7 +89,10 @@ async function brokerCall(appOrigin: string, req: Omit<BrokerReq, 'id'>): Promis
   const p = await connect(appOrigin)
   const id = ++seq
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => settle(id, 'reject', new Error('postplan.db: request timed out')), REQUEST_TIMEOUT_MS)
+    const timer = setTimeout(
+      () => settle(id, 'reject', new Error('postplan.db: request timed out')),
+      REQUEST_TIMEOUT_MS,
+    )
     pending.set(id, { resolve, reject, timer })
     p.postMessage({ id, ...req })
   })
@@ -109,7 +112,14 @@ async function mint(space: string, site: string): Promise<string> {
   return token
 }
 
-async function directCall(space: string, site: string, method: string, path: string, body?: unknown, retried?: boolean): Promise<unknown> {
+async function directCall(
+  space: string,
+  site: string,
+  method: string,
+  path: string,
+  body?: unknown,
+  retried?: boolean,
+): Promise<unknown> {
   const t = token && Date.now() < expiresAt ? token : await mint(space, site)
   const res = await fetch(`/api/_data${path}`, {
     method,
@@ -217,7 +227,9 @@ function subscriptions() {
     if (boot?.space && boot?.site) subs = createSubscriptions(directTransport(boot.space, boot.site))
     else if (boot?.appOrigin && window.parent !== window) subs = createSubscriptions(brokerTransport(boot.appOrigin))
     else
-      throw new Error('postplan.db: not connected — open this site through the Postplan app, or set window.__POSTPLAN_DB__')
+      throw new Error(
+        'postplan.db: not connected — open this site through the Postplan app, or set window.__POSTPLAN_DB__',
+      )
   }
   return subs
 }

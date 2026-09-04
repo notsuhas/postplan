@@ -28,12 +28,7 @@ const body = { question: 'what is this?', quote: 'the quick brown fox' }
 describe('askStream', () => {
   test('emits tokens in order, across a line split mid-JSON between two chunks', () => {
     // 'data: {"response":"world"}\n' split right through the JSON payload.
-    const res = sseResponse([
-      'data: {"response":"hello "}\n',
-      'data: {"resp',
-      'onse":"world"}\n',
-      'data: [DONE]\n',
-    ])
+    const res = sseResponse(['data: {"response":"hello "}\n', 'data: {"resp', 'onse":"world"}\n', 'data: [DONE]\n'])
     stubFetch(res)
     const tokens: string[] = []
     return askStream(site, body, (t) => tokens.push(t)).then(() => {
@@ -91,7 +86,9 @@ describe('askStream', () => {
 
   test('a non-2xx response throws ApiError with the server-provided message', async () => {
     globalThis.fetch = (() =>
-      Promise.resolve(new Response(JSON.stringify({ error: 'rate limited' }), { status: 429 }))) as unknown as typeof fetch
+      Promise.resolve(
+        new Response(JSON.stringify({ error: 'rate limited' }), { status: 429 }),
+      )) as unknown as typeof fetch
     await expect(askStream(site, body, () => {})).rejects.toThrow(ApiError)
     try {
       await askStream(site, body, () => {})
@@ -104,7 +101,10 @@ describe('askStream', () => {
   })
 
   test('a non-2xx response with a non-JSON body falls back to statusText', async () => {
-    globalThis.fetch = (() => Promise.resolve(new Response('boom', { status: 500, statusText: 'Internal Server Error' }))) as unknown as typeof fetch
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        new Response('boom', { status: 500, statusText: 'Internal Server Error' }),
+      )) as unknown as typeof fetch
     try {
       await askStream(site, body, () => {})
       throw new Error('expected askStream to throw')

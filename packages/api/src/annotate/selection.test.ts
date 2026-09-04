@@ -30,7 +30,14 @@ function setup(html = HTML) {
   const window = new Window()
   window.document.body.innerHTML = html
   const doc = window.document as unknown as Document
-  const emitted: (SelectMessage | ClearMessage | ClickAwayMessage | EscapeMessage | CommentKeyMessage | AskKeyMessage)[] = []
+  const emitted: (
+    | SelectMessage
+    | ClearMessage
+    | ClickAwayMessage
+    | EscapeMessage
+    | CommentKeyMessage
+    | AskKeyMessage
+  )[] = []
   let selection: Selection | null = doc.getSelection()
 
   const dispose = installSelectionCapture({
@@ -99,7 +106,9 @@ describe('installSelectionCapture — only a COMMITTED selection emits a chip in
   })
 
   test('commit captures blockText from the enclosing block element, whitespace-collapsed', () => {
-    const { emitted, select, doc, window } = setup('<div><p>Alpha lead in.\n   Revenue   is up. trailing words.</p></div>')
+    const { emitted, select, doc, window } = setup(
+      '<div><p>Alpha lead in.\n   Revenue   is up. trailing words.</p></div>',
+    )
     select('Revenue is up.')
     doc.dispatchEvent(new window.Event('pointerup') as unknown as Event)
 

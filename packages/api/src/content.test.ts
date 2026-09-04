@@ -84,7 +84,12 @@ describe('A10 markdown served THROUGH the tokenized worker path stays safe', () 
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
+    return {
+      app,
+      db,
+      r2,
+      env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 },
+    }
   }
   async function gatedSite(db: ReturnType<typeof makeDb>) {
     const uid = await seedUser(db, { id: 'u1' })
@@ -207,7 +212,12 @@ describe('directory listing fallback (no index.html)', () => {
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
+    return {
+      app,
+      db,
+      r2,
+      env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 },
+    }
   }
 
   // Seed sam/site (gated `team` tier) owned by u1 and return a content token bound to that owner.
@@ -257,7 +267,12 @@ describe('view analytics (page-view events)', () => {
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
+    return {
+      app,
+      db,
+      r2,
+      env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 },
+    }
   }
 
   async function gatedSite(db: ReturnType<typeof makeDb>) {
@@ -334,7 +349,6 @@ describe('view analytics (page-view events)', () => {
   })
 })
 
-
 describe('injectAnnotate replacement safety (#46: $-specials in filePath stay verbatim)', () => {
   test('$&, $$, $1 in the payload are inserted byte-for-byte, not interpreted as replacement specials', () => {
     // A String.prototype.replace with a STRING replacement would expand $& → the matched '</body>'
@@ -369,7 +383,12 @@ describe('gated file serving: cache-control, conditional 304, archive-through-ch
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
+    return {
+      app,
+      db,
+      r2,
+      env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 },
+    }
   }
 
   // Seed sam/site (gated `team` tier) owned by `owner` with one index.html, returning a bound token.
@@ -407,7 +426,11 @@ describe('gated file serving: cache-control, conditional 304, archive-through-ch
     const etag = first.headers.get('etag')
     expect(etag).not.toBeNull()
 
-    const revalidate = await app.request(`/_t/${token}/sam/site/`, { headers: { 'if-none-match': etag as string } }, env)
+    const revalidate = await app.request(
+      `/_t/${token}/sam/site/`,
+      { headers: { 'if-none-match': etag as string } },
+      env,
+    )
     expect(revalidate.status).toBe(304)
     expect(revalidate.headers.get('etag')).toBe(etag)
     expect(revalidate.headers.get('cache-control')).toBe('private, no-cache')
@@ -451,7 +474,12 @@ describe('audio serving: MIME resolution + HTTP Range support', () => {
       await next()
     })
     app.route('/', contentApp)
-    return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
+    return {
+      app,
+      db,
+      r2,
+      env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 },
+    }
   }
 
   // Seeds a gated `team`-tier site with one file, stamped `application/octet-stream` — what

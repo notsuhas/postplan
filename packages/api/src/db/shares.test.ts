@@ -1,13 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  makeDb,
-  seedGroupShare,
-  seedMember,
-  seedSite,
-  seedSpace,
-  seedUser,
-  seedUserShare,
-} from '../test/harness'
+import { makeDb, seedGroupShare, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
 import { resolveShareRole } from './repo'
 
 // resolveShareRole is the direct-share role reader that gates editor replace, /exists, and manifest.

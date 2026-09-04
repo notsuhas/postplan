@@ -30,7 +30,17 @@ describe('transcribeVoice (W1-3, W1-4)', () => {
   })
 
   test('empty / whitespace / missing text → null (W1-4)', async () => {
-    expect(await transcribeVoice(stubAi(() => ({ text: '   ' })), audio)).toBeNull()
-    expect(await transcribeVoice(stubAi(() => ({})), audio)).toBeNull()
+    expect(
+      await transcribeVoice(
+        stubAi(() => ({ text: '   ' })),
+        audio,
+      ),
+    ).toBeNull()
+    expect(
+      await transcribeVoice(
+        stubAi(() => ({})),
+        audio,
+      ),
+    ).toBeNull()
   })
 })

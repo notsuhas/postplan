@@ -194,16 +194,16 @@ describe('deriveFeedState', () => {
     const wantSpaces = { requestedTab: 'spaces' } as const
     expect(deriveFeedState(allPending(), wantSpaces).staleTab).toBe(false)
     expect(deriveFeedState({ ...allPending(), spaces: resolved([]) }, wantSpaces).staleTab).toBe(true)
-    expect(
-      deriveFeedState({ ...allPending(), spaces: resolved([space('p', 'personal')]) }, wantSpaces).staleTab,
-    ).toBe(true)
+    expect(deriveFeedState({ ...allPending(), spaces: resolved([space('p', 'personal')]) }, wantSpaces).staleTab).toBe(
+      true,
+    )
     expect(deriveFeedState({ ...allPending(), spaces: rejected(new Error('boom')) }, wantSpaces).staleTab).toBe(false)
     expect(
       deriveFeedState({ ...allPending(), spaces: rejected(new ApiError(401, 'Unauthorized')) }, wantSpaces).staleTab,
     ).toBe(false)
-    expect(
-      deriveFeedState({ ...allPending(), spaces: resolved([space('g', 'group')]) }, wantSpaces).staleTab,
-    ).toBe(false)
+    expect(deriveFeedState({ ...allPending(), spaces: resolved([space('g', 'group')]) }, wantSpaces).staleTab).toBe(
+      false,
+    )
 
     const wantShared = { requestedTab: 'shared' } as const
     expect(deriveFeedState(allPending(), wantShared).staleTab).toBe(false)
@@ -271,10 +271,7 @@ describe('deriveFeedState', () => {
   })
 
   test('C5.1 a 401 from only the comments slot raises the login-redirect signal', () => {
-    const state = deriveFeedState(
-      { ...allPending(), comments: rejected(new ApiError(401, 'Unauthorized')) },
-      onSites,
-    )
+    const state = deriveFeedState({ ...allPending(), comments: rejected(new ApiError(401, 'Unauthorized')) }, onSites)
     expect(state.unauthorized).toBe(true)
   })
 
@@ -286,10 +283,7 @@ describe('deriveFeedState', () => {
   })
 
   test('C5.1 tab order keeps Comments last with and without Shared', () => {
-    const withShared = deriveFeedState(
-      { ...allPending(), shared: resolved([site('shared')]) },
-      onSites,
-    )
+    const withShared = deriveFeedState({ ...allPending(), shared: resolved([site('shared')]) }, onSites)
     expect(withShared.tabs.map((tab) => tab.id)).toEqual(['sites', 'starred', 'shared', 'team', 'comments'])
 
     const withoutShared = deriveFeedState({ ...allPending(), shared: resolved([]) }, onSites)
@@ -394,9 +388,7 @@ describe('C5.4 — feedRowPath: hide redundant root-file paths', () => {
   })
 
   test('shows a nested path even when its basename could match', () => {
-    expect(feedRowPath({ filePath: 'charts/revenue.html', siteSlug: 'revenue' })).toBe(
-      'charts/revenue.html',
-    )
+    expect(feedRowPath({ filePath: 'charts/revenue.html', siteSlug: 'revenue' })).toBe('charts/revenue.html')
   })
 
   test('matching is extension-agnostic', () => {
@@ -441,9 +433,9 @@ describe('deriveFeedState — the Starred tab is always present (S10)', () => {
     // An unconditional tab cannot be missing, so the #38 fallback path must never fire for it —
     // not while pending, and not on an empty resolve either.
     expect(state.staleTab).toBe(false)
-    expect(
-      deriveFeedState({ ...allPending(), starred: resolved([]) }, { requestedTab: 'starred' }).staleTab,
-    ).toBe(false)
+    expect(deriveFeedState({ ...allPending(), starred: resolved([]) }, { requestedTab: 'starred' }).staleTab).toBe(
+      false,
+    )
     expect(tabFromParam('starred')).toBe('starred')
   })
 

@@ -30,9 +30,7 @@ function showLoadError(error: unknown) {
 
 function SummaryText({ snapshot, dimmed = false }: { snapshot: ReadySnapshot; dimmed?: boolean }) {
   return (
-    <p className={cn('whitespace-pre-line text-sm leading-6', dimmed && 'text-muted-foreground')}>
-      {snapshot.summary}
-    </p>
+    <p className={cn('whitespace-pre-line text-sm leading-6', dimmed && 'text-muted-foreground')}>{snapshot.summary}</p>
   )
 }
 
@@ -67,9 +65,7 @@ function SummaryBody({ state }: { state: SummaryState }) {
     case 'unavailable':
       return (
         <p className="py-10 text-center text-muted-foreground text-sm">
-          {state.reason === 'nothing'
-            ? 'Nothing to summarize on this site.'
-            : 'AI is not configured on this instance.'}
+          {state.reason === 'nothing' ? 'Nothing to summarize on this site.' : 'AI is not configured on this instance.'}
         </p>
       )
     case 'generating':
@@ -145,21 +141,18 @@ export function SummarySheet({ spaceSlug, siteSlug, open, onOpenChange, onGenera
     return { changed: next !== previous, next }
   }, [])
 
-  const loadOnMount = useCallback(
-    () => {
-      const requestToken = nextRequestToken.current + 1
-      nextRequestToken.current = requestToken
-      reduceAndDispatch({ type: 'open', requestToken })
-      void siteSummary
-        .get(spaceSlug, siteSlug)
-        .then((response) => reduceAndDispatch({ type: 'getResolved', requestToken, response }))
-        .catch((error: unknown) => {
-          reduceAndDispatch({ type: 'getFailed', requestToken, error })
-          showLoadError(error)
-        })
-    },
-    [spaceSlug, siteSlug, reduceAndDispatch],
-  )
+  const loadOnMount = useCallback(() => {
+    const requestToken = nextRequestToken.current + 1
+    nextRequestToken.current = requestToken
+    reduceAndDispatch({ type: 'open', requestToken })
+    void siteSummary
+      .get(spaceSlug, siteSlug)
+      .then((response) => reduceAndDispatch({ type: 'getResolved', requestToken, response }))
+      .catch((error: unknown) => {
+        reduceAndDispatch({ type: 'getFailed', requestToken, error })
+        showLoadError(error)
+      })
+  }, [spaceSlug, siteSlug, reduceAndDispatch])
 
   const generate = useCallback(
     (force = false) => {
@@ -188,8 +181,7 @@ export function SummarySheet({ spaceSlug, siteSlug, open, onOpenChange, onGenera
     [spaceSlug, siteSlug, onGenerated, reduceAndDispatch],
   )
 
-  const hasFooter =
-    state.kind === 'empty' || state.kind === 'ready' || (state.kind === 'failed' && state.retryable)
+  const hasFooter = state.kind === 'empty' || state.kind === 'ready' || (state.kind === 'failed' && state.retryable)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

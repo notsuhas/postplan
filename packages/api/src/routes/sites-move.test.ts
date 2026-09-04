@@ -24,16 +24,29 @@ async function setup() {
   return { db, kv, app, env }
 }
 
-async function mintUser(db: ReturnType<typeof makeDb>, kv: ReturnType<typeof makeKv>, id: string, role: 'member' | 'superadmin' = 'member') {
+async function mintUser(
+  db: ReturnType<typeof makeDb>,
+  kv: ReturnType<typeof makeKv>,
+  id: string,
+  role: 'member' | 'superadmin' = 'member',
+) {
   await seedUser(db, { id, role })
   await kv.put(`cli:tok-${id}`, JSON.stringify({ id, email: `${id}@example.com`, name: null, role }))
   return id
 }
 
-const auth = (id: string) => ({ Authorization: `Bearer tok-${id}`, Origin: APP_URL, 'Content-Type': 'application/json' })
+const auth = (id: string) => ({
+  Authorization: `Bearer tok-${id}`,
+  Origin: APP_URL,
+  'Content-Type': 'application/json',
+})
 
 const move = (app: Hono<AppEnv>, env: AppEnv['Bindings'], space: string, site: string, id: string, body: unknown) =>
-  app.request(`/api/sites/${space}/${site}/move`, { method: 'POST', headers: auth(id), body: JSON.stringify(body) }, env)
+  app.request(
+    `/api/sites/${space}/${site}/move`,
+    { method: 'POST', headers: auth(id), body: JSON.stringify(body) },
+    env,
+  )
 
 describe('POST /api/sites/:space/:site/move', () => {
   test('owner moves a site into a space they belong to', async () => {
@@ -47,11 +60,20 @@ describe('POST /api/sites/:space/:site/move', () => {
 
     const res = await move(app, env, 'personal-u1', 'report', 'u1', { space: 'acme' })
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ ok: true, spaceSlug: 'acme', siteSlug: 'report', url: `${APP_URL}/acme/report` })
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      spaceSlug: 'acme',
+      siteSlug: 'report',
+      url: `${APP_URL}/acme/report`,
+    })
 
     // Reachable at the new path, gone from the old one.
-    expect(await (await app.request('/api/sites/acme/report/exists', { headers: auth('u1') }, env)).json()).toMatchObject({ exists: true })
-    expect(await (await app.request('/api/sites/personal-u1/report/exists', { headers: auth('u1') }, env)).json()).toMatchObject({ exists: false })
+    expect(
+      await (await app.request('/api/sites/acme/report/exists', { headers: auth('u1') }, env)).json(),
+    ).toMatchObject({ exists: true })
+    expect(
+      await (await app.request('/api/sites/personal-u1/report/exists', { headers: auth('u1') }, env)).json(),
+    ).toMatchObject({ exists: false })
   })
 
   test('non-owner is forbidden', async () => {
@@ -148,7 +170,9 @@ describe('superadmin is not an owner: owner-only site endpoints refuse it', () =
       app.request('/api/sites/mine/doc/shares', { method: 'PUT', headers: auth(id), body: JSON.stringify(body) }, env)
 
     expect((await getShares('admin')).status).toBe(403)
-    expect((await putShares('admin', { userIds: [{ userId: 'admin', role: 'viewer' }], groupIds: [] })).status).toBe(403)
+    expect((await putShares('admin', { userIds: [{ userId: 'admin', role: 'viewer' }], groupIds: [] })).status).toBe(
+      403,
+    )
 
     expect((await getShares('rando')).status).toBe(403)
     expect((await putShares('rando', { userIds: [] })).status).toBe(403)

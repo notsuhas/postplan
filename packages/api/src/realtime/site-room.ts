@@ -29,7 +29,6 @@ import { type Channel, TOKEN_HEADER, parseChannel } from './protocol'
 // `WebSocketRequestResponsePair` are ambient workerd globals; the last two are absent in bun, so
 // tests install fakes on globalThis (the seam content.ts uses for `caches.default`).
 
-
 /** Everything one connection is allowed to be, small enough to sit far under the attachment's 16KB
  *  cap. `subject` is the viewer, `owner` the site. THE BEARER TOKEN IS NEVER STORED — only this
  *  snapshot of its verified claims, so a leaked attachment cannot be replayed as a credential. */

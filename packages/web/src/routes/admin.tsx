@@ -111,9 +111,7 @@ type LoaderData =
 const TABS: AdminTab[] = ['overview', 'sites', 'spaces', 'users', 'invites']
 
 function asTab(value: string | null): AdminTab {
-  return value === 'sites' || value === 'spaces' || value === 'users' || value === 'invites'
-    ? value
-    : 'overview'
+  return value === 'sites' || value === 'spaces' || value === 'users' || value === 'invites' ? value : 'overview'
 }
 
 // If the requested page overshoots the available pages — e.g. the last row of the last page was
@@ -755,9 +753,7 @@ function InvitesPanel({ data }: { data: InvitesData }) {
                       description="They lose access immediately — sessions, CLI tokens and API keys all stop working. Their sites and comments are left untouched."
                       confirmLabel="Revoke"
                       onConfirm={() =>
-                        mutate('Invite revoked', () =>
-                          api.delete(`/api/admin/invites/${encodeURIComponent(i.email)}`),
-                        )
+                        mutate('Invite revoked', () => api.delete(`/api/admin/invites/${encodeURIComponent(i.email)}`))
                       }
                     >
                       <Button variant="ghost" size="sm" className="text-destructive">
@@ -788,11 +784,11 @@ export function Component() {
         ? `${loaderData.data.total} site${loaderData.data.total === 1 ? '' : 's'}`
         : loaderData.tab === 'spaces'
           ? `${loaderData.data.length} space${loaderData.data.length === 1 ? '' : 's'}`
-        : loaderData.tab === 'users'
-          ? `${loaderData.data.length} user${loaderData.data.length === 1 ? '' : 's'}`
-          : `${loaderData.data.invites.length} invited · ${loaderData.data.admins.length} admin${
-              loaderData.data.admins.length === 1 ? '' : 's'
-            }`
+          : loaderData.tab === 'users'
+            ? `${loaderData.data.length} user${loaderData.data.length === 1 ? '' : 's'}`
+            : `${loaderData.data.invites.length} invited · ${loaderData.data.admins.length} admin${
+                loaderData.data.admins.length === 1 ? '' : 's'
+              }`
 
   function onTabChange(next: string) {
     // Switching tabs starts fresh — drop site-only filters/pagination.

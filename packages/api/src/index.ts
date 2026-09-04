@@ -99,7 +99,7 @@ app.get('/api/config', async (c) =>
   c.json(
     buildPublicConfig({
       // WorkOS brokers Google, so the button copy stays accurate; only the broker changed.
-        googleEnabled: isWorkosEnabled(c.env),
+      googleEnabled: isWorkosEnabled(c.env),
       hasSuperadmin: await superadminExists(c.get('db')),
       bootstrapTokenSet: Boolean(c.env.BOOTSTRAP_TOKEN),
     }),

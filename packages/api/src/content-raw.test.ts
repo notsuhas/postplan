@@ -20,7 +20,12 @@ function setup() {
     await next()
   })
   app.route('/', contentApp)
-  return { app, db, r2, env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 } }
+  return {
+    app,
+    db,
+    r2,
+    env: { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: secret, POSTPLAN_FILES: r2 },
+  }
 }
 
 async function gatedMd(db: ReturnType<typeof makeDb>, r2: ReturnType<typeof makeR2>) {

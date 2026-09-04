@@ -118,7 +118,10 @@ describe('formatSlackMessage', () => {
   })
 
   test('S7: null actorName → bold email fallback; snippet is italic + escaped; empty/null snippet stays non-empty', () => {
-    const withEmail = formatSlackMessage({ ...base, actorName: null, reason: 'share', snippet: 'a & b < c > d' }, appUrl)
+    const withEmail = formatSlackMessage(
+      { ...base, actorName: null, reason: 'share', snippet: 'a & b < c > d' },
+      appUrl,
+    )
     expect(withEmail).toContain('*ravi@plivo.com*') // bold actor from the email fallback
     expect(withEmail).toContain('> _a &amp; b &lt; c &gt; d_') // block-quoted, italic, escaped
 
@@ -163,9 +166,7 @@ describe('deliverSlack', () => {
       const { fetchImpl, calls } = recordingFetch(() => {
         throw new Error('must not fetch when token is absent')
       })
-      await deliverSlack({ kv, token, fetchImpl, appUrl }, EVENT, [
-        { id: 'u1', email: 'a@plivo.com', reason: 'owner' },
-      ])
+      await deliverSlack({ kv, token, fetchImpl, appUrl }, EVENT, [{ id: 'u1', email: 'a@plivo.com', reason: 'owner' }])
       expect(kv.ops()).toEqual({ get: 0, put: 0, delete: 0 })
       expect(calls).toHaveLength(0)
     }

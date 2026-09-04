@@ -29,7 +29,12 @@ async function setup() {
   const db = makeDb()
   const r2 = makeR2()
   const kv = makeKv()
-  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv, POSTPLAN_FILES: r2 } as unknown as AppEnv['Bindings']
+  const env = {
+    APP_URL,
+    SESSION_SECRET: 's',
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
+  } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {
@@ -41,14 +46,22 @@ async function setup() {
   return { db, r2, kv, app, env }
 }
 
-async function mintUser(db: ReturnType<typeof makeDb>, kv: ReturnType<typeof makeKv>, o: { id: string; role?: 'member' | 'superadmin' }) {
+async function mintUser(
+  db: ReturnType<typeof makeDb>,
+  kv: ReturnType<typeof makeKv>,
+  o: { id: string; role?: 'member' | 'superadmin' },
+) {
   const id = await seedUser(db, { id: o.id, role: o.role ?? 'member' })
   const tok = `tok-${id}`
   await kv.put(`cli:${tok}`, JSON.stringify({ id, email: `${id}@example.com`, name: null, role: o.role ?? 'member' }))
   return id
 }
 
-const auth = (id: string) => ({ Authorization: `Bearer tok-${id}`, Origin: APP_URL, 'Content-Type': 'application/json' })
+const auth = (id: string) => ({
+  Authorization: `Bearer tok-${id}`,
+  Origin: APP_URL,
+  'Content-Type': 'application/json',
+})
 
 /** Seed a space + site (default team) owned by `ownerId`, with one HTML file. */
 async function seedSiteWithFile(
@@ -77,7 +90,11 @@ const audioForm = (bytes: Uint8Array, extra: Record<string, string> = {}, type =
   return fd
 }
 // Multipart POST: DON'T set Content-Type (the FormData boundary is auto-added); keep auth+Origin.
-const voice = (id: string, body: FormData) => ({ method: 'POST', headers: { Authorization: `Bearer tok-${id}`, Origin: APP_URL }, body })
+const voice = (id: string, body: FormData) => ({
+  method: 'POST',
+  headers: { Authorization: `Bearer tok-${id}`, Origin: APP_URL },
+  body,
+})
 
 describe('comments routes — auth / access / authz', () => {
   test('comments-require-auth: no session and no token → 401', async () => {
@@ -108,7 +125,15 @@ describe('comments routes — auth / access / authz', () => {
     await seedSiteWithFile(db, r2, owner)
     const res = await app.request(
       url(),
-      { method: 'POST', headers: { cookie: '__Host-postplan_session=x', Origin: 'https://evil.com', 'Content-Type': 'application/json' }, body: '{}' },
+      {
+        method: 'POST',
+        headers: {
+          cookie: '__Host-postplan_session=x',
+          Origin: 'https://evil.com',
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      },
       env,
     )
     expect(res.status).toBe(403)
@@ -118,7 +143,15 @@ describe('comments routes — auth / access / authz', () => {
     const { app, env, db, r2, kv } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, r2, owner)
-    const res = await app.request(url(), { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: 'x'.repeat(10_001), quote: 'fox' }) }, env)
+    const res = await app.request(
+      url(),
+      {
+        method: 'POST',
+        headers: auth(owner),
+        body: JSON.stringify({ filePath: 'index.html', body: 'x'.repeat(10_001), quote: 'fox' }),
+      },
+      env,
+    )
     expect(res.status).toBe(400)
   })
 
@@ -129,18 +162,36 @@ describe('comments routes — auth / access / authz', () => {
     const { spaceId } = await seedSiteWithFile(db, r2, owner, 'members')
     await seedMember(db, spaceId, member)
     // member opens a thread (its opening comment is authored by member)
-    const created = await (await app.request(url(), { method: 'POST', headers: auth(member), body: JSON.stringify({ filePath: 'index.html', body: 'mine', quote: 'fox' }) }, env)).json()
+    const created = await (
+      await app.request(
+        url(),
+        {
+          method: 'POST',
+          headers: auth(member),
+          body: JSON.stringify({ filePath: 'index.html', body: 'mine', quote: 'fox' }),
+        },
+        env,
+      )
+    ).json()
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(member) }, env)).json()
     const commentId = list[0].comments[0].id
     const path = url(`/${created.threadId}/messages/${commentId}`)
 
-    const byOther = await app.request(path, { method: 'PATCH', headers: auth(owner), body: JSON.stringify({ body: 'hijack' }) }, env)
+    const byOther = await app.request(
+      path,
+      { method: 'PATCH', headers: auth(owner), body: JSON.stringify({ body: 'hijack' }) },
+      env,
+    )
     expect(byOther.status).toBe(403)
-    const byAuthor = await app.request(path, { method: 'PATCH', headers: auth(member), body: JSON.stringify({ body: 'edited' }) }, env)
+    const byAuthor = await app.request(
+      path,
+      { method: 'PATCH', headers: auth(member), body: JSON.stringify({ body: 'edited' }) },
+      env,
+    )
     expect(byAuthor.status).toBe(200)
   })
 
-  test('non-author-member-cannot-delete: another member deleting someone else\'s comment → 403; author can delete own', async () => {
+  test("non-author-member-cannot-delete: another member deleting someone else's comment → 403; author can delete own", async () => {
     const { app, env, db, r2, kv } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     const author = await mintUser(db, kv, { id: 'author' })
@@ -148,8 +199,19 @@ describe('comments routes — auth / access / authz', () => {
     const { spaceId } = await seedSiteWithFile(db, r2, owner, 'members')
     await seedMember(db, spaceId, author)
     await seedMember(db, spaceId, other)
-    const created = await (await app.request(url(), { method: 'POST', headers: auth(author), body: JSON.stringify({ filePath: 'index.html', body: 'mine', quote: 'fox' }) }, env)).json()
-    const commentId = (await (await app.request(url('?filePath=index.html'), { headers: auth(author) }, env)).json())[0].comments[0].id
+    const created = await (
+      await app.request(
+        url(),
+        {
+          method: 'POST',
+          headers: auth(author),
+          body: JSON.stringify({ filePath: 'index.html', body: 'mine', quote: 'fox' }),
+        },
+        env,
+      )
+    ).json()
+    const commentId = (await (await app.request(url('?filePath=index.html'), { headers: auth(author) }, env)).json())[0]
+      .comments[0].id
     const path = url(`/${created.threadId}/messages/${commentId}`)
 
     const byOther = await app.request(path, { method: 'DELETE', headers: auth(other) }, env)
@@ -169,13 +231,32 @@ describe('comments routes — auth / access / authz', () => {
     const admin = await mintUser(db, kv, { id: 'admin', role: 'superadmin' })
     const { spaceId } = await seedSiteWithFile(db, r2, owner, 'members')
     await seedMember(db, spaceId, member)
-    const created = await (await app.request(url(), { method: 'POST', headers: auth(member), body: JSON.stringify({ filePath: 'index.html', body: 'mine', quote: 'fox' }) }, env)).json()
-    const commentId = (await (await app.request(url('?filePath=index.html'), { headers: auth(member) }, env)).json())[0].comments[0].id
+    const created = await (
+      await app.request(
+        url(),
+        {
+          method: 'POST',
+          headers: auth(member),
+          body: JSON.stringify({ filePath: 'index.html', body: 'mine', quote: 'fox' }),
+        },
+        env,
+      )
+    ).json()
+    const commentId = (await (await app.request(url('?filePath=index.html'), { headers: auth(member) }, env)).json())[0]
+      .comments[0].id
     const msgPath = url(`/${created.threadId}/messages/${commentId}`)
 
-    const memberResolve = await app.request(url(`/${created.threadId}`), { method: 'PATCH', headers: auth(member), body: JSON.stringify({ status: 'resolved' }) }, env)
+    const memberResolve = await app.request(
+      url(`/${created.threadId}`),
+      { method: 'PATCH', headers: auth(member), body: JSON.stringify({ status: 'resolved' }) },
+      env,
+    )
     expect(memberResolve.status).toBe(403)
-    const ownerResolve = await app.request(url(`/${created.threadId}`), { method: 'PATCH', headers: auth(owner), body: JSON.stringify({ status: 'resolved' }) }, env)
+    const ownerResolve = await app.request(
+      url(`/${created.threadId}`),
+      { method: 'PATCH', headers: auth(owner), body: JSON.stringify({ status: 'resolved' }) },
+      env,
+    )
     expect(ownerResolve.status).toBe(200)
 
     const ownerDelete = await app.request(msgPath, { method: 'DELETE', headers: auth(owner) }, env)
@@ -208,7 +289,8 @@ describe('comments routes — delete leaves a tombstone only where one carries m
     for (const body of bodies) ids.push(await seedComment(db, { threadId, authorId: owner, body }))
     const del = (commentId: string) =>
       ctx.app.request(url(`/${threadId}/messages/${commentId}`), { method: 'DELETE', headers: auth(owner) }, ctx.env)
-    const list = async () => await (await ctx.app.request(url('?filePath=index.html'), { headers: auth(owner) }, ctx.env)).json()
+    const list = async () =>
+      await (await ctx.app.request(url('?filePath=index.html'), { headers: auth(owner) }, ctx.env)).json()
     return { ...ctx, owner, threadId, ids, del, list }
   }
 
@@ -252,7 +334,9 @@ describe('comments routes — delete leaves a tombstone only where one carries m
     // notifications.commentId is `set null` — the row survives with its denormalized text, and only
     // its deep link stops focusing a thread.
     const { db, owner, threadId, ids, del } = await seedConversation(['the opening', 'a reply'])
-    await db.insert(commentReactions).values({ commentId: ids[1], userId: owner, emoji: '👍', createdAt: new Date().toISOString() })
+    await db
+      .insert(commentReactions)
+      .values({ commentId: ids[1], userId: owner, emoji: '👍', createdAt: new Date().toISOString() })
     const notificationId = await seedNotification(db, {
       recipientId: owner,
       threadId,
@@ -288,7 +372,12 @@ describe('comments routes — delete leaves a tombstone only where one carries m
 
   test('a hard-deleted voice reply does not orphan its own recording', async () => {
     const { db, r2, owner, threadId, del } = await seedConversation(['the opening'])
-    const replyId = await seedComment(db, { threadId, authorId: owner, body: 'transcript', audioKey: 'comment-audio/reply.webm' })
+    const replyId = await seedComment(db, {
+      threadId,
+      authorId: owner,
+      body: 'transcript',
+      audioKey: 'comment-audio/reply.webm',
+    })
     await r2.put('comment-audio/reply.webm', new Uint8Array([2]))
 
     expect((await del(replyId)).status).toBe(200)
@@ -325,7 +414,11 @@ describe('comments routes — element (pinpoint) anchors', () => {
     const { app, env, db, r2, kv } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, r2, owner)
-    const res = await app.request(url(), post(auth(owner), { filePath: 'index.html', body: 'x', anchorType: 'element', element: { tag: 'div' } }), env)
+    const res = await app.request(
+      url(),
+      post(auth(owner), { filePath: 'index.html', body: 'x', anchorType: 'element', element: { tag: 'div' } }),
+      env,
+    )
     expect(res.status).toBe(400)
   })
 
@@ -333,7 +426,16 @@ describe('comments routes — element (pinpoint) anchors', () => {
     const { app, env, db, r2, kv } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, r2, owner)
-    const res = await app.request(url(), post(auth(owner), { filePath: 'index.html', body: 'x', anchorType: 'element', element: { selector: 'a'.repeat(2000) } }), env)
+    const res = await app.request(
+      url(),
+      post(auth(owner), {
+        filePath: 'index.html',
+        body: 'x',
+        anchorType: 'element',
+        element: { selector: 'a'.repeat(2000) },
+      }),
+      env,
+    )
     expect(res.status).toBe(400)
   })
 
@@ -361,7 +463,11 @@ describe('comments routes — text occurrence context', () => {
     const { app, env, db, r2, kv } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, r2, owner)
-    const res = await app.request(url(), post(auth(owner), { filePath: 'index.html', body: 'here', quote: 'fox', context }), env)
+    const res = await app.request(
+      url(),
+      post(auth(owner), { filePath: 'index.html', body: 'here', quote: 'fox', context }),
+      env,
+    )
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
     return { status: res.status, thread: list[0] }
   }
@@ -374,7 +480,10 @@ describe('comments routes — text occurrence context', () => {
   })
 
   test('context-is-a-hint-not-a-contract: junk context is dropped, the comment is still created', async () => {
-    expect(await createWithContext({ prefix: 42, suffix: null })).toMatchObject({ status: 201, thread: { context: null } })
+    expect(await createWithContext({ prefix: 42, suffix: null })).toMatchObject({
+      status: 201,
+      thread: { context: null },
+    })
     expect(await createWithContext('not an object')).toMatchObject({ status: 201, thread: { context: null } })
   })
 
@@ -388,7 +497,16 @@ describe('comments routes — text occurrence context', () => {
     const { app, env, db, r2, kv } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, r2, owner)
-    await app.request(url(), post(auth(owner), { filePath: 'index.html', body: 'x', anchorType: 'page', context: { prefix: 'a', suffix: 'b' } }), env)
+    await app.request(
+      url(),
+      post(auth(owner), {
+        filePath: 'index.html',
+        body: 'x',
+        anchorType: 'page',
+        context: { prefix: 'a', suffix: 'b' },
+      }),
+      env,
+    )
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
     expect(list[0].anchorType).toBe('page')
     expect(list[0].context).toBeNull()
@@ -489,7 +607,11 @@ describe('comments routes — POST …/:threadId/replies (postplan reply)', () =
     const threadId = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
     await seedComment(db, { threadId, authorId: owner, body: 'opening' })
 
-    const res = await app.request(reply(threadId), { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: '[agent] fixed it' }) }, env)
+    const res = await app.request(
+      reply(threadId),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: '[agent] fixed it' }) },
+      env,
+    )
     expect(res.status).toBe(201)
     expect((await res.json()).id).toBeTruthy()
 
@@ -508,7 +630,11 @@ describe('comments routes — POST …/:threadId/replies (postplan reply)', () =
     const otherSite = await seedSite(db, { spaceId: otherSpace, ownerId: owner, slug: 'doc2', visibility: 'team' })
     const foreignThread = await seedThread(db, { siteId: otherSite, filePath: 'index.html', createdBy: owner })
 
-    const res = await app.request(reply(foreignThread), { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: 'hi' }) }, env)
+    const res = await app.request(
+      reply(foreignThread),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: 'hi' }) },
+      env,
+    )
     expect(res.status).toBe(404)
   })
 
@@ -518,7 +644,11 @@ describe('comments routes — POST …/:threadId/replies (postplan reply)', () =
     const { siteId } = await seedSiteWithFile(db, r2, owner)
     const threadId = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
 
-    const res = await app.request(reply(threadId), { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: '   ' }) }, env)
+    const res = await app.request(
+      reply(threadId),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: '   ' }) },
+      env,
+    )
     expect(res.status).toBe(400)
   })
 
@@ -528,7 +658,11 @@ describe('comments routes — POST …/:threadId/replies (postplan reply)', () =
     const { siteId } = await seedSiteWithFile(db, r2, owner)
     const threadId = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
 
-    const res = await app.request(reply(threadId), { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: 'x'.repeat(10_001) }) }, env)
+    const res = await app.request(
+      reply(threadId),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ body: 'x'.repeat(10_001) }) },
+      env,
+    )
     expect(res.status).toBe(400)
   })
 
@@ -538,7 +672,15 @@ describe('comments routes — POST …/:threadId/replies (postplan reply)', () =
     const { siteId } = await seedSiteWithFile(db, r2, owner)
     const threadId = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
 
-    const res = await app.request(reply(threadId), { method: 'POST', headers: { Origin: APP_URL, 'Content-Type': 'application/json' }, body: JSON.stringify({ body: 'hi' }) }, env)
+    const res = await app.request(
+      reply(threadId),
+      {
+        method: 'POST',
+        headers: { Origin: APP_URL, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'hi' }),
+      },
+      env,
+    )
     expect(res.status).toBe(401)
   })
 })
@@ -552,7 +694,11 @@ describe('comments routes — input sanitization + lifecycle guards', () => {
     const quote = 'ﷺ'.repeat(1000)
     expect(quote.length).toBeLessThan(8_000) // a naive raw-length cap would accept it…
     expect(quote.normalize('NFKC').length).toBeGreaterThan(8_000) // …but the stored (folded) quote blows the cap
-    const res = await app.request(url(), { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: 'hi', quote }) }, env)
+    const res = await app.request(
+      url(),
+      { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: 'hi', quote }) },
+      env,
+    )
     expect(res.status).toBe(400)
   })
 
@@ -561,8 +707,24 @@ describe('comments routes — input sanitization + lifecycle guards', () => {
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, r2, owner)
     const esc = '[31mred[0m' // ESC (0x1B) + SGR: raw terminal injection if printed unescaped
-    await app.request(url(), { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: `esc ${esc}`, quote: `fox ${esc}` }) }, env)
-    await app.request(url(), { method: 'POST', headers: auth(owner), body: JSON.stringify({ filePath: 'index.html', body: 'multi\nline\tkept' }) }, env)
+    await app.request(
+      url(),
+      {
+        method: 'POST',
+        headers: auth(owner),
+        body: JSON.stringify({ filePath: 'index.html', body: `esc ${esc}`, quote: `fox ${esc}` }),
+      },
+      env,
+    )
+    await app.request(
+      url(),
+      {
+        method: 'POST',
+        headers: auth(owner),
+        body: JSON.stringify({ filePath: 'index.html', body: 'multi\nline\tkept' }),
+      },
+      env,
+    )
 
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
     const escThread = list.find((t: { comments: { body: string }[] }) => t.comments[0].body.startsWith('esc'))
@@ -591,7 +753,11 @@ describe('comments routes — input sanitization + lifecycle guards', () => {
     const del = await app.request(path, { method: 'DELETE', headers: auth(owner) }, env)
     expect(del.status).toBe(200)
     // The author would otherwise pass the authz check — the deleted guard must 404 first.
-    const editAfter = await app.request(path, { method: 'PATCH', headers: auth(owner), body: JSON.stringify({ body: 'resurrect' }) }, env)
+    const editAfter = await app.request(
+      path,
+      { method: 'PATCH', headers: auth(owner), body: JSON.stringify({ body: 'resurrect' }) },
+      env,
+    )
     expect(editAfter.status).toBe(404)
     const delAgain = await app.request(path, { method: 'DELETE', headers: auth(owner) }, env)
     expect(delAgain.status).toBe(404)
@@ -601,7 +767,13 @@ describe('comments routes — input sanitization + lifecycle guards', () => {
     const { app, env, db, r2, kv } = await setup()
     const owner = await mintUser(db, kv, { id: 'owner' })
     const sp = await seedSpace(db, { createdBy: owner, slug: 'acme' })
-    const siteId = await seedSite(db, { spaceId: sp, ownerId: owner, slug: 'doc', visibility: 'team', status: 'archived' })
+    const siteId = await seedSite(db, {
+      spaceId: sp,
+      ownerId: owner,
+      slug: 'doc',
+      visibility: 'team',
+      status: 'archived',
+    })
     await seedFile(db, r2, siteId, { path: 'index.html', text: '<p>x</p>' })
 
     const res = await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)
@@ -621,15 +793,28 @@ describe('comments routes — JSON create characterization (W2-8, pre-refactor p
     const owner = await mintUser(db, kv, { id: 'owner' })
     await seedSiteWithFile(db, r2, owner)
 
-    const textRes = await app.request(url(), post(auth(owner), { filePath: 'index.html', body: 'on text', quote: 'fox' }), env)
+    const textRes = await app.request(
+      url(),
+      post(auth(owner), { filePath: 'index.html', body: 'on text', quote: 'fox' }),
+      env,
+    )
     expect(textRes.status).toBe(201)
     const elRes = await app.request(
       url(),
-      post(auth(owner), { filePath: 'index.html', body: 'on element', anchorType: 'element', element: { selector: '#c', tag: 'div', preview: 'Chart', textFallback: 'Rev' } }),
+      post(auth(owner), {
+        filePath: 'index.html',
+        body: 'on element',
+        anchorType: 'element',
+        element: { selector: '#c', tag: 'div', preview: 'Chart', textFallback: 'Rev' },
+      }),
       env,
     )
     expect(elRes.status).toBe(201)
-    const pageRes = await app.request(url(), post(auth(owner), { filePath: 'index.html', body: 'on page', anchorType: 'page' }), env)
+    const pageRes = await app.request(
+      url(),
+      post(auth(owner), { filePath: 'index.html', body: 'on page', anchorType: 'page' }),
+      env,
+    )
     expect(pageRes.status).toBe(201)
 
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
@@ -656,7 +841,11 @@ describe('comments routes — voice (multipart) create + reply (Step 6)', () => 
     await seedSiteWithFile(db, r2, owner)
     const bytes = new Uint8Array([1, 2, 3, 250, 0, 128])
     const fd = audioForm(bytes, { filePath: 'index.html', quote: 'fox' })
-    const res = await app.request(url(), voice(owner, fd), aiEnv(env, async () => ({ text: 'hello there' })))
+    const res = await app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'hello there' })),
+    )
     expect(res.status).toBe(201)
     const { openingCommentId } = await res.json()
 
@@ -675,7 +864,11 @@ describe('comments routes — voice (multipart) create + reply (Step 6)', () => 
     await seedComment(db, { threadId, authorId: owner, body: 'opening' })
 
     const fd = audioForm(new Uint8Array([9, 9, 9]))
-    const res = await app.request(url(`/${threadId}/replies`), voice(owner, fd), aiEnv(env, async () => ({ text: 'reply spoken' })))
+    const res = await app.request(
+      url(`/${threadId}/replies`),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'reply spoken' })),
+    )
     expect(res.status).toBe(201)
     const { id } = await res.json()
     expect(id).toBeTruthy()
@@ -723,7 +916,11 @@ describe('comments routes — voice (multipart) create + reply (Step 6)', () => 
     const before = r2.store.size
     const huge = new Uint8Array(10 * 1024 * 1024 + 1)
     const fd = audioForm(huge, { filePath: 'index.html' })
-    const res = await app.request(url(), voice(owner, fd), aiEnv(env, async () => ({ text: 'x' })))
+    const res = await app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'x' })),
+    )
     expect(res.status).toBe(413)
     expect(r2.store.size).toBe(before) // no put
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
@@ -796,7 +993,11 @@ describe('comments routes — voice (multipart) create + reply (Step 6)', () => 
       context: JSON.stringify(context), // exactly how comments.createVoice serializes it
     })
 
-    const res = await app.request(url(), voice(owner, fd), aiEnv(env, async () => ({ text: 'this one' })))
+    const res = await app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'this one' })),
+    )
     expect(res.status).toBe(201)
 
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
@@ -820,7 +1021,11 @@ describe('comments routes — voice (multipart) create + reply (Step 6)', () => 
       element: JSON.stringify(element), // exactly how comments.createVoice serializes it
     })
 
-    const res = await app.request(url(), voice(owner, fd), aiEnv(env, async () => ({ text: 'on the chart' })))
+    const res = await app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'on the chart' })),
+    )
     expect(res.status).toBe(201)
 
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
@@ -835,7 +1040,11 @@ describe('comments routes — voice (multipart) create + reply (Step 6)', () => 
     await seedSiteWithFile(db, r2, owner)
     const fd = audioForm(new Uint8Array([1, 2, 3]), { filePath: 'index.html', quote: 'fox', context: '{not json' })
 
-    const res = await app.request(url(), voice(owner, fd), aiEnv(env, async () => ({ text: 'still fine' })))
+    const res = await app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(env, async () => ({ text: 'still fine' })),
+    )
     expect(res.status).toBe(201) // a hint, not an identifier: losing it costs anchoring, not the comment
 
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
@@ -851,7 +1060,11 @@ describe('comments routes — voice audio serving + delete lifecycle (Steps 8, 9
     const owner = await mintUser(ctx.db, ctx.kv, { id: 'owner' })
     const { siteId } = await seedSiteWithFile(ctx.db, ctx.r2, owner)
     const fd = audioForm(bytes, { filePath: 'index.html' })
-    const res = await ctx.app.request(url(), voice(owner, fd), aiEnv(ctx.env, async () => ({ text: 'spoken' })))
+    const res = await ctx.app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(ctx.env, async () => ({ text: 'spoken' })),
+    )
     const { openingCommentId } = await res.json()
     return { ...ctx, owner, siteId, commentId: openingCommentId as string }
   }
@@ -890,7 +1103,11 @@ describe('comments routes — voice audio serving + delete lifecycle (Steps 8, 9
     const owner = await mintUser(ctx.db, ctx.kv, { id: 'owner' })
     const { siteId } = await seedSiteWithFile(ctx.db, ctx.r2, owner, 'private')
     const fd = audioForm(new Uint8Array([1, 2, 3, 4]), { filePath: 'index.html' })
-    const created = await ctx.app.request(url(), voice(owner, fd), aiEnv(ctx.env, async () => ({ text: 'spoken' })))
+    const created = await ctx.app.request(
+      url(),
+      voice(owner, fd),
+      aiEnv(ctx.env, async () => ({ text: 'spoken' })),
+    )
     const { openingCommentId } = await created.json()
     const stranger = await mintUser(ctx.db, ctx.kv, { id: 'stranger' })
     const res = await ctx.app.request(audioUrl(openingCommentId), { headers: auth(stranger) }, ctx.env)
@@ -914,7 +1131,11 @@ describe('comments routes — voice audio serving + delete lifecycle (Steps 8, 9
     // Delete via the DELETE route (thread id needed for the path).
     const list = await (await app.request(url('?filePath=index.html'), { headers: auth(owner) }, env)).json()
     const threadId = list[0].id
-    const del = await app.request(url(`/${threadId}/messages/${commentId}`), { method: 'DELETE', headers: auth(owner) }, env)
+    const del = await app.request(
+      url(`/${threadId}/messages/${commentId}`),
+      { method: 'DELETE', headers: auth(owner) },
+      env,
+    )
     expect(del.status).toBe(200)
     expect(r2.store.has(`comment-audio/${commentId}.webm`)).toBe(false) // audio hard-deleted
     const res = await app.request(audioUrl(commentId), { headers: auth(owner) }, env)
@@ -928,7 +1149,11 @@ describe('comments routes — voice audio serving + delete lifecycle (Steps 8, 9
     const threadId = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
     const textId = await seedComment(db, { threadId, authorId: owner, body: 'text only' })
     const before = r2.store.size
-    const del = await app.request(url(`/${threadId}/messages/${textId}`), { method: 'DELETE', headers: auth(owner) }, env)
+    const del = await app.request(
+      url(`/${threadId}/messages/${textId}`),
+      { method: 'DELETE', headers: auth(owner) },
+      env,
+    )
     expect(del.status).toBe(200)
     expect(r2.store.size).toBe(before) // no R2 delete for a text comment
   })

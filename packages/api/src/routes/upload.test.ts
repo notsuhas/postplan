@@ -40,7 +40,11 @@ async function setup() {
 function postFiles(app: Hono<AppEnv>, env: AppEnv['Bindings'], slug: string, parts: File[], query = '') {
   const fd = new FormData()
   for (const f of parts) fd.append('files', f)
-  return app.request(`/api/upload/acme/${slug}${query}`, { method: 'POST', headers: { Authorization: 'Bearer tok' }, body: fd }, env)
+  return app.request(
+    `/api/upload/acme/${slug}${query}`,
+    { method: 'POST', headers: { Authorization: 'Bearer tok' }, body: fd },
+    env,
+  )
 }
 
 // Like postFiles but lets a test set the `visibility` form field (omitted entirely when undefined,
@@ -57,7 +61,11 @@ function postUpload(
   if (opts.visibility !== undefined) fd.append('visibility', opts.visibility)
   if (opts.title !== undefined) fd.append('title', opts.title)
   const query = opts.replace ? '?replace=true' : ''
-  return app.request(`/api/upload/acme/${slug}${query}`, { method: 'POST', headers: { Authorization: 'Bearer tok' }, body: fd }, env)
+  return app.request(
+    `/api/upload/acme/${slug}${query}`,
+    { method: 'POST', headers: { Authorization: 'Bearer tok' }, body: fd },
+    env,
+  )
 }
 
 const html = (s: string, name: string) => new File([s], name, { type: 'text/html' })
@@ -69,7 +77,11 @@ describe('upload — a superadmin is not an editor', () => {
   async function postAs(app: Hono<AppEnv>, env: AppEnv['Bindings'], token: string, slug: string, query = '') {
     const fd = new FormData()
     fd.append('files', html('<html>2</html>', 'index.html'))
-    return app.request(`/api/upload/acme/${slug}${query}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd }, env)
+    return app.request(
+      `/api/upload/acme/${slug}${query}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd },
+      env,
+    )
   }
 
   test('superadmin-cannot-replace-another-owners-site: 403, and cannot create in the space either', async () => {
@@ -282,7 +294,10 @@ describe('upload — derived title from entry HTML', () => {
 
 describe('upload — derived description from entry HTML', () => {
   const described = (d: string) =>
-    html(`<html><head><title>T</title><meta name="description" content="${d}"></head><body>x</body></html>`, 'index.html')
+    html(
+      `<html><head><title>T</title><meta name="description" content="${d}"></head><body>x</body></html>`,
+      'index.html',
+    )
   async function siteDescription(db: Awaited<ReturnType<typeof setup>>['db'], slug: string) {
     return (await db.select({ description: sites.description }).from(sites).where(eq(sites.slug, slug)))[0]?.description
   }
@@ -303,9 +318,15 @@ describe('upload — derived description from entry HTML', () => {
   test('a redeploy whose entry dropped its description CLEARS the stale one', async () => {
     const { app, env, db } = await setup()
     await postUpload(app, env, 'cleared', [described('Was here')])
-    await postUpload(app, env, 'cleared', [html('<html><head><title>T</title></head><body>x</body></html>', 'index.html')], {
-      replace: true,
-    })
+    await postUpload(
+      app,
+      env,
+      'cleared',
+      [html('<html><head><title>T</title></head><body>x</body></html>', 'index.html')],
+      {
+        replace: true,
+      },
+    )
     expect(await siteDescription(db, 'cleared')).toBeNull()
   })
 

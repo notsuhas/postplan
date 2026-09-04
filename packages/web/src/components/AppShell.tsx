@@ -117,10 +117,7 @@ export function AppShell() {
                       API Keys
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onSelect={() => signOut()}
-                  >
+                  <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => signOut()}>
                     <LogOut />
                     Sign out
                   </DropdownMenuItem>
@@ -149,9 +146,7 @@ function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
       className={({ isActive }) =>
         cn(
           'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-          isActive
-            ? 'bg-muted text-foreground'
-            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+          isActive ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
         )
       }
     >

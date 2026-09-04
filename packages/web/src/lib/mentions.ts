@@ -32,11 +32,7 @@ export function mentionQuery(text: string, caret: number): { query: string; star
 /** Replace the active @-token with `@Label ` (trailing space so the next word is clear of it) and
  *  return the new text + caret position just past the inserted mention. A no-op (returns the input)
  *  if there's no active token at the caret. */
-export function insertMention(
-  text: string,
-  caret: number,
-  user: MentionUser,
-): { text: string; caret: number } {
+export function insertMention(text: string, caret: number, user: MentionUser): { text: string; caret: number } {
   const active = mentionQuery(text, caret)
   if (!active) return { text, caret }
   const inserted = `@${mentionLabel(user)} `
@@ -64,9 +60,7 @@ export function notificationHref(n: {
   if (!n.siteLabel) return '/'
   // Encode each path segment (mirrors ViewerSidebar's entryHref) — upload sanitization lets `?`
   // and `#` through, and unencoded they truncate the pathname into query/fragment territory.
-  const path = n.filePath
-    ? `/${encodePathSegments(n.filePath.replace(/^\/+/, ''))}`
-    : ''
+  const path = n.filePath ? `/${encodePathSegments(n.filePath.replace(/^\/+/, ''))}` : ''
   const params = new URLSearchParams()
   if (n.threadId) params.set('thread', n.threadId)
   params.set('review', '1')

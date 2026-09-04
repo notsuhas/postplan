@@ -53,7 +53,11 @@ describe('C6 route.auth.401 — unauthenticated GET and POST both 401, watermark
     await db.update(users).set({ lastSeenReleaseAt: MID }).where(eq(users.id, id))
     const res = await app.request(
       '/api/whats-new/seen',
-      { method: 'POST', headers: { Origin: APP_URL, 'Content-Type': 'application/json' }, body: JSON.stringify({ throughDate: NEWEST_RELEASE_DATE }) },
+      {
+        method: 'POST',
+        headers: { Origin: APP_URL, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ throughDate: NEWEST_RELEASE_DATE }),
+      },
       env,
     )
     expect(res.status).toBe(401)
@@ -91,7 +95,11 @@ describe('C8 route.seen.malformed.400 — bad throughDate → 400, watermark unc
       const { app, db, kv, env } = setup()
       const id = await seedUser(db, { id: 'u1' })
       await db.update(users).set({ lastSeenReleaseAt: MID }).where(eq(users.id, id))
-      const res = await app.request('/api/whats-new/seen', { method: 'POST', headers: await mintBearer(kv, id), body: JSON.stringify(body) }, env)
+      const res = await app.request(
+        '/api/whats-new/seen',
+        { method: 'POST', headers: await mintBearer(kv, id), body: JSON.stringify(body) },
+        env,
+      )
       expect(res.status).toBe(400)
       expect(await getWatermark(db, id)).toBe(MID)
     })
@@ -100,7 +108,11 @@ describe('C8 route.seen.malformed.400 — bad throughDate → 400, watermark unc
     const { app, db, kv, env } = setup()
     const id = await seedUser(db, { id: 'u1' })
     await db.update(users).set({ lastSeenReleaseAt: MID }).where(eq(users.id, id))
-    const res = await app.request('/api/whats-new/seen', { method: 'POST', headers: await mintBearer(kv, id), body: 'not json{' }, env)
+    const res = await app.request(
+      '/api/whats-new/seen',
+      { method: 'POST', headers: await mintBearer(kv, id), body: 'not json{' },
+      env,
+    )
     expect(res.status).toBe(400)
     expect(await getWatermark(db, id)).toBe(MID)
   })
@@ -111,7 +123,11 @@ describe('C9 route.seen.advances — POST then GET reflects 0 unread', () => {
     const { app, db, kv, env } = setup()
     const id = await seedUser(db, { id: 'u1' }) // null watermark → all unread
     const headers = await mintBearer(kv, id)
-    const post = await app.request('/api/whats-new/seen', { method: 'POST', headers, body: JSON.stringify({ throughDate: NEWEST_RELEASE_DATE }) }, env)
+    const post = await app.request(
+      '/api/whats-new/seen',
+      { method: 'POST', headers, body: JSON.stringify({ throughDate: NEWEST_RELEASE_DATE }) },
+      env,
+    )
     expect(post.status).toBe(200)
     const get = await app.request('/api/whats-new', { headers }, env)
     expect(((await get.json()) as { unreadCount: number }).unreadCount).toBe(0)
@@ -121,7 +137,12 @@ describe('C9 route.seen.advances — POST then GET reflects 0 unread', () => {
 describe('B2 newuser.caughtUp — created through the real insert paths → 0 unread', () => {
   test('findOrCreateUser then GET → unreadCount 0, throughDate===newest', async () => {
     const { app, db, kv, env } = setup()
-    const u = await findOrCreateUser(db, { SUPERADMIN_EMAIL: 'boss@example.com' } as never, { sub: 'g1', name: 'A' } as never, 'a@example.com')
+    const u = await findOrCreateUser(
+      db,
+      { SUPERADMIN_EMAIL: 'boss@example.com' } as never,
+      { sub: 'g1', name: 'A' } as never,
+      'a@example.com',
+    )
     const res = await app.request('/api/whats-new', { headers: await mintBearer(kv, u.id) }, env)
     const json = (await res.json()) as { unreadCount: number; throughDate: string }
     expect(json.unreadCount).toBe(0)
@@ -138,12 +159,22 @@ describe('B2 newuser.caughtUp — created through the real insert paths → 0 un
 describe('B3 relogin.noReset — the existing-user branch must not clear an existing watermark', () => {
   test('re-running findOrCreateUser leaves a mid watermark + unreadCount unchanged', async () => {
     const { app, db, kv, env } = setup()
-    const first = await findOrCreateUser(db, { SUPERADMIN_EMAIL: 'boss@example.com' } as never, { sub: 'g1', name: 'A' } as never, 'a@example.com')
+    const first = await findOrCreateUser(
+      db,
+      { SUPERADMIN_EMAIL: 'boss@example.com' } as never,
+      { sub: 'g1', name: 'A' } as never,
+      'a@example.com',
+    )
     // Simulate a user who has NOT caught up: roll their watermark back to a middle value.
     await db.update(users).set({ lastSeenReleaseAt: MID }).where(eq(users.id, first.id))
     const before = await getWatermark(db, first.id)
     // Re-login: same googleId/email → the existing-user branch (updates name/googleId only).
-    await findOrCreateUser(db, { SUPERADMIN_EMAIL: 'boss@example.com' } as never, { sub: 'g1', name: 'A2' } as never, 'a@example.com')
+    await findOrCreateUser(
+      db,
+      { SUPERADMIN_EMAIL: 'boss@example.com' } as never,
+      { sub: 'g1', name: 'A2' } as never,
+      'a@example.com',
+    )
     expect(await getWatermark(db, first.id)).toBe(before as string)
     const res = await app.request('/api/whats-new', { headers: await mintBearer(kv, first.id) }, env)
     expect(((await res.json()) as { unreadCount: number }).unreadCount).toBe(12)

@@ -43,12 +43,6 @@ export const requireSameOrigin = createMiddleware<AppEnv>(async (c, next) => {
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   const credential = await readCredential(c)
   if (!credential) return c.json({ error: 'unauthorized' }, 401)
-  // The KV session / D1 key lookup is a snapshot frozen for the token's life (30d cookie / 30d
-  // CLI / until the key is queried again). Re-resolve the live row each request so a deleted
-  // user is rejected (401) and a role/email change takes effect immediately — e.g. a demoted
-  // superadmin loses privilege now (requireSuperAdmin sees the fresh role) rather than at token
-  // expiry. Single indexed PK read; the viewer hot path reads readSessionOrBearer inline (not
-  // this middleware), so FCP is unaffected.
   const user = await getUserById(c.get('db'), credential.user.id)
   if (!user) return c.json({ error: 'unauthorized' }, 401)
   c.set('user', user)

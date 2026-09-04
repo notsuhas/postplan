@@ -69,13 +69,13 @@ export function Component() {
               /settings/keys
             </Link>
             , click <strong className="text-foreground">New key</strong>. Give it a name, an expiry (1, 7, 30, 90, 180,
-            or 365 days — the only durations Postplan will ever mint), and site access: either a set of sites you pick, or
-            every site you own. There's also an optional checkbox to let the key manage sites (deploy, create, fork) —
-            off by default.
+            or 365 days — the only durations Postplan will ever mint), and site access: either a set of sites you pick,
+            or every site you own. There's also an optional checkbox to let the key manage sites (deploy, create, fork)
+            — off by default.
           </p>
           <p>
-            The secret is shown <strong className="text-foreground">exactly once</strong>, right after creation. Postplan
-            stores only its hash — if you lose it, revoke it and mint a new one.
+            The secret is shown <strong className="text-foreground">exactly once</strong>, right after creation.
+            Postplan stores only its hash — if you lose it, revoke it and mint a new one.
           </p>
         </Section>
 
@@ -89,10 +89,10 @@ export function Component() {
             {`curl -fsSL ${origin}/api/install | sh\nexport POSTPLAN_TOKEN=glk_...\npostplan deploy ./my-site`}
           </CodeBlock>
           <p>
-            The CLI reads its target instance from <Code>~/.postplan/config.json</Code>, not from the key, so the install
-            step above matters on a fresh box. <Code>POSTPLAN_TOKEN</Code> is only honoured by commands that call the API
-            — <Code>postplan logout</Code> ignores it deliberately, so it always acts on your real session, not a key you
-            happen to have exported.
+            The CLI reads its target instance from <Code>~/.postplan/config.json</Code>, not from the key, so the
+            install step above matters on a fresh box. <Code>POSTPLAN_TOKEN</Code> is only honoured by commands that
+            call the API — <Code>postplan logout</Code> ignores it deliberately, so it always acts on your real session,
+            not a key you happen to have exported.
           </p>
         </Section>
 

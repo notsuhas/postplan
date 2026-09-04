@@ -67,11 +67,7 @@ describe('POST /api/auth/logout', () => {
     expect(await res.json()).toEqual({ ok: true })
     expect(kv.store.has(`cli:tok-${uid}`)).toBe(false)
 
-    const after = await app.request(
-      '/api/auth/me',
-      { headers: { Authorization: `Bearer tok-${uid}` } },
-      env,
-    )
+    const after = await app.request('/api/auth/me', { headers: { Authorization: `Bearer tok-${uid}` } }, env)
     expect(after.status).toBe(401)
   })
 

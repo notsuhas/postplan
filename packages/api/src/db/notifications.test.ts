@@ -162,8 +162,13 @@ describe('comment audience stays within D1 bind limits', () => {
 })
 
 describe('resolveCommentAudience tags each recipient with a reason (owner>participant>share)', () => {
-  const teamSite = (siteId: string, spaceId: string, ownerId: string) =>
-    ({ id: siteId, spaceId, ownerId, visibility: 'team' as const, status: 'active' as const })
+  const teamSite = (siteId: string, spaceId: string, ownerId: string) => ({
+    id: siteId,
+    spaceId,
+    ownerId,
+    visibility: 'team' as const,
+    status: 'active' as const,
+  })
 
   test('V3: reply tags owner/participant/share; a new (non-reply) thread emits no participant', async () => {
     const db = makeDb()

@@ -3,7 +3,17 @@ import { eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { files as filesTable, sites as sitesTable } from '../db/schema'
 import { requireSameOrigin } from '../middleware/auth'
-import { makeDb, makeKv, makeR2, seedFile, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
+import {
+  makeDb,
+  makeKv,
+  makeR2,
+  seedFile,
+  seedMember,
+  seedSite,
+  seedSpace,
+  seedUser,
+  seedUserShare,
+} from '../test/harness'
 import type { AppEnv } from '../types'
 import { sites } from './sites'
 
@@ -39,7 +49,14 @@ async function setup() {
   await seedUser(db, { id: 'owner', email: 'owner@e.com' })
   await seedSpace(db, { id: 'acme', slug: 'acme', createdBy: 'owner' })
   await seedMember(db, 'acme', 'owner')
-  const site = await seedSite(db, { id: 'site', spaceId: 'acme', ownerId: 'owner', slug: 'doc', visibility: 'team', title: 'Doc' })
+  const site = await seedSite(db, {
+    id: 'site',
+    spaceId: 'acme',
+    ownerId: 'owner',
+    slug: 'doc',
+    visibility: 'team',
+    title: 'Doc',
+  })
   await seedFile(db, r2, site, { path: 'index.html', text: '<h1>hi</h1>', mimeType: 'text/html' })
   await seedFile(db, r2, site, { path: 'a/style.css', text: 'body{}', mimeType: 'text/css' })
 
@@ -54,9 +71,18 @@ async function setup() {
   return { db, app, env, r2 }
 }
 
-const auth = (id: string) => ({ Authorization: `Bearer tok-${id}`, Origin: APP_URL, 'content-type': 'application/json' })
-const fork = (app: Hono<AppEnv>, env: AppEnv['Bindings'], id: string, body: unknown = {}, path = '/api/sites/acme/doc/fork') =>
-  app.request(path, { method: 'POST', headers: auth(id), body: JSON.stringify(body) }, env)
+const auth = (id: string) => ({
+  Authorization: `Bearer tok-${id}`,
+  Origin: APP_URL,
+  'content-type': 'application/json',
+})
+const fork = (
+  app: Hono<AppEnv>,
+  env: AppEnv['Bindings'],
+  id: string,
+  body: unknown = {},
+  path = '/api/sites/acme/doc/fork',
+) => app.request(path, { method: 'POST', headers: auth(id), body: JSON.stringify(body) }, env)
 
 describe('POST /api/sites/:space/:site/fork', () => {
   test('fork.reader.ok: a plain reader forks into their personal space; copy is independent', async () => {
@@ -76,7 +102,10 @@ describe('POST /api/sites/:space/:site/fork', () => {
     const copy = (await db.select().from(sitesTable).where(eq(sitesTable.slug, 'doc-copy')))[0]
 
     const src = await db.select().from(filesTable).where(eq(filesTable.siteId, 'site'))
-    const dst = await db.select().from(filesTable).where(eq(filesTable.siteId, copy?.id ?? ''))
+    const dst = await db
+      .select()
+      .from(filesTable)
+      .where(eq(filesTable.siteId, copy?.id ?? ''))
     expect(dst.map((f) => f.path).sort()).toEqual(['a/style.css', 'index.html'])
 
     // The invariant the whole design rests on: one R2 object, one file row.
@@ -103,14 +132,22 @@ describe('POST /api/sites/:space/:site/fork', () => {
     await db.run(sql`PRAGMA foreign_keys = ON`)
     await fork(app, env, 'rd')
     const copy = (await db.select().from(sitesTable).where(eq(sitesTable.slug, 'doc-copy')))[0]
-    const dst = await db.select().from(filesTable).where(eq(filesTable.siteId, copy?.id ?? ''))
+    const dst = await db
+      .select()
+      .from(filesTable)
+      .where(eq(filesTable.siteId, copy?.id ?? ''))
 
     const del = await app.request('/api/sites/acme/doc', { method: 'DELETE', headers: auth('owner') }, env)
     expect(del.status).toBe(200)
 
     for (const f of dst) expect(await r2.get(f.storageKey)).not.toBeNull()
     // forkedFrom is SET NULL on source delete — provenance is lost, the content is not.
-    const after = (await db.select().from(sitesTable).where(eq(sitesTable.id, copy?.id ?? '')))[0]
+    const after = (
+      await db
+        .select()
+        .from(sitesTable)
+        .where(eq(sitesTable.id, copy?.id ?? ''))
+    )[0]
     expect(after?.forkedFrom).toBeNull()
   })
 

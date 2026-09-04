@@ -117,7 +117,12 @@ describe('DELETE /api/spaces/:slug', () => {
 async function seedVisibilityFixture() {
   const ctx = await setup()
   const { db, kv } = ctx
-  for (const [id, role] of [['owner', 'member'], ['mem', 'member'], ['out', 'member'], ['admin', 'superadmin']] as const)
+  for (const [id, role] of [
+    ['owner', 'member'],
+    ['mem', 'member'],
+    ['out', 'member'],
+    ['admin', 'superadmin'],
+  ] as const)
     await mintUser(db, kv, id, { role })
   await seedSpace(db, { id: 'sp', createdBy: 'owner', slug: 'acme' })
   await seedMember(db, 'sp', 'owner')
@@ -127,7 +132,14 @@ async function seedVisibilityFixture() {
   await seedSite(db, { id: 'p1', spaceId: 'sp', ownerId: 'owner', slug: 'p1', visibility: 'private' })
   await seedSite(db, { id: 'p-shared', spaceId: 'sp', ownerId: 'owner', slug: 'p-shared', visibility: 'private' })
   await seedUserShare(db, 'p-shared', 'out', 'viewer')
-  await seedSite(db, { id: 'gone', spaceId: 'sp', ownerId: 'owner', slug: 'gone', visibility: 'team', status: 'archived' })
+  await seedSite(db, {
+    id: 'gone',
+    spaceId: 'sp',
+    ownerId: 'owner',
+    slug: 'gone',
+    visibility: 'team',
+    status: 'archived',
+  })
   await seedSpace(db, { id: 'grp', createdBy: 'owner', slug: 'grp' })
   await seedMember(db, 'grp', 'out')
   await seedSite(db, { id: 'g1', spaceId: 'sp', ownerId: 'owner', slug: 'g1', visibility: 'private' })

@@ -38,7 +38,13 @@ describe('buildThreadCreatedView — a just-created thread, via the SAME assembl
     const comment = (await commentByIdStmt(db, commentId))[0]!
 
     const view = buildThreadCreatedView(
-      { thread, creatorName: 'Author One', creatorEmail: 'author1@example.com', resolverName: null, resolverEmail: null },
+      {
+        thread,
+        creatorName: 'Author One',
+        creatorEmail: 'author1@example.com',
+        resolverName: null,
+        resolverEmail: null,
+      },
       { comment, authorName: 'Author One', authorEmail: 'author1@example.com' },
     )
 
@@ -99,7 +105,11 @@ describe('buildCommentCreatedView — a reply, via the SAME per-row mapping the 
     const commentId = await seedComment(db, { threadId, authorId: author, body: 'a reply' })
     const comment = (await commentByIdStmt(db, commentId))[0]!
 
-    const payload = buildCommentCreatedView(threadId, { comment, authorName: 'Author Two', authorEmail: 'author2@example.com' })
+    const payload = buildCommentCreatedView(threadId, {
+      comment,
+      authorName: 'Author Two',
+      authorEmail: 'author2@example.com',
+    })
 
     expect(payload).toEqual({
       threadId,
@@ -139,7 +149,13 @@ describe('C7 — no built payload carries a reactor id or a true `mine`, provabl
     const comment = (await commentByIdStmt(db, commentId))[0]!
 
     const view = buildThreadCreatedView(
-      { thread, creatorName: 'Author Three', creatorEmail: 'author3@example.com', resolverName: null, resolverEmail: null },
+      {
+        thread,
+        creatorName: 'Author Three',
+        creatorEmail: 'author3@example.com',
+        resolverName: null,
+        resolverEmail: null,
+      },
       { comment, authorName: 'Author Three', authorEmail: 'author3@example.com' },
     )
     const keys = keysDeep(view)
@@ -155,7 +171,11 @@ describe('C7 — no built payload carries a reactor id or a true `mine`, provabl
     const commentId = await seedComment(db, { threadId, authorId: author, body: 'a reply' })
     const comment = (await commentByIdStmt(db, commentId))[0]!
 
-    const payload = buildCommentCreatedView(threadId, { comment, authorName: 'Author Four', authorEmail: 'author4@example.com' })
+    const payload = buildCommentCreatedView(threadId, {
+      comment,
+      authorName: 'Author Four',
+      authorEmail: 'author4@example.com',
+    })
     const keys = keysDeep(payload)
     expect(keys).not.toContain('mine')
     expect(keys).not.toContain('userId')

@@ -16,10 +16,7 @@ const bodyOf = (init?: RequestInit): PostBody => JSON.parse(String(init?.body))
 
 /** A recording SLACK_FETCH: `lookups` maps email→id (returns users_not_found otherwise); `onPost`
  *  can override the postMessage response (throw / 429 / etc). Records every posted body. */
-function slackFetch(opts: {
-  lookups?: Record<string, string>
-  onPost?: (n: number) => Response
-} = {}) {
+function slackFetch(opts: { lookups?: Record<string, string>; onPost?: (n: number) => Response } = {}) {
   const posts: PostBody[] = []
   const lookupCalls: string[] = []
   let n = 0

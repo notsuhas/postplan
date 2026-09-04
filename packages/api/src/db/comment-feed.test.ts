@@ -27,9 +27,7 @@ import { foldSharedSiteRoles } from './repo'
 describe('migration 0012 — comments author index', () => {
   test('C1.1 comments_author_deleted_created has exactly (authorId, deletedAt, createdAt); comments_author is gone', async () => {
     const db = makeDb()
-    const cols = await db.all(
-      sql`SELECT name FROM pragma_index_info('comments_author_deleted_created') ORDER BY seqno`,
-    )
+    const cols = await db.all(sql`SELECT name FROM pragma_index_info('comments_author_deleted_created') ORDER BY seqno`)
     expect(cols).toEqual([{ name: 'authorId' }, { name: 'deletedAt' }, { name: 'createdAt' }])
     const old = await db.all(sql`SELECT name FROM pragma_index_list('comments') WHERE name = 'comments_author'`)
     expect(old).toEqual([])
@@ -389,10 +387,7 @@ describe('owned comment feed', () => {
       createdAt: '2026-07-12T11:00:00.000Z',
     })
 
-    const [owned, mentions] = await db.batch([
-      ownedCandidatesStmt(db, ownerId),
-      mentionCandidatesStmt(db, ownerId),
-    ])
+    const [owned, mentions] = await db.batch([ownedCandidatesStmt(db, ownerId), mentionCandidatesStmt(db, ownerId)])
     const result = assembleCommentFeed({
       authored: [],
       mentions,
@@ -491,10 +486,7 @@ describe('owned comment feed', () => {
       })
     }
 
-    const [authored, owned] = await db.batch([
-      authoredCandidatesStmt(db, ownerId),
-      ownedCandidatesStmt(db, ownerId),
-    ])
+    const [authored, owned] = await db.batch([authoredCandidatesStmt(db, ownerId), ownedCandidatesStmt(db, ownerId)])
     const result = assembleCommentFeed({
       authored,
       mentions: [],
@@ -647,11 +639,7 @@ describe('assembleCommentFeed', () => {
     })
     expect(superadminResult).toEqual([])
 
-    expect(plainUserResult.map((row) => row.id).sort()).toEqual([
-      'members-member',
-      'private-direct',
-      'private-group',
-    ])
+    expect(plainUserResult.map((row) => row.id).sort()).toEqual(['members-member', 'private-direct', 'private-group'])
   })
 
   test('C3.3 limits the feed to the newest 50 with rowid breaking the boundary tie', () => {

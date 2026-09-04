@@ -69,9 +69,7 @@ function InviteMembersDialog({ slug }: { slug: string }) {
     setSaving(true)
     try {
       const picks = [...selected]
-      const results = await Promise.allSettled(
-        picks.map((email) => api.post(`/api/spaces/${slug}/members`, { email })),
-      )
+      const results = await Promise.allSettled(picks.map((email) => api.post(`/api/spaces/${slug}/members`, { email })))
       const rejects = results.flatMap((r, i) =>
         r.status === 'rejected' ? [{ email: picks[i], reason: r.reason }] : [],
       )
@@ -137,9 +135,7 @@ function InviteMembersDialog({ slug }: { slug: string }) {
 // Same table shell as the dashboard feeds; owners get a Share action on their own rows.
 const SPACE_SITE_COLUMNS = feedColumns<SpaceSite>((s) => (
   <CopyOpenActions url={s.url}>
-    {s.isOwner && (
-      <ShareDialog spaceSlug={s.spaceSlug} siteSlug={s.siteSlug} title={s.title} triggerLabel="Share" />
-    )}
+    {s.isOwner && <ShareDialog spaceSlug={s.spaceSlug} siteSlug={s.siteSlug} title={s.title} triggerLabel="Share" />}
   </CopyOpenActions>
 ))
 
@@ -207,11 +203,7 @@ export function Component() {
       <section className="space-y-4">
         <SectionHeader index={1} title="Sites" />
         {sites.length === 0 ? (
-          <EmptyState
-            icon={ExternalLink}
-            title="No sites yet"
-            description="No sites you can access here yet."
-          />
+          <EmptyState icon={ExternalLink} title="No sites yet" description="No sites you can access here yet." />
         ) : (
           <SortableTable
             rows={sites}

@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": [
+    "packages/api/src/index.ts",
+    "packages/api/src/content.ts",
+    "packages/api/src/annotate/client.css",
+    "packages/api/src/postplandb/client.ts",
+    "packages/api/src/**/*.test.ts",
+    "packages/api/scripts/*.ts",
+    "packages/api/themes/*.css",
+    "packages/api/drizzle.config.ts",
+    "packages/web/src/main.tsx",
+    "packages/web/src/**/*.test.ts",
+    "packages/web/src/**/*.test.tsx",
+    "packages/web/vite.config.ts"
+  ],
+  "workspaces": {
+    "patterns": ["packages/api", "packages/web"]
+  },
+  "ignoreExports": [
+    { "file": "packages/web/src/components/ui/*", "exports": ["*"] },
+    { "file": "packages/web/src/routes/*", "exports": ["*"] }
+  ]
+}

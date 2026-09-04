@@ -31,7 +31,9 @@ dialog.postplan-lb > div {
 }
 dialog.postplan-lb svg {
   display: block;
+  /* biome-ignore lint/complexity/noImportantStyles: Host page styles must not resize the lightbox image. */
   width: 100% !important;
+  /* biome-ignore lint/complexity/noImportantStyles: Host page styles must not constrain the lightbox image. */
   max-width: none !important;
   height: auto;
   max-height: 84vh;

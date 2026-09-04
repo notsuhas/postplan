@@ -3,8 +3,8 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"postplan/internal/argparse"
 	"io"
+	"postplan/internal/argparse"
 	"strings"
 	"time"
 )

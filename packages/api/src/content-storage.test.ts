@@ -17,7 +17,15 @@ type Setup = ReturnType<typeof setup>
 function ops(s: Setup) {
   const o = s.r2.ops()
   const c = s.caches.counters
-  return { full: o.full, ranged: o.ranged, head: o.head, matches: c.matches, puts: c.puts, hits: c.hits, misses: c.misses }
+  return {
+    full: o.full,
+    ranged: o.ranged,
+    head: o.head,
+    matches: c.matches,
+    puts: c.puts,
+    hits: c.hits,
+    misses: c.misses,
+  }
 }
 type Ops = ReturnType<typeof ops>
 const diff = (before: Ops, after: Ops): Ops =>

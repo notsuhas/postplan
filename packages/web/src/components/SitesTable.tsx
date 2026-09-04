@@ -298,29 +298,25 @@ function MoveDialog({
   const [spaces, setSpaces] = useState<SpaceSummary[]>([])
   const [target, setTarget] = useState('')
 
-  const loadOnMount = useCallback(
-    () => {
-      setTarget('')
-      setBusy(true)
-      api
-        .get<SpaceSummary[]>('/api/spaces/mine')
-        .then((sp) => setSpaces(sp.filter((s) => s.slug !== site.spaceSlug)))
-        .catch((err) =>
-          toast.error('Could not load spaces', { description: err instanceof Error ? err.message : undefined }),
-        )
-        .finally(() => setBusy(false))
-    },
-    [site.spaceSlug],
-  )
+  const loadOnMount = useCallback(() => {
+    setTarget('')
+    setBusy(true)
+    api
+      .get<SpaceSummary[]>('/api/spaces/mine')
+      .then((sp) => setSpaces(sp.filter((s) => s.slug !== site.spaceSlug)))
+      .catch((err) =>
+        toast.error('Could not load spaces', { description: err instanceof Error ? err.message : undefined }),
+      )
+      .finally(() => setBusy(false))
+  }, [site.spaceSlug])
 
   async function save() {
     if (!target) return
     setSaving(true)
     try {
-      const { url } = await api.post<{ url: string }>(
-        `/api/sites/${site.spaceSlug}/${site.siteSlug}/move`,
-        { space: target },
-      )
+      const { url } = await api.post<{ url: string }>(`/api/sites/${site.spaceSlug}/${site.siteSlug}/move`, {
+        space: target,
+      })
       toast.success('Site moved', { description: url })
       onOpenChange(false)
       onDone()

@@ -26,7 +26,10 @@ describe('parseIntent', () => {
     const match = anchorSrc.match(/TEXT_CONTEXT_LIMIT\s*=\s*(\d+)/)
     if (!match) throw new Error(`could not find TEXT_CONTEXT_LIMIT in ${anchorPath}`)
     const apiLimit = Number(match[1])
-    expect(MAX_CONTEXT, `MAX_CONTEXT (parseIntent.ts) = ${MAX_CONTEXT} must equal TEXT_CONTEXT_LIMIT (${anchorPath}) = ${apiLimit}`).toBe(apiLimit)
+    expect(
+      MAX_CONTEXT,
+      `MAX_CONTEXT (parseIntent.ts) = ${MAX_CONTEXT} must equal TEXT_CONTEXT_LIMIT (${anchorPath}) = ${apiLimit}`,
+    ).toBe(apiLimit)
   })
 
   test('parseintent-rejects-wrong-origin', () => {
@@ -100,7 +103,10 @@ describe('parseIntent', () => {
   })
 
   test('parseintent-carries-occurrence-context', () => {
-    const res = parseIntent(ev({ data: { ...validSelect, context: { prefix: 'lead in ', suffix: ' tail' } } }), expected)
+    const res = parseIntent(
+      ev({ data: { ...validSelect, context: { prefix: 'lead in ', suffix: ' tail' } } }),
+      expected,
+    )
     expect(res).toMatchObject({ type: 'select', context: { prefix: 'lead in ', suffix: ' tail' } })
   })
 
@@ -138,15 +144,35 @@ describe('parseIntent', () => {
   // postplan:pinpoint message, well-formed or not, parses to null now.
   test('a postplan:pinpoint message (a stale cached bundle) is ignored, not parsed', () => {
     expect(
-      parseIntent(ev({ data: { type: 'postplan:pinpoint', selector: '#chart > svg', tag: 'svg', preview: 'Bar chart', textFallback: 'Revenue' } }), expected),
+      parseIntent(
+        ev({
+          data: {
+            type: 'postplan:pinpoint',
+            selector: '#chart > svg',
+            tag: 'svg',
+            preview: 'Bar chart',
+            textFallback: 'Revenue',
+          },
+        }),
+        expected,
+      ),
     ).toBeNull()
-    expect(parseIntent(ev({ data: { type: 'postplan:pinpoint', selector: '#x', rect: { top: 1, left: 2, width: 3, height: 4 } } }), expected)).toBeNull()
+    expect(
+      parseIntent(
+        ev({ data: { type: 'postplan:pinpoint', selector: '#x', rect: { top: 1, left: 2, width: 3, height: 4 } } }),
+        expected,
+      ),
+    ).toBeNull()
     expect(parseIntent(ev({ data: { type: 'postplan:pinpoint', tag: 'svg' } }), expected)).toBeNull()
   })
 
   // The page→rail click. `id` is a thread id the parent looks up in its OWN loaded threads, so the
   // filter's whole job is shape: a string, non-empty, within the field cap.
-  const anchorClick = (over: Record<string, unknown> = {}) => ({ type: 'postplan:anchor-click', id: 'thread-1', ...over })
+  const anchorClick = (over: Record<string, unknown> = {}) => ({
+    type: 'postplan:anchor-click',
+    id: 'thread-1',
+    ...over,
+  })
 
   test('parses a well-formed anchor-click', () => {
     expect(parseIntent(ev({ data: anchorClick() }), expected)).toEqual({ type: 'anchorClick', id: 'thread-1' })
@@ -163,13 +189,14 @@ describe('parseIntent', () => {
   // id arriving from the hostile iframe — so the cap stays load-bearing, not just present.
   test('an over-cap id is rejected, not silently accepted at full length', () => {
     expect(parseIntent(ev({ data: anchorClick({ id: 'x'.repeat(2001) }) }), expected)).toBeNull()
-    expect(parseIntent(ev({ data: anchorClick({ id: 'x'.repeat(2000) }) }), expected)).toMatchObject({ type: 'anchorClick' })
+    expect(parseIntent(ev({ data: anchorClick({ id: 'x'.repeat(2000) }) }), expected)).toMatchObject({
+      type: 'anchorClick',
+    })
   })
 
   test('anchor-click is rejected on a wrong origin, like every other intent', () => {
     expect(parseIntent(ev({ origin: 'https://evil.com', data: anchorClick() }), expected)).toBeNull()
   })
-
 
   test('accepts a ready handshake; missing source check is skippable', () => {
     expect(parseIntent(ev({ data: { type: 'postplan:ready', filePath: 'index.html' } }), expected)).toEqual({

@@ -94,11 +94,7 @@ export function ReviewRail({
       setRailWidth(clampRailWidth(startWidth + (startX - ev.clientX), window.innerWidth))
     const target = e.currentTarget
     target.addEventListener('pointermove', onMove)
-    target.addEventListener(
-      'pointerup',
-      () => target.removeEventListener('pointermove', onMove),
-      { once: true },
-    )
+    target.addEventListener('pointerup', () => target.removeEventListener('pointermove', onMove), { once: true })
   }
 
   const active = useMemo(() => threads.filter((t) => t.status === filter).sort(byUpdatedDesc), [threads, filter])
@@ -202,7 +198,11 @@ export function ReviewRail({
             onSubmit={onCreate}
             onSubmitVoice={onCreateVoice}
             onCancel={onCancelComposer}
-            timestampButton={getCurrentTime ? { label: 'Insert timestamp', getPrefix: () => timestampPrefix(getCurrentTime()) } : undefined}
+            timestampButton={
+              getCurrentTime
+                ? { label: 'Insert timestamp', getPrefix: () => timestampPrefix(getCurrentTime()) }
+                : undefined
+            }
           />
         </div>
       ) : (
@@ -222,7 +222,9 @@ export function ReviewRail({
             onClick={() => setFilter(f)}
             className={cn(
               'rounded-md px-2.5 py-1 text-xs capitalize transition-colors',
-              filter === f ? 'bg-foreground/10 font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
+              filter === f
+                ? 'bg-foreground/10 font-medium text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {f}

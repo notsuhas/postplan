@@ -1,13 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  makeDb,
-  seedGroupShare,
-  seedMember,
-  seedSite,
-  seedSpace,
-  seedUser,
-  seedUserShare,
-} from '../test/harness'
+import { makeDb, seedGroupShare, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
 import { listMentionableUsers } from './repo'
 
 // listMentionableUsers must return EXACTLY the set checkAccess would admit, per visibility tier —
@@ -34,7 +26,13 @@ describe('C5 — private: owner + user-shares + group-share members only (plain 
     await seedMember(db, grp, groupMember)
     await seedGroupShare(db, site, grp)
 
-    const site_ = { id: site, spaceId: space, visibility: 'private' as const, ownerId: owner, status: 'active' as const }
+    const site_ = {
+      id: site,
+      spaceId: space,
+      visibility: 'private' as const,
+      ownerId: owner,
+      status: 'active' as const,
+    }
     const got = ids(await listMentionableUsers(db, site_, caller))
     expect(got).toEqual(new Set([owner, shared, groupMember]))
     expect(got.has(plainSpaceMember)).toBe(false)
@@ -55,7 +53,13 @@ describe('C6 — members: adds the site space members', () => {
     await seedMember(db, space, spaceMember)
     const site = await seedSite(db, { spaceId: space, ownerId: owner, visibility: 'members' })
 
-    const site_ = { id: site, spaceId: space, visibility: 'members' as const, ownerId: owner, status: 'active' as const }
+    const site_ = {
+      id: site,
+      spaceId: space,
+      visibility: 'members' as const,
+      ownerId: owner,
+      status: 'active' as const,
+    }
     const got = ids(await listMentionableUsers(db, site_, caller))
     expect(got).toEqual(new Set([owner, spaceMember]))
     expect(got.has(stranger)).toBe(false)

@@ -184,11 +184,20 @@ describe('T8.2 — no IN() bind cap; ordering survives the join', () => {
     await seedThread(db, { id: 't-a', siteId, filePath: 'a.html', anchorType: 'page' }) // rowid 2
     await seedThread(db, { id: 't-b-early', siteId, filePath: 'b.html', anchorType: 'page' }) // rowid 3
     await seedThread(db, { id: 't-b-tie', siteId, filePath: 'b.html', anchorType: 'page' }) // rowid 4
-    await db.update(commentThreads).set({ createdAt: '2026-01-05T00:00:00.000Z' }).where(eq(commentThreads.id, 't-b-late'))
+    await db
+      .update(commentThreads)
+      .set({ createdAt: '2026-01-05T00:00:00.000Z' })
+      .where(eq(commentThreads.id, 't-b-late'))
     await db.update(commentThreads).set({ createdAt: '2026-01-09T00:00:00.000Z' }).where(eq(commentThreads.id, 't-a'))
-    await db.update(commentThreads).set({ createdAt: '2026-01-01T00:00:00.000Z' }).where(eq(commentThreads.id, 't-b-early'))
+    await db
+      .update(commentThreads)
+      .set({ createdAt: '2026-01-01T00:00:00.000Z' })
+      .where(eq(commentThreads.id, 't-b-early'))
     // Ties t-b-late on createdAt; inserted later → rowid puts it AFTER.
-    await db.update(commentThreads).set({ createdAt: '2026-01-05T00:00:00.000Z' }).where(eq(commentThreads.id, 't-b-tie'))
+    await db
+      .update(commentThreads)
+      .set({ createdAt: '2026-01-05T00:00:00.000Z' })
+      .where(eq(commentThreads.id, 't-b-tie'))
     // Two comments in the SAME thread with EQUAL createdAt → insertion (rowid) order.
     const ts = '2026-01-09T12:00:00.000Z'
     await seedComment(db, { threadId: 't-a', body: 'first inserted', createdAt: ts })

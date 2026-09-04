@@ -1,7 +1,17 @@
 import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import { requireSameOrigin } from '../middleware/auth'
-import { makeDb, makeKv, makeR2, seedFile, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
+import {
+  makeDb,
+  makeKv,
+  makeR2,
+  seedFile,
+  seedMember,
+  seedSite,
+  seedSpace,
+  seedUser,
+  seedUserShare,
+} from '../test/harness'
 import type { AppEnv } from '../types'
 import { sites } from './sites'
 
@@ -15,7 +25,14 @@ async function setup() {
   const db = makeDb()
   const kv = makeKv()
   const r2 = makeR2()
-  const env = { APP_URL, SESSION_SECRET: 's', CONTENT_URL: 'https://content.example.com', CONTENT_TOKEN_SECRET: 'ct', POSTPLAN_SESSIONS: kv, POSTPLAN_FILES: r2 } as unknown as AppEnv['Bindings']
+  const env = {
+    APP_URL,
+    SESSION_SECRET: 's',
+    CONTENT_URL: 'https://content.example.com',
+    CONTENT_TOKEN_SECRET: 'ct',
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
+  } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {
@@ -30,7 +47,10 @@ async function setup() {
   const site = await seedSite(db, { id: 'site', spaceId: 'acme', ownerId: 'owner', slug: 'doc', visibility: 'team' })
   await seedFile(db, r2, site, { path: 'index.html', text: '<h1>hi</h1>' })
   await seedFile(db, r2, site, { path: 'about.md', text: '# about' })
-  for (const [id, role] of [['ed', 'editor'], ['vw', 'viewer']] as const) {
+  for (const [id, role] of [
+    ['ed', 'editor'],
+    ['vw', 'viewer'],
+  ] as const) {
     await seedUser(db, { id, email: `${id}@e.com` })
     await seedUserShare(db, site, id, role) // ed/vw are NOT space members
   }

@@ -123,11 +123,16 @@ describe('paintAnchors — which threads the viewer paints into the iframe, and 
     }
     // Exhaustive, not just a denylist: the payload IS the locator and nothing more, so a future
     // field added to Thread can't ride along unnoticed.
-    expect(paintAnchors(threads)).toEqual([{ id: 't1', anchorType: 'text', quote: 'the quick brown fox', context: null }])
+    expect(paintAnchors(threads)).toEqual([
+      { id: 't1', anchorType: 'text', quote: 'the quick brown fox', context: null },
+    ])
   })
 
   test('a text thread with no quote, or an element thread with no anchor, is dropped rather than painted empty', () => {
-    const threads = [mkThread({ id: 't1', anchorType: 'text', quote: null }), mkThread({ id: 't2', anchorType: 'element', anchor: null })]
+    const threads = [
+      mkThread({ id: 't1', anchorType: 'text', quote: null }),
+      mkThread({ id: 't2', anchorType: 'element', anchor: null }),
+    ]
     expect(paintAnchors(threads)).toEqual([])
   })
 })

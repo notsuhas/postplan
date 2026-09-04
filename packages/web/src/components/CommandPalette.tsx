@@ -1,6 +1,17 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { Copy, ExternalLink, Folder, History, LayoutDashboard, LogOut, Plus, Shield, SunMoon, Terminal } from 'lucide-react'
+import {
+  Copy,
+  ExternalLink,
+  Folder,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Plus,
+  Shield,
+  SunMoon,
+  Terminal,
+} from 'lucide-react'
 import {
   CommandDialog,
   CommandEmpty,

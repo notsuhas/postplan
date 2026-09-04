@@ -36,7 +36,7 @@ function reachableFrom(entry: string): Set<string> {
   return seen
 }
 
-describe('CW1 content worker does not bake in the What\'s New catalog', () => {
+describe("CW1 content worker does not bake in the What's New catalog", () => {
   test('src/content.ts cannot transitively reach whats-new/catalog.ts', () => {
     const reachable = reachableFrom(join(SRC, 'content.ts'))
     const catalog = join(SRC, 'whats-new', 'catalog.ts')

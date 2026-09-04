@@ -230,11 +230,7 @@ export function ApiKeyDialog({
               {/* The capability CEILING. The server intersects it with the caller's own access
                   (dataCapsFor), so picking Full access on a site you only view still mints
                   read+create — this control can narrow, never widen. */}
-              <Select
-                value={dataLevel}
-                onValueChange={(v) => setDataLevel(v as DataLevel)}
-                disabled={minting}
-              >
+              <Select value={dataLevel} onValueChange={(v) => setDataLevel(v as DataLevel)} disabled={minting}>
                 <SelectTrigger id="key-data-level" className="w-full">
                   <SelectValue />
                 </SelectTrigger>

@@ -2,14 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { siteSummaries, sites } from '../db/schema'
 import { PROMPT_VERSION, WORKERS_MODEL } from '../lib/summarize'
 import { auth, makeRouteApp, mintUser, type RouteApp } from '../test/route-fixtures'
-import {
-  seedFile,
-  seedGroupShare,
-  seedMember,
-  seedSite,
-  seedSpace,
-  seedUserShare,
-} from '../test/harness'
+import { seedFile, seedGroupShare, seedMember, seedSite, seedSpace, seedUserShare } from '../test/harness'
 import type { AppEnv } from '../types'
 import { eq } from 'drizzle-orm'
 
@@ -41,20 +34,14 @@ async function seedApp(userId: string, siteOverrides: Partial<typeof sites.$infe
   return { ...route, user, spaceId, siteId }
 }
 
-const countingAi = (
-  response: string,
-  onCall: (model: unknown, input: unknown) => void = () => {},
-) => ({
+const countingAi = (response: string, onCall: (model: unknown, input: unknown) => void = () => {}) => ({
   run: async (model: unknown, input: unknown) => {
     onCall(model, input)
     return { response }
   },
 })
 
-const countingLimiter = (
-  success: boolean,
-  onCall: (input: { key: string }) => void = () => {},
-) => ({
+const countingLimiter = (success: boolean, onCall: (input: { key: string }) => void = () => {}) => ({
   limit: async (input: { key: string }) => {
     onCall(input)
     return { success }
@@ -88,10 +75,7 @@ describe('site summary routes', () => {
         })
       }
 
-      const requestEnv = bindings(
-        env,
-        scenario.provider ? { AI: countingAi('unused') } : {},
-      )
+      const requestEnv = bindings(env, scenario.provider ? { AI: countingAi('unused') } : {})
       const response = await app.request(url, { headers: auth(owner) }, requestEnv)
       expect(response.status, scenario.name).toBe(200)
 
@@ -129,11 +113,7 @@ describe('site summary routes', () => {
       SUMMARY_LIMITER: okLimiter,
     })
 
-    const response = await app.request(
-      url,
-      { method: 'POST', headers: auth(poster), body: '{}' },
-      requestEnv,
-    )
+    const response = await app.request(url, { method: 'POST', headers: auth(poster), body: '{}' }, requestEnv)
     expect(response.status).toBe(200)
     expect(calls).toHaveLength(1)
     expect(calls[0].model).toBe(WORKERS_MODEL)
@@ -363,7 +343,11 @@ describe('site summary routes', () => {
       {
         name: 'multi-file without root index',
         expectedR2: 0,
-        seed: async (db: ReturnType<typeof makeRouteApp>['db'], r2: ReturnType<typeof makeRouteApp>['r2'], siteId: string) => {
+        seed: async (
+          db: ReturnType<typeof makeRouteApp>['db'],
+          r2: ReturnType<typeof makeRouteApp>['r2'],
+          siteId: string,
+        ) => {
           await seedFile(db, r2, siteId, { path: 'about.html', text: '<p>about</p>' })
           await seedFile(db, r2, siteId, { path: 'docs/index.html', text: '<p>docs</p>' })
         },
@@ -371,14 +355,22 @@ describe('site summary routes', () => {
       {
         name: 'unsupported root entry',
         expectedR2: 0,
-        seed: async (db: ReturnType<typeof makeRouteApp>['db'], r2: ReturnType<typeof makeRouteApp>['r2'], siteId: string) => {
+        seed: async (
+          db: ReturnType<typeof makeRouteApp>['db'],
+          r2: ReturnType<typeof makeRouteApp>['r2'],
+          siteId: string,
+        ) => {
           await seedFile(db, r2, siteId, { path: 'app.js', mimeType: 'text/javascript', text: 'alert(1)' })
         },
       },
       {
         name: 'missing R2 object',
         expectedR2: 1,
-        seed: async (db: ReturnType<typeof makeRouteApp>['db'], _r2: ReturnType<typeof makeRouteApp>['r2'], siteId: string) => {
+        seed: async (
+          db: ReturnType<typeof makeRouteApp>['db'],
+          _r2: ReturnType<typeof makeRouteApp>['r2'],
+          siteId: string,
+        ) => {
           await seedFile(db, null, siteId, { path: 'index.html', text: '<p>missing</p>' })
         },
       },
@@ -396,11 +388,7 @@ describe('site summary routes', () => {
       })
       const r2Before = route.r2.gets()
 
-      const response = await route.app.request(
-        url,
-        { method: 'POST', headers: auth(poster), body: '{}' },
-        requestEnv,
-      )
+      const response = await route.app.request(url, { method: 'POST', headers: auth(poster), body: '{}' }, requestEnv)
       expect(response.status, scenario.name).toBe(422)
       expect(await response.json(), scenario.name).toEqual({ error: 'nothing to summarize' })
       expect(route.r2.gets() - r2Before, scenario.name).toBe(scenario.expectedR2)
@@ -441,11 +429,7 @@ describe('site summary routes', () => {
       AI: { run: async () => Promise.reject(new Error('provider down')) },
       SUMMARY_LIMITER: okLimiter,
     })
-    const failed = await cold.app.request(
-      url,
-      { method: 'POST', headers: auth(coldPoster), body: '{}' },
-      coldEnv,
-    )
+    const failed = await cold.app.request(url, { method: 'POST', headers: auth(coldPoster), body: '{}' }, coldEnv)
     expect(failed.status).toBe(502)
     expect(await failed.json()).toEqual({ error: 'generation failed', retryable: true })
     expect(await cold.db.$count(siteSummaries)).toBe(0)
@@ -465,11 +449,7 @@ describe('site summary routes', () => {
     })
     const r2Before = cold.r2.gets()
     cold.db.resetCounters()
-    const denied = await cold.app.request(
-      url,
-      { method: 'POST', headers: auth(poster), body: '{}' },
-      deniedEnv,
-    )
+    const denied = await cold.app.request(url, { method: 'POST', headers: auth(poster), body: '{}' }, deniedEnv)
     expect(denied.status).toBe(429)
     expect(await denied.json()).toEqual({ error: 'rate limited' })
     expect(keys).toEqual([poster])
@@ -519,11 +499,7 @@ describe('site summary routes', () => {
         truncated: false,
       },
     })
-    const regenerated = await route.app.request(
-      url,
-      { method: 'POST', headers: auth(poster), body: '{}' },
-      requestEnv,
-    )
+    const regenerated = await route.app.request(url, { method: 'POST', headers: auth(poster), body: '{}' }, requestEnv)
     const regeneratedBody = (await regenerated.json()) as { meta: { forVersion: number }; stale: boolean }
     expect(regenerated.status).toBe(200)
     expect(regeneratedBody.meta.forVersion).toBe(1)
@@ -546,11 +522,7 @@ describe('site summary routes', () => {
 
     const stale = await route.app.request(url, { headers: auth(poster) }, requestEnv)
     expect((await stale.json()).stale).toBe(true)
-    const regenerated = await route.app.request(
-      url,
-      { method: 'POST', headers: auth(poster), body: '{}' },
-      requestEnv,
-    )
+    const regenerated = await route.app.request(url, { method: 'POST', headers: auth(poster), body: '{}' }, requestEnv)
     expect(regenerated.status).toBe(200)
     const [stored] = await route.db.select().from(siteSummaries).where(eq(siteSummaries.siteId, siteId))
     expect(stored.promptVersion).toBe(PROMPT_VERSION)
@@ -657,11 +629,7 @@ describe('site summary routes', () => {
       SUMMARY_LIMITER: okLimiter,
     })
 
-    const pending = route.app.request(
-      url,
-      { method: 'POST', headers: auth(poster), body: '{}' },
-      requestEnv,
-    )
+    const pending = route.app.request(url, { method: 'POST', headers: auth(poster), body: '{}' }, requestEnv)
     await aiEntered
     await route.db.update(sites).set({ contentVersion: 5 }).where(eq(sites.id, siteId))
     release()
@@ -669,14 +637,22 @@ describe('site summary routes', () => {
     expect(generated.status).toBe(200)
     // The POST's own response already reports the post-generation truth: the row it stored is
     // v4 but the site moved to v5 mid-flight, so the response must not suppress the stale banner.
-    const generatedBody = (await generated.json()) as { stale: boolean; currentVersion: number; meta: { forVersion: number } }
+    const generatedBody = (await generated.json()) as {
+      stale: boolean
+      currentVersion: number
+      meta: { forVersion: number }
+    }
     expect(generatedBody.stale).toBe(true)
     expect(generatedBody.currentVersion).toBe(5)
     expect(generatedBody.meta.forVersion).toBe(4)
     const [stored] = await route.db.select().from(siteSummaries).where(eq(siteSummaries.siteId, siteId))
     expect(stored.contentVersion).toBe(4)
     const followUp = await route.app.request(url, { headers: auth(poster) }, requestEnv)
-    const followUpBody = (await followUp.json()) as { stale: boolean; currentVersion: number; meta: { forVersion: number } }
+    const followUpBody = (await followUp.json()) as {
+      stale: boolean
+      currentVersion: number
+      meta: { forVersion: number }
+    }
     expect(followUpBody.stale).toBe(true)
     expect(followUpBody.currentVersion).toBe(5)
     expect(followUpBody.meta.forVersion).toBe(4)

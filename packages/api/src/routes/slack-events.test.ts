@@ -38,7 +38,12 @@ function slackFetch(emails: Record<string, string> = {}) {
 /** The production-shaped fixture env plus the two Slack secrets; `extra` overrides either (or
  *  injects the recording SLACK_FETCH). */
 const envWith = (env: AppEnv['Bindings'], extra: Record<string, unknown>) =>
-  ({ ...env, SLACK_BOT_TOKEN: 'xoxb-test', SLACK_SIGNING_SECRET: TEST_SIGNING_KEY, ...extra }) as unknown as AppEnv['Bindings']
+  ({
+    ...env,
+    SLACK_BOT_TOKEN: 'xoxb-test',
+    SLACK_SIGNING_SECRET: TEST_SIGNING_KEY,
+    ...extra,
+  }) as unknown as AppEnv['Bindings']
 
 async function post(
   app: ReturnType<typeof makeRouteApp>['app'],
@@ -219,7 +224,7 @@ describe('POST /api/slack/events — link_shared', () => {
     expect(unfurls).toHaveLength(0)
   })
 
-  test("a mixed-case Slack profile email still matches the (lowercase-canonical) Postplan account", async () => {
+  test('a mixed-case Slack profile email still matches the (lowercase-canonical) Postplan account', async () => {
     const world = await seedWorld()
     const { fetchImpl, unfurls } = slackFetch({ Usharer: 'Sharer@X.Com' })
     await post(world.app, envWith(world.env, { SLACK_FETCH: fetchImpl }), linkShared([`${APP_URL}/acme/report`]))

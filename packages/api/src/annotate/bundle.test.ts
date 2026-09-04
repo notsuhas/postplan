@@ -38,7 +38,10 @@ describe('the committed annotate bundle matches its source', () => {
 
   test('ANNOTATE_VERSION is the hash of the bytes actually being served — the cache-buster cannot lag', async () => {
     const js = await buildClient()
-    const expected = new Bun.CryptoHasher('sha256').update(js + ANNOTATE_CSS).digest('hex').slice(0, 8)
+    const expected = new Bun.CryptoHasher('sha256')
+      .update(js + ANNOTATE_CSS)
+      .digest('hex')
+      .slice(0, 8)
     expect(ANNOTATE_VERSION).toBe(expected)
   })
 })

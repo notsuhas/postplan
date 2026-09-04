@@ -13,7 +13,10 @@ const THREADS = [t('t1'), t('t2')]
 const NEWER = [t('t3')]
 
 // Drive a sequence of events, returning the final state + every decision in order.
-function run(expected: string | null, events: ArbiterEvent[]): { state: ArbiterState; decisions: StepResult['decision'][] } {
+function run(
+  expected: string | null,
+  events: ArbiterEvent[],
+): { state: ArbiterState; decisions: StepResult['decision'][] } {
   let state = initialArbiter(expected)
   const decisions: StepResult['decision'][] = []
   for (const e of events) {

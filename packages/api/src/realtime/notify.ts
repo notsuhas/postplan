@@ -33,7 +33,10 @@ export async function notifyChange<E extends Env & { Bindings: Bindings }>(
   e: ChangeEvent | undefined,
 ): Promise<void> {
   if (!e) return
-  await fireAndForget(c, post(c.env, 'broadcast', e).catch(() => {}))
+  await fireAndForget(
+    c,
+    post(c.env, 'broadcast', e).catch(() => {}),
+  )
 }
 
 /** Hand one comment event to the fan-out — the comment-channel analog of `notifyChange`. Same DO,
@@ -44,5 +47,8 @@ export async function notifyCommentEvent<E extends Env & { Bindings: Bindings }>
   e: CommentEvent | undefined,
 ): Promise<void> {
   if (!e) return
-  await fireAndForget(c, post(c.env, 'broadcast-comment', e).catch(() => {}))
+  await fireAndForget(
+    c,
+    post(c.env, 'broadcast-comment', e).catch(() => {}),
+  )
 }

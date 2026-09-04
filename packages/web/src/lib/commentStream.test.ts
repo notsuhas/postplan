@@ -40,7 +40,12 @@ function makeStream(o: { onEvent?: (e: unknown) => void; onReconnect?: () => voi
   const events: unknown[] = []
   const reconnects: number[] = []
   const stream = createCommentStream(
-    { site: SITE, appOrigin: APP, onEvent: o.onEvent ?? ((e) => events.push(e)), onReconnect: o.onReconnect ?? (() => reconnects.push(1)) },
+    {
+      site: SITE,
+      appOrigin: APP,
+      onEvent: o.onEvent ?? ((e) => events.push(e)),
+      onReconnect: o.onReconnect ?? (() => reconnects.push(1)),
+    },
     {
       newSocket: (url, protocols) => {
         const s = new FakeSocket(url, protocols)
@@ -274,7 +279,12 @@ describe('createCommentStream', () => {
   })
 
   test('a throwing onReconnect does not stop redials from continuing to happen', async () => {
-    const { sockets } = makeStream({ reconnectMs: 5, onReconnect: () => { throw new Error('consumer bug') } })
+    const { sockets } = makeStream({
+      reconnectMs: 5,
+      onReconnect: () => {
+        throw new Error('consumer bug')
+      },
+    })
     sockets[0].onclose?.()
     const s2 = await until('first redial', () => sockets[1])
     expect(() => s2.onopen?.()).not.toThrow()

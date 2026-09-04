@@ -73,7 +73,10 @@ describe('resolveApiKey', () => {
     const uid = await seedUser(db)
     const secret = generateApiKey()
     const hash = await hashApiKey(secret)
-    const grants = { control: false, data: { scope: { kind: 'sites' as const, siteIds: ['s1', 's2'] }, caps: ['read' as const] } }
+    const grants = {
+      control: false,
+      data: { scope: { kind: 'sites' as const, siteIds: ['s1', 's2'] }, caps: ['read' as const] },
+    }
     await seedApiKey(db, { userId: uid, hash, grants })
 
     const resolved = await resolveApiKey(db, secret)
@@ -143,9 +146,15 @@ describe('resolveApiKey', () => {
   // — 'read' would test true against a ceiling of 'read_all'.
   test.each([
     ['control is not a boolean', { control: 'yes', data: null }],
-    ['caps is a bare string rather than an array', { control: true, data: { scope: { kind: 'all-owned' }, caps: 'read_all' } }],
+    [
+      'caps is a bare string rather than an array',
+      { control: true, data: { scope: { kind: 'all-owned' }, caps: 'read_all' } },
+    ],
     ['caps is null', { control: true, data: { scope: { kind: 'all-owned' }, caps: null } }],
-    ['a sites scope carries non-string siteIds', { control: true, data: { scope: { kind: 'sites', siteIds: [42] }, caps: ['read'] } }],
+    [
+      'a sites scope carries non-string siteIds',
+      { control: true, data: { scope: { kind: 'sites', siteIds: [42] }, caps: ['read'] } },
+    ],
   ])('a grants blob whose %s resolves to null (fail closed)', async (_label, badGrants) => {
     const db = makeDb()
     const uid = await seedUser(db)
@@ -158,7 +167,7 @@ describe('resolveApiKey', () => {
 })
 
 describe('apiKeyDb', () => {
-  test('no POSTPLAN_DB binding → falls back to c.get(\'db\') (route-fixtures harness shape)', async () => {
+  test("no POSTPLAN_DB binding → falls back to c.get('db') (route-fixtures harness shape)", async () => {
     const harnessDb = makeDb()
     const app = new Hono<AppEnv>()
     app.use('*', async (c, next) => {

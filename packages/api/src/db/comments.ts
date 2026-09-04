@@ -393,7 +393,8 @@ export async function createThread(
   const quote = wantsText ? normalizeText(input.quote as string) : null
   // The one JSON column carries whichever payload this anchorType owns — an element's selector, or
   // a text anchor's occurrence context. A page thread (and a text thread with no context) stores null.
-  const anchor = anchorType === 'element' ? (input.element ?? null) : anchorType === 'text' ? versionedContext(input.context) : null
+  const anchor =
+    anchorType === 'element' ? (input.element ?? null) : anchorType === 'text' ? versionedContext(input.context) : null
 
   const ts = now()
   const threadId = crypto.randomUUID()

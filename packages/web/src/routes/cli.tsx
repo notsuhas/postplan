@@ -5,13 +5,7 @@ import { api, ApiError } from '@/lib/api'
 import { toLogin } from '@/lib/nav'
 import type { Me } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/states'
@@ -52,11 +46,7 @@ export function Component() {
     <Card className="mx-auto mt-[8vh] max-w-md">
       <CardHeader>
         <div className="flex size-11 items-center justify-center rounded-lg border border-border bg-muted text-primary">
-          {isDone ? (
-            <Plug className="size-5" aria-hidden />
-          ) : (
-            <Terminal className="size-5" aria-hidden />
-          )}
+          {isDone ? <Plug className="size-5" aria-hidden /> : <Terminal className="size-5" aria-hidden />}
         </div>
         <CardTitle className="mt-3">Connect CLI</CardTitle>
         <CardDescription>
@@ -70,9 +60,7 @@ export function Component() {
             <CircleCheck className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
             <div>
               <p className="font-medium text-foreground">CLI connected</p>
-              <p className="mt-0.5 text-muted-foreground">
-                You can return to your terminal.
-              </p>
+              <p className="mt-0.5 text-muted-foreground">You can return to your terminal.</p>
             </div>
           </div>
         ) : (

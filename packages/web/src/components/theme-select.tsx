@@ -164,7 +164,13 @@ export function ThemeMenu({
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel>{menuLabel}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <ThemeRadioItems value={value} onChange={onChange} themes={themes} defaultLabel={defaultLabel} defaultHint={defaultHint} />
+        <ThemeRadioItems
+          value={value}
+          onChange={onChange}
+          themes={themes}
+          defaultLabel={defaultLabel}
+          defaultHint={defaultHint}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   )

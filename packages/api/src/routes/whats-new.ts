@@ -19,8 +19,7 @@ whatsNew.use('*', requireAuth)
 // on the newest release date reads as 0 unread); a null watermark means everything is unread.
 whatsNew.get('/', async (c) => {
   const watermark = await getWatermark(c.get('db'), c.get('user').id)
-  const unreadCount =
-    watermark === null ? RELEASES.length : RELEASES.filter((r) => r.date > watermark).length
+  const unreadCount = watermark === null ? RELEASES.length : RELEASES.filter((r) => r.date > watermark).length
   return c.json({ items: RELEASES, unreadCount, throughDate: NEWEST_RELEASE_DATE })
 })
 

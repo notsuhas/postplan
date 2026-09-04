@@ -10,7 +10,12 @@ export type AskBody = { question: string; quote: string; blockText?: string }
 
 /** Streams the answer via Workers-AI's SSE passthrough, calling `onToken` with each `.response`
  *  chunk as it arrives. Resolves once the stream ends (`data: [DONE]` or the body closes). */
-export async function askStream(site: AskSite, body: AskBody, onToken: (text: string) => void, signal?: AbortSignal): Promise<void> {
+export async function askStream(
+  site: AskSite,
+  body: AskBody,
+  onToken: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   const res = await fetch(`/api/sites/${site.spaceSlug}/${site.siteSlug}/ask`, {
     method: 'POST',
     credentials: 'include',
@@ -63,7 +68,8 @@ export async function askStream(site: AskSite, body: AskBody, onToken: (text: st
         const chat = parsed.choices?.[0]?.delta?.content
         if (typeof parsed.response === 'string' && parsed.response) onToken(parsed.response)
         else if (typeof chat === 'string' && chat) onToken(chat)
-        else if (parsed.type === 'response.output_text.delta' && typeof parsed.delta === 'string' && parsed.delta) onToken(parsed.delta)
+        else if (parsed.type === 'response.output_text.delta' && typeof parsed.delta === 'string' && parsed.delta)
+          onToken(parsed.delta)
       } catch {
         // an unparseable frame is noise, not a reason to abort a stream that is otherwise fine
       }

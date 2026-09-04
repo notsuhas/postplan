@@ -51,16 +51,27 @@ beforeAll(async () => {
   win.Element.prototype.getBoundingClientRect = () => ELEMENT_BOX as DOMRect
 
   posted = []
-  Object.defineProperty(win, 'parent', { value: { postMessage: (msg: unknown) => posted.push(msg) }, configurable: true })
+  Object.defineProperty(win, 'parent', {
+    value: { postMessage: (msg: unknown) => posted.push(msg) },
+    configurable: true,
+  })
   ;(win as AnyRecord).__POSTPLAN__ = { siteId: 's1', filePath: 'index.html', appOrigin: 'https://app.example.com' }
 
   const g = globalThis as unknown as AnyRecord
-  const prev = { window: g.window, document: g.document, CSS: g.CSS, Highlight: g.Highlight, requestAnimationFrame: g.requestAnimationFrame }
+  const prev = {
+    window: g.window,
+    document: g.document,
+    CSS: g.CSS,
+    Highlight: g.Highlight,
+    requestAnimationFrame: g.requestAnimationFrame,
+  }
   g.window = win
   g.document = win.document
   g.CSS = (win as AnyRecord).CSS
   g.Highlight = (win as AnyRecord).Highlight
-  g.requestAnimationFrame = (win as unknown as { requestAnimationFrame: typeof requestAnimationFrame }).requestAnimationFrame.bind(win)
+  g.requestAnimationFrame = (
+    win as unknown as { requestAnimationFrame: typeof requestAnimationFrame }
+  ).requestAnimationFrame.bind(win)
   restore = () => Object.assign(g, prev)
 
   // client.ts reads `window.__POSTPLAN__` and wires its listeners at IMPORT time, so every global
@@ -88,7 +99,10 @@ describe('client.ts — a paint IS the highlight: everything sent is lit, an emp
       ],
     })
     expect(highlights.has('postplan-comment')).toBe(true)
-    expect(highlights.get('postplan-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.', 'beta sentence.'])
+    expect(highlights.get('postplan-comment')?.ranges.map((r) => r.toString())).toEqual([
+      'alpha sentence.',
+      'beta sentence.',
+    ])
   })
 
   test('an EMPTY paint clears the highlight — this is what closing the rail does to the page', () => {
@@ -109,7 +123,10 @@ describe('client.ts — a paint IS the highlight: everything sent is lit, an emp
         { id: 't2', anchorType: 'text', quote: 'beta sentence.' },
       ],
     })
-    expect(highlights.get('postplan-comment')?.ranges.map((r) => r.toString())).toEqual(['alpha sentence.', 'beta sentence.'])
+    expect(highlights.get('postplan-comment')?.ranges.map((r) => r.toString())).toEqual([
+      'alpha sentence.',
+      'beta sentence.',
+    ])
   })
 
   test('an anchor whose quote no longer resolves is dropped, and its resolving sibling still lights', () => {

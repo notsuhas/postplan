@@ -16,10 +16,7 @@ import {
 // that admits an anonymous reader, so it is labelled by its risk, not by its convenience.
 export const VISIBILITIES: Visibility[] = ['unlisted', 'private', 'members', 'team']
 
-export const VISIBILITY_META: Record<
-  Visibility,
-  { label: string; hint: string; icon: LucideIcon; badge: string }
-> = {
+export const VISIBILITY_META: Record<Visibility, { label: string; hint: string; icon: LucideIcon; badge: string }> = {
   unlisted: {
     label: 'Unlisted',
     hint: 'Anyone with the link',
@@ -27,7 +24,12 @@ export const VISIBILITY_META: Record<
     badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
   },
   private: { label: 'Private', hint: 'Only you', icon: Lock, badge: 'bg-muted text-muted-foreground' },
-  members: { label: 'Members', hint: 'This space only', icon: Users, badge: 'bg-sky-500/15 text-sky-600 dark:text-sky-300' },
+  members: {
+    label: 'Members',
+    hint: 'This space only',
+    icon: Users,
+    badge: 'bg-sky-500/15 text-sky-600 dark:text-sky-300',
+  },
   team: { label: 'Team', hint: 'Everyone in your org', icon: Building2, badge: 'bg-primary/15 text-primary' },
 }
 
@@ -36,11 +38,7 @@ export function VisibilityBadge({ value, className }: { value: Visibility; class
   const Icon = m.icon
   return (
     <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-        m.badge,
-        className,
-      )}
+      className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', m.badge, className)}
     >
       <Icon className="size-3" />
       {m.label}

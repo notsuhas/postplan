@@ -14,7 +14,11 @@ const tokenKey = 'test-secret'
 function setup() {
   const db = makeDb()
   const r2 = makeR2()
-  const env = { APP_URL: 'https://postplan.example.com', CONTENT_TOKEN_SECRET: tokenKey, POSTPLAN_FILES: r2 } as unknown as Parameters<typeof contentApp.request>[2]
+  const env = {
+    APP_URL: 'https://postplan.example.com',
+    CONTENT_TOKEN_SECRET: tokenKey,
+    POSTPLAN_FILES: r2,
+  } as unknown as Parameters<typeof contentApp.request>[2]
   const app = new Hono()
   app.use('*', async (c, next) => {
     c.set('db', db)
@@ -74,7 +78,9 @@ describe('postplan.db injection', () => {
   })
 
   test('injectDb falls back sanely when the page has no <head>', () => {
-    expect(injectDb('<body class="x"><p>hi</p></body>', 'https://a.example')).toMatch(/<body class="x"><script>window\.__POSTPLAN_DB__=/)
+    expect(injectDb('<body class="x"><p>hi</p></body>', 'https://a.example')).toMatch(
+      /<body class="x"><script>window\.__POSTPLAN_DB__=/,
+    )
     expect(injectDb('<p>bare fragment</p>', 'https://a.example')).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
   })
 })

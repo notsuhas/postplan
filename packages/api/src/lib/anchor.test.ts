@@ -33,7 +33,12 @@ describe('normalizeText — folds whitespace + unicode + trims', () => {
 describe('buildElementAnchor — bounded, selector-required', () => {
   test('cleans the fields: trims selector, lowercases tag, collapses preview/fallback whitespace', () => {
     expect(
-      buildElementAnchor({ selector: ' #chart > svg ', tag: 'SVG', preview: '  Bar   chart ', textFallback: 'Revenue  by quarter' }),
+      buildElementAnchor({
+        selector: ' #chart > svg ',
+        tag: 'SVG',
+        preview: '  Bar   chart ',
+        textFallback: 'Revenue  by quarter',
+      }),
     ).toEqual({ selector: '#chart > svg', tag: 'svg', preview: 'Bar chart', textFallback: 'Revenue by quarter' })
   })
   test('optional fields default to empty strings', () => {
@@ -59,7 +64,9 @@ describe('buildElementAnchor — bounded, selector-required', () => {
 
 describe('parseElementAnchor — untrusted boundary: reject then build', () => {
   test('valid payload → built, bounded anchor', () => {
-    expect(parseElementAnchor({ selector: ' #chart ', tag: 'DIV', preview: 'Bar  chart', textFallback: 'Revenue' })).toEqual({
+    expect(
+      parseElementAnchor({ selector: ' #chart ', tag: 'DIV', preview: 'Bar  chart', textFallback: 'Revenue' }),
+    ).toEqual({
       anchor: { selector: '#chart', tag: 'div', preview: 'Bar chart', textFallback: 'Revenue' },
     })
   })
@@ -112,7 +119,11 @@ describe('parseTextContext — the untrusted side of a text anchor', () => {
   })
 
   test('keeps the side that IS present when the other is empty', () => {
-    expect(parseTextContext({ prefix: '', suffix: 'after' })).toEqual({ v: TEXT_CONTEXT_VERSION, prefix: '', suffix: 'after' })
+    expect(parseTextContext({ prefix: '', suffix: 'after' })).toEqual({
+      v: TEXT_CONTEXT_VERSION,
+      prefix: '',
+      suffix: 'after',
+    })
   })
 
   test('no usable context → null (nothing to store, so the column stays empty)', () => {

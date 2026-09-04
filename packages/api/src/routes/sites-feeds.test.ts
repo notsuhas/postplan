@@ -167,7 +167,14 @@ describe('C32 — summary badge on the remaining site feeds', () => {
 describe('feeds — audio badge pins (S5b T5.4)', () => {
   test('C30: /mine — summary is per site and a summarized 30-file site is exactly ONE row', async () => {
     const { app, env, db } = await setup()
-    await seedSite(db, { id: 'voice', spaceId: 'acme', ownerId: 'owner', slug: 'voice', visibility: 'private', createdAt: at(2) })
+    await seedSite(db, {
+      id: 'voice',
+      spaceId: 'acme',
+      ownerId: 'owner',
+      slug: 'voice',
+      visibility: 'private',
+      createdAt: at(2),
+    })
     for (let i = 0; i < 30; i++) await seedFile(db, null, 'voice', { path: `take-${i}.mp3`, text: 'b' })
     await db.insert(siteSummaries).values({
       siteId: 'voice',
@@ -182,8 +189,36 @@ describe('feeds — audio badge pins (S5b T5.4)', () => {
 
     // Hand-coded: one row PER SITE (30 files must not explode the feed), newest first.
     expect(await getJson(app, env, '/api/sites/mine', 'owner')).toEqual([
-      { id: 'voice', spaceSlug: 'acme', siteSlug: 'voice', title: null, visibility: 'private', status: 'active', theme: null, audio: true, hasSummary: true, starred: false, url: `${APP_URL}/acme/voice`, createdAt: at(2), updatedAt: at(2) },
-      { id: 'doc', spaceSlug: 'acme', siteSlug: 'doc', title: null, visibility: 'team', status: 'active', theme: null, audio: false, hasSummary: false, starred: false, url: `${APP_URL}/acme/doc`, createdAt: at(1), updatedAt: at(1) },
+      {
+        id: 'voice',
+        spaceSlug: 'acme',
+        siteSlug: 'voice',
+        title: null,
+        visibility: 'private',
+        status: 'active',
+        theme: null,
+        audio: true,
+        hasSummary: true,
+        starred: false,
+        url: `${APP_URL}/acme/voice`,
+        createdAt: at(2),
+        updatedAt: at(2),
+      },
+      {
+        id: 'doc',
+        spaceSlug: 'acme',
+        siteSlug: 'doc',
+        title: null,
+        visibility: 'team',
+        status: 'active',
+        theme: null,
+        audio: false,
+        hasSummary: false,
+        starred: false,
+        url: `${APP_URL}/acme/doc`,
+        createdAt: at(1),
+        updatedAt: at(1),
+      },
     ])
   })
 
@@ -202,8 +237,22 @@ describe('feeds — audio badge pins (S5b T5.4)', () => {
     expect(rows.map((r) => r.id)).toEqual(Array.from({ length: 50 }, (_, k) => `s${n - k}`))
     // The 30-file site is pure audio; the file-less rest are not. Full payload on the head row.
     expect(rows[0]).toEqual({
-      id: 's51', spaceSlug: 'acme', siteSlug: 's51', title: null, visibility: 'team', status: 'active', theme: null,
-      audio: true, hasSummary: false, starred: false, url: `${APP_URL}/acme/s51`, createdAt: at(51), updatedAt: at(51), uploaderId: 'owner', uploaderName: null, uploaderEmail: 'owner@e.com',
+      id: 's51',
+      spaceSlug: 'acme',
+      siteSlug: 's51',
+      title: null,
+      visibility: 'team',
+      status: 'active',
+      theme: null,
+      audio: true,
+      hasSummary: false,
+      starred: false,
+      url: `${APP_URL}/acme/s51`,
+      createdAt: at(51),
+      updatedAt: at(51),
+      uploaderId: 'owner',
+      uploaderName: null,
+      uploaderEmail: 'owner@e.com',
     })
     expect(rows.slice(1).every((r) => r.audio === false)).toBe(true)
     expect(rows.every((r) => r.hasSummary === false)).toBe(true)
@@ -239,7 +288,10 @@ describe('feeds — audio badge pins (S5b T5.4)', () => {
     expect(ids(await getJson(app, env, '/api/sites/team', 'owner'))).toEqual(['new', 'old'])
 
     // Re-deploy 'old' (a REPLACE stamps updatedAt) — it must jump to the head of the feed.
-    await db.update(sites).set({ updatedAt: at(3) }).where(eq(sites.id, 'old'))
+    await db
+      .update(sites)
+      .set({ updatedAt: at(3) })
+      .where(eq(sites.id, 'old'))
     expect(ids(await getJson(app, env, '/api/sites/team', 'owner'))).toEqual(['old', 'new'])
   })
 })
@@ -247,7 +299,14 @@ describe('feeds — audio badge pins (S5b T5.4)', () => {
 describe('feeds — behavior pins (S5b T5.5)', () => {
   test('pin: /mine still lists an archived site (no status filter today)', async () => {
     const { app, env, db } = await setup()
-    await seedSite(db, { id: 'gone', spaceId: 'acme', ownerId: 'owner', slug: 'gone', status: 'archived', createdAt: at(2) })
+    await seedSite(db, {
+      id: 'gone',
+      spaceId: 'acme',
+      ownerId: 'owner',
+      slug: 'gone',
+      status: 'archived',
+      createdAt: at(2),
+    })
     await seedSite(db, { id: 'live', spaceId: 'acme', ownerId: 'owner', slug: 'live', createdAt: at(1) })
 
     const rows = await getJson<MineRow[]>(app, env, '/api/sites/mine', 'owner')
@@ -262,9 +321,23 @@ describe('feeds — behavior pins (S5b T5.5)', () => {
   async function seedSharedPrivate(db: RouteApp['db'], kv: RouteApp['kv']) {
     await mintUser(db, kv, 'me', { email: 'me@e.com' })
     // 'me' is NOT a member of acme: only the direct share can admit them.
-    await seedSite(db, { id: 'hush', spaceId: 'acme', ownerId: 'owner', slug: 'hush', visibility: 'private', createdAt: at(2) })
+    await seedSite(db, {
+      id: 'hush',
+      spaceId: 'acme',
+      ownerId: 'owner',
+      slug: 'hush',
+      visibility: 'private',
+      createdAt: at(2),
+    })
     await seedUserShare(db, 'hush', 'me', 'viewer')
-    await seedSite(db, { id: 'walled', spaceId: 'acme', ownerId: 'owner', slug: 'walled', visibility: 'private', createdAt: at(1) })
+    await seedSite(db, {
+      id: 'walled',
+      spaceId: 'acme',
+      ownerId: 'owner',
+      slug: 'walled',
+      visibility: 'private',
+      createdAt: at(1),
+    })
   }
 
   test('smoke: sharedSiteIds still feeds search — a direct-share private site is findable', async () => {
@@ -340,11 +413,26 @@ describe('STARRED-FLAG — starred is the caller’s own star, folded into every
     const starredBy = async (path: string, id: string) =>
       (await getJson<{ id: string; starred: boolean }[]>(app, env, path, id)).map((r) => [r.id, r.starred])
 
-    expect(await starredBy('/api/sites/shared', 'me')).toEqual([['deck', true], ['notes', false]])
-    expect(await starredBy('/api/sites/team', 'me')).toEqual([['deck', true], ['notes', false]])
-    expect(await starredBy('/api/sites/mine', 'owner')).toEqual([['deck', false], ['notes', false]])
-    expect(await starredBy('/api/sites/team', 'owner')).toEqual([['deck', false], ['notes', false]])
-    expect(await starredBy('/api/spaces/acme/sites', 'owner')).toEqual([['deck', false], ['notes', false]])
+    expect(await starredBy('/api/sites/shared', 'me')).toEqual([
+      ['deck', true],
+      ['notes', false],
+    ])
+    expect(await starredBy('/api/sites/team', 'me')).toEqual([
+      ['deck', true],
+      ['notes', false],
+    ])
+    expect(await starredBy('/api/sites/mine', 'owner')).toEqual([
+      ['deck', false],
+      ['notes', false],
+    ])
+    expect(await starredBy('/api/sites/team', 'owner')).toEqual([
+      ['deck', false],
+      ['notes', false],
+    ])
+    expect(await starredBy('/api/spaces/acme/sites', 'owner')).toEqual([
+      ['deck', false],
+      ['notes', false],
+    ])
   })
 
   test('perf: the flag stays folded in — /mine and /team still cost exactly 1 post-auth D1 request', async () => {

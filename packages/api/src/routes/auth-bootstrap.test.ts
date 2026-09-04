@@ -40,7 +40,12 @@ function post(app: Hono<AppEnv>, env: AppEnv['Bindings'], body: unknown, headers
 describe('POST /api/auth/bootstrap', () => {
   test('route-cross-origin-post-403: foreign Origin & no session cookie → 403 (own check)', async () => {
     const { app, env } = setup()
-    const res = await post(app, env, { token: TOKEN }, { Origin: 'https://evil.com', 'Content-Type': 'application/json' })
+    const res = await post(
+      app,
+      env,
+      { token: TOKEN },
+      { Origin: 'https://evil.com', 'Content-Type': 'application/json' },
+    )
     expect(res.status).toBe(403)
   })
 

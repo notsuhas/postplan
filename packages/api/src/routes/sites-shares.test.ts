@@ -43,18 +43,26 @@ const get = (app: Hono<AppEnv>, env: AppEnv['Bindings']) =>
 describe('parseShareGrants — pure body normalization', () => {
   test('new users:[{id,role}] shape carries roles; groups view-only', () => {
     expect(parseShareGrants({ users: [{ id: 'a', role: 'editor' }, { id: 'b' }], groupIds: ['g'] })).toEqual({
-      users: [{ userId: 'a', role: 'editor' }, { userId: 'b', role: 'viewer' }],
+      users: [
+        { userId: 'a', role: 'editor' },
+        { userId: 'b', role: 'viewer' },
+      ],
       groupIds: ['g'],
     })
   })
   test('legacy userIds → viewer; users wins on collision; ids dedup', () => {
     expect(parseShareGrants({ users: [{ id: 'a', role: 'editor' }], userIds: ['a', 'b', 'b'] })).toEqual({
-      users: [{ userId: 'a', role: 'editor' }, { userId: 'b', role: 'viewer' }],
+      users: [
+        { userId: 'a', role: 'editor' },
+        { userId: 'b', role: 'viewer' },
+      ],
       groupIds: [],
     })
   })
   test('an editor role on a group is rejected', () => {
-    expect(parseShareGrants({ groups: [{ id: 'g', role: 'editor' }] })).toEqual({ error: 'groups cannot be granted editor' })
+    expect(parseShareGrants({ groups: [{ id: 'g', role: 'editor' }] })).toEqual({
+      error: 'groups cannot be granted editor',
+    })
   })
   test('garbage/empty body → empty grants, never throws', () => {
     expect(parseShareGrants(null)).toEqual({ users: [], groupIds: [] })
@@ -65,7 +73,12 @@ describe('parseShareGrants — pure body normalization', () => {
 describe('PUT/GET /shares — roles + backcompat', () => {
   test('shares.role.roundtrip: PUT users:[{id,role:editor}] → GET returns role editor, DB agrees', async () => {
     const { db, app, env, site } = await setup()
-    const res = await put(app, env, { users: [{ id: 'ed', role: 'editor' }, { id: 'vw', role: 'viewer' }] })
+    const res = await put(app, env, {
+      users: [
+        { id: 'ed', role: 'editor' },
+        { id: 'vw', role: 'viewer' },
+      ],
+    })
     expect(res.status).toBe(200)
     const body = (await get(app, env).then((r) => r.json())) as { users: { id: string; role: string }[] }
     expect(body.users).toContainEqual({ id: 'ed', role: 'editor' })
@@ -78,7 +91,10 @@ describe('PUT/GET /shares — roles + backcompat', () => {
     const res = await put(app, env, { userIds: ['ed'], groupIds: [] })
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ ok: true })
-    const body = (await get(app, env).then((r) => r.json())) as { userIds: string[]; users: { id: string; role: string }[] }
+    const body = (await get(app, env).then((r) => r.json())) as {
+      userIds: string[]
+      users: { id: string; role: string }[]
+    }
     expect(body.userIds).toContain('ed')
     expect(body.users).toContainEqual({ id: 'ed', role: 'viewer' })
     expect(await resolveShareRole(db, site, 'ed')).toBe('viewer')
@@ -107,7 +123,12 @@ describe('PUT /shares — share notifications', () => {
   test('share.notify.no-regrant: re-PUT of the same user (even with a role change) raises nothing new', async () => {
     const { db, app, env } = await setup()
     await put(app, env, { users: [{ id: 'ed', role: 'viewer' }] })
-    await put(app, env, { users: [{ id: 'ed', role: 'editor' }, { id: 'vw', role: 'viewer' }] })
+    await put(app, env, {
+      users: [
+        { id: 'ed', role: 'editor' },
+        { id: 'vw', role: 'viewer' },
+      ],
+    })
     expect((await listNotifications(db, 'ed')).items).toHaveLength(1)
     expect((await listNotifications(db, 'vw')).items).toHaveLength(1)
   })

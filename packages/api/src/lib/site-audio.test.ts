@@ -16,7 +16,10 @@ describe('pureAudioSql — predicate truth table', () => {
     const sp = await seedSpace(db, { createdBy: user })
     const siteId = await seedSite(db, { spaceId: sp, ownerId: user })
     for (const p of paths) await seedFile(db, r2, siteId, { path: p, text: 'x' })
-    const [row] = await db.select({ audio: pureAudioSql(sites.id) }).from(sites).where(eq(sites.id, siteId))
+    const [row] = await db
+      .select({ audio: pureAudioSql(sites.id) })
+      .from(sites)
+      .where(eq(sites.id, siteId))
     return row.audio
   }
 

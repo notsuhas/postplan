@@ -14,8 +14,7 @@ const env = {
   SUPERADMIN_EMAILS: 'second@other.com, third@other.com',
 } as AppEnv['Bindings']
 
-const claims = (sub: string, email: string) =>
-  ({ sub, email, email_verified: true, name: 'X' }) as never
+const claims = (sub: string, email: string) => ({ sub, email, email_verified: true, name: 'X' }) as never
 
 const roleOf = async (db: ReturnType<typeof makeDb>, id: string) =>
   (await db.select().from(users).where(eq(users.id, id)))[0]?.role

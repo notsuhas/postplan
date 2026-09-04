@@ -101,7 +101,8 @@ describe('findRange — re-find a stored quote in the rendered DOM', () => {
 describe('findRange — context disambiguates a REPEATED quote', () => {
   // Three identical sentences; only the surrounding text tells them apart. Without context the
   // first wins (the historical behaviour every stored thread relies on).
-  const repeated = '<p>Alpha section. Revenue is up. tail</p><p>Beta section. Revenue is up. tail</p><p>Gamma section. Revenue is up. tail</p>'
+  const repeated =
+    '<p>Alpha section. Revenue is up. tail</p><p>Beta section. Revenue is up. tail</p><p>Gamma section. Revenue is up. tail</p>'
 
   test('no context → the FIRST occurrence (unchanged legacy behaviour)', () => {
     const doc = docFrom(repeated)
@@ -181,7 +182,9 @@ describe('findRange — context disambiguates a REPEATED quote', () => {
   // /samuel-lawerence/b4-badges. Comparing `.trimEnd()`/`.trimStart()` scores the shared space 0 on
   // both sides, so the guard finally sees the 0 it was always meant to and orphans the anchor.
   test('REGRESSION: sharing ONLY the boundary whitespace must not anchor a dead context', () => {
-    const doc = docFrom('<p>Alpha lead. The duplicated sentence appears twice. Alpha tail.</p><p>Beta lead. The duplicated sentence appears twice. Beta tail.</p>')
+    const doc = docFrom(
+      '<p>Alpha lead. The duplicated sentence appears twice. Alpha tail.</p><p>Beta lead. The duplicated sentence appears twice. Beta tail.</p>',
+    )
     const ctx = { prefix: 'zzzz nothing like this exists zzzz ', suffix: ' qqqq neither does this qqqq' }
     expect(findRange('The duplicated sentence appears twice.', doc, ctx)).toBeNull()
   })
@@ -189,8 +192,13 @@ describe('findRange — context disambiguates a REPEATED quote', () => {
   test('a genuine context match still wins over a dead-gibberish sibling and lands on the correct (second) occurrence', () => {
     // Mirrors the real-browser repro: two threads anchored to the same duplicated sentence, one with
     // a context that genuinely describes the SECOND occurrence, the other pure gibberish.
-    const doc = docFrom('<p>Alpha lead. The duplicated sentence appears twice. Alpha tail.</p><p>Beta lead. The duplicated sentence appears twice. Beta tail.</p>')
-    const range = findRange('The duplicated sentence appears twice.', doc, { prefix: 'Beta lead. ', suffix: ' Beta tail.' })!
+    const doc = docFrom(
+      '<p>Alpha lead. The duplicated sentence appears twice. Alpha tail.</p><p>Beta lead. The duplicated sentence appears twice. Beta tail.</p>',
+    )
+    const range = findRange('The duplicated sentence appears twice.', doc, {
+      prefix: 'Beta lead. ',
+      suffix: ' Beta tail.',
+    })!
     expect(range).not.toBeNull()
     expect(range.startContainer.parentElement?.textContent).toContain('Beta')
   })
@@ -214,7 +222,9 @@ describe('findRange — context disambiguates a REPEATED quote', () => {
 
   test('a repeated quote still resolves when the winning occurrence moves to a new element', () => {
     // Same context, different markup: the anchor follows the CONTENT, not the DOM shape.
-    const doc = docFrom('<div><span>Beta section. </span><em>Revenue is up.</em></div><p>Alpha section. Revenue is up.</p>')
+    const doc = docFrom(
+      '<div><span>Beta section. </span><em>Revenue is up.</em></div><p>Alpha section. Revenue is up.</p>',
+    )
     const range = findRange('Revenue is up.', doc, { prefix: 'Beta section. ', suffix: '' })!
     expect(range.startContainer.parentElement?.tagName).toBe('EM')
   })

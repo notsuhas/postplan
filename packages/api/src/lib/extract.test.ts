@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { extractHtmlMeta, extractText, isSupportedEntry, pickEntry, resolveIndexPath, TEXT_CAP, type EntryFile } from './extract'
+import {
+  extractHtmlMeta,
+  extractText,
+  isSupportedEntry,
+  pickEntry,
+  resolveIndexPath,
+  TEXT_CAP,
+  type EntryFile,
+} from './extract'
 
 describe('pickEntry', () => {
   test('prefers the root index, returns a lone file, and rejects ambiguous sites', () => {
@@ -169,7 +177,7 @@ describe('extractHtmlMeta — title', () => {
   const entry = { path: 'index.html', mimeType: 'text/html' }
 
   test('returns the document title, whitespace-collapsed and trimmed', async () => {
-    const body = '<html><head><title>  CX Team —\n  What They\'re Managing </title></head><body>x</body></html>'
+    const body = "<html><head><title>  CX Team —\n  What They're Managing </title></head><body>x</body></html>"
     expect(await titleOf(entry, body)).toBe("CX Team — What They're Managing")
   })
 
@@ -214,7 +222,10 @@ describe('extractHtmlMeta — description', () => {
     expect(await descOf('<html><head><title>t</title></head></html>')).toBeNull()
     expect(await descOf('<meta name="description" content="   ">')).toBeNull()
     expect(await descOf('<meta name="description">')).toBeNull()
-    expect((await extractHtmlMeta({ path: 'readme.md', mimeType: null }, '<meta name="description" content="x">')).description).toBeNull()
+    expect(
+      (await extractHtmlMeta({ path: 'readme.md', mimeType: null }, '<meta name="description" content="x">'))
+        .description,
+    ).toBeNull()
   })
 
   test('caps at 300 chars without leaving an unpaired surrogate', async () => {

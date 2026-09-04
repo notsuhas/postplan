@@ -2,10 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"postplan/internal/argparse"
-	"postplan/internal/digest"
 	"io"
 	"net/url"
+	"postplan/internal/argparse"
+	"postplan/internal/digest"
 )
 
 func (c *client) comments(argv []string) error {

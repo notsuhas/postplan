@@ -39,7 +39,14 @@ describe('GET /api/sites/starred', () => {
 
   test('every row carries the full feed shape with starred:true', async () => {
     const ctx = await setup()
-    await seedSite(ctx.db, { id: 'deck', spaceId: 'acme', ownerId: 'owner', slug: 'deck', title: 'Deck', createdAt: at(3) })
+    await seedSite(ctx.db, {
+      id: 'deck',
+      spaceId: 'acme',
+      ownerId: 'owner',
+      slug: 'deck',
+      title: 'Deck',
+      createdAt: at(3),
+    })
     await seedStar(ctx.db, 'deck', 'me', at(4))
 
     expect(await starred(ctx)).toEqual([
@@ -68,7 +75,14 @@ describe('GET /api/sites/starred', () => {
     await seedSite(db, { id: 'hidden', spaceId: 'acme', ownerId: 'owner', slug: 'hidden', createdAt: at(2) })
     await seedSite(db, { id: 'gone', spaceId: 'acme', ownerId: 'owner', slug: 'gone', createdAt: at(3) })
     // 'me' is not an acme member: only the direct share admits them to a members-tier site.
-    await seedSite(db, { id: 'walled', spaceId: 'acme', ownerId: 'owner', slug: 'walled', visibility: 'members', createdAt: at(4) })
+    await seedSite(db, {
+      id: 'walled',
+      spaceId: 'acme',
+      ownerId: 'owner',
+      slug: 'walled',
+      visibility: 'members',
+      createdAt: at(4),
+    })
     await seedUserShare(db, 'walled', 'me')
     for (const id of ['keep', 'hidden', 'gone', 'walled']) await seedStar(db, id, 'me', at(1))
 
@@ -76,11 +90,15 @@ describe('GET /api/sites/starred', () => {
 
     await db.update(sitesTable).set({ visibility: 'private' }).where(eq(sitesTable.id, 'hidden'))
     await db.update(sitesTable).set({ status: 'archived' }).where(eq(sitesTable.id, 'gone'))
-    await ctx.app.request('/api/sites/acme/walled/shares', {
-      method: 'PUT',
-      headers: auth('owner'),
-      body: JSON.stringify({ userIds: [] }),
-    }, ctx.env)
+    await ctx.app.request(
+      '/api/sites/acme/walled/shares',
+      {
+        method: 'PUT',
+        headers: auth('owner'),
+        body: JSON.stringify({ userIds: [] }),
+      },
+      ctx.env,
+    )
 
     expect((await starred(ctx)).map((r) => r.id)).toEqual(['keep'])
     // Every star ROW survives — the filter is a read-time view, not a delete.
@@ -106,7 +124,14 @@ describe('GET /api/sites/starred', () => {
   test('a private page shared with you stays in the feed until the share is revoked', async () => {
     const ctx = await setup()
     const { db } = ctx
-    await seedSite(db, { id: 'hush', spaceId: 'acme', ownerId: 'owner', slug: 'hush', visibility: 'private', createdAt: at(1) })
+    await seedSite(db, {
+      id: 'hush',
+      spaceId: 'acme',
+      ownerId: 'owner',
+      slug: 'hush',
+      visibility: 'private',
+      createdAt: at(1),
+    })
     await seedUserShare(db, 'hush', 'me')
     await seedStar(db, 'hush', 'me', at(2))
     expect((await starred(ctx)).map((r) => r.id)).toEqual(['hush'])

@@ -82,7 +82,9 @@ describe('anchorIdAtPoint — which anchor a click landed on (the page→rail ro
 
   function textDoc() {
     const win = windowWith('<p>alpha sentence.</p><p>beta sentence.</p>')
-    stubRangeRects(win, (t) => (t === 'alpha sentence.' ? [QUOTE_BOX] : [{ top: 300, left: 50, width: 200, height: 20 }]))
+    stubRangeRects(win, (t) =>
+      t === 'alpha sentence.' ? [QUOTE_BOX] : [{ top: 300, left: 50, width: 200, height: 20 }],
+    )
     return win
   }
 
@@ -91,19 +93,19 @@ describe('anchorIdAtPoint — which anchor a click landed on (the page→rail ro
     { id: 't2', quote: 'beta sentence.' },
   ]
 
-  test('a point inside an anchor\'s rect returns that anchor\'s id', () => {
+  test("a point inside an anchor's rect returns that anchor's id", () => {
     const win = textDoc()
     expect(anchorIdAtPoint(ANCHORS, [], { x: 60, y: 110 }, win.document)).toBe('t1')
     expect(anchorIdAtPoint(ANCHORS, [], { x: 60, y: 310 }, win.document)).toBe('t2')
   })
 
-  test('a point on the rect\'s edge counts as inside — a click on the first pixel of a highlight is a click on it', () => {
+  test("a point on the rect's edge counts as inside — a click on the first pixel of a highlight is a click on it", () => {
     const win = textDoc()
     expect(anchorIdAtPoint(ANCHORS, [], { x: 50, y: 100 }, win.document)).toBe('t1')
     expect(anchorIdAtPoint(ANCHORS, [], { x: 250, y: 120 }, win.document)).toBe('t1')
   })
 
-  test('a point outside every anchor returns null — that click is the page\'s own, untouched', () => {
+  test("a point outside every anchor returns null — that click is the page's own, untouched", () => {
     const win = textDoc()
     expect(anchorIdAtPoint(ANCHORS, [], { x: 10, y: 10 }, win.document)).toBeNull()
     expect(anchorIdAtPoint(ANCHORS, [], { x: 60, y: 121 }, win.document)).toBeNull()
@@ -152,7 +154,12 @@ describe('anchorIdAtPoint — which anchor a click landed on (the page→rail ro
     const win = windowWith('<div id="chart"><p>alpha sentence.</p></div>')
     stubRangeRects(win, () => [QUOTE_BOX])
     stubElementRects(win, () => ({ top: 0, left: 0, width: 400, height: 300 }))
-    const hit = anchorIdAtPoint([{ id: 't1', quote: 'alpha sentence.' }], [{ id: 'e1', selector: '#chart' }], { x: 60, y: 110 }, win.document)
+    const hit = anchorIdAtPoint(
+      [{ id: 't1', quote: 'alpha sentence.' }],
+      [{ id: 'e1', selector: '#chart' }],
+      { x: 60, y: 110 },
+      win.document,
+    )
     expect(hit).toBe('t1')
   })
 })

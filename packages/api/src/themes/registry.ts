@@ -2,25 +2,29 @@
 // Run `bun run build:themes` after changing anything under themes/.
 export const THEME_INFO = [
   {
-    "slug": "plivo",
-    "name": "Plivo",
-    "description": "Developer-precision, monochrome-first: near-neutral surfaces, one blue accent, Sora display type, JetBrains Mono metadata, hairline elevation. First-class light and dark."
+    slug: 'plivo',
+    name: 'Plivo',
+    description:
+      'Developer-precision, monochrome-first: near-neutral surfaces, one blue accent, Sora display type, JetBrains Mono metadata, hairline elevation. First-class light and dark.',
   },
   {
-    "slug": "broadsheet",
-    "name": "Broadsheet",
-    "description": "Newspaper front page: cream paper, Georgia serif, masthead headline between double rules, drop cap, column-rule tables. Read all about it."
+    slug: 'broadsheet',
+    name: 'Broadsheet',
+    description:
+      'Newspaper front page: cream paper, Georgia serif, masthead headline between double rules, drop cap, column-rule tables. Read all about it.',
   },
   {
-    "slug": "kapow",
-    "name": "Kapow",
-    "description": "A comic book page: halftone newsprint, Bangers action headings, speech-bubble quotes, yellow caption boxes, hard-inked panels. THWACK."
+    slug: 'kapow',
+    name: 'Kapow',
+    description:
+      'A comic book page: halftone newsprint, Bangers action headings, speech-bubble quotes, yellow caption boxes, hard-inked panels. THWACK.',
   },
   {
-    "slug": "matrix",
-    "name": "Matrix",
-    "description": "Phosphor-green code-rain terminal: #00ff41 on black, glow text, scanlines, monospace everything. Follow the white rabbit."
-  }
+    slug: 'matrix',
+    name: 'Matrix',
+    description:
+      'Phosphor-green code-rain terminal: #00ff41 on black, glow text, scanlines, monospace everything. Follow the white rabbit.',
+  },
 ] as const
 
 export type ThemeSlug = (typeof THEME_INFO)[number]['slug']
@@ -42,4 +46,4 @@ export function normalizeTheme(raw: unknown): string | null {
 
 /** Cache-busting version for /_postplan/theme/*.css?v= links. Duplicated from css.ts so the MAIN
  *  worker (and the web client via /api/themes) can build hrefs without importing the CSS strings. */
-export const THEMES_VERSION = "a32849a5"
+export const THEMES_VERSION = 'a32849a5'

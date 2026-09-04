@@ -67,9 +67,7 @@ stars.get('/starred', requireAuth, async (c) => {
   )
   const visible = rowChunks
     .flat()
-    .filter(
-      (r) => checkAccess(r, user, memberSpaces.has(r.spaceId), shared.has(r.id)).ok,
-    )
+    .filter((r) => checkAccess(r, user, memberSpaces.has(r.spaceId), shared.has(r.id)).ok)
     // Per-chunk order is lost on flatten; re-impose the STAR order (newest star first).
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
   return c.json(visible.map((r) => toFeedRow(r, c.env.APP_URL)))

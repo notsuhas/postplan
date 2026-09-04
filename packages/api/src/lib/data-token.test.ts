@@ -48,9 +48,9 @@ describe('data-token', () => {
 
   test('ATTACK: a token with the right secret but aud!=data is rejected', async () => {
     const body = b64urlEncode(
-      new TextEncoder()
-        .encode(JSON.stringify({ aud: 'content', siteId: 'site-a', viewerId: 'user-1', caps: ['write'], exp: 9e9 }))
-        .buffer as ArrayBuffer,
+      new TextEncoder().encode(
+        JSON.stringify({ aud: 'content', siteId: 'site-a', viewerId: 'user-1', caps: ['write'], exp: 9e9 }),
+      ).buffer as ArrayBuffer,
     )
     const forged = `${body}.${await hmacSign(HMAC_A, body)}`
     expect(await verify(HMAC_A, forged)).toBeNull()
@@ -63,9 +63,9 @@ describe('data-token', () => {
 
   test('rejects an unknown capability value', async () => {
     const body = b64urlEncode(
-      new TextEncoder()
-        .encode(JSON.stringify({ aud: 'data', siteId: 'site-a', viewerId: 'user-1', caps: ['admin'], exp: 9e9 }))
-        .buffer as ArrayBuffer,
+      new TextEncoder().encode(
+        JSON.stringify({ aud: 'data', siteId: 'site-a', viewerId: 'user-1', caps: ['admin'], exp: 9e9 }),
+      ).buffer as ArrayBuffer,
     )
     const forged = `${body}.${await hmacSign(HMAC_A, body)}`
     expect(await verify(HMAC_A, forged)).toBeNull()

@@ -208,10 +208,7 @@ export async function resolveShareRole(
 /** The membership SELECT behind the member-space-ids fold, exposed (like `sharedSiteRoleStmts`) so
  *  a route can ride it in its OWN db.batch alongside other statements. */
 export function memberSpaceIdsStmt(db: DrizzleD1Database, userId: string) {
-  return db
-    .select({ spaceId: spaceMembers.spaceId })
-    .from(spaceMembers)
-    .where(eq(spaceMembers.userId, userId))
+  return db.select({ spaceId: spaceMembers.spaceId }).from(spaceMembers).where(eq(spaceMembers.userId, userId))
 }
 
 /**
@@ -221,7 +218,10 @@ export function memberSpaceIdsStmt(db: DrizzleD1Database, userId: string) {
  * Group shares are always 'viewer'; a direct row's role OVERRIDES a group-derived viewer (direct
  * editor + group → editor). Feeds GET /sites/shared; the edit oracle stays `resolveShareRole`.
  */
-export async function sharedSiteRoles(db: DrizzleD1Database, userId: string): Promise<Map<string, 'viewer' | 'editor'>> {
+export async function sharedSiteRoles(
+  db: DrizzleD1Database,
+  userId: string,
+): Promise<Map<string, 'viewer' | 'editor'>> {
   const [direct, viaGroup] = await batchAll(db, sharedSiteRoleStmts(db, userId))
   return foldSharedSiteRoles(direct, viaGroup)
 }
@@ -312,7 +312,11 @@ export async function listMentionableUsers(
   for (const rows of grants) for (const r of rows) ids.add(r.userId)
   ids.delete(callerId)
   if (ids.size === 0) return []
-  return db.select(project).from(users).where(inArray(users.id, [...ids])).orderBy(byName)
+  return db
+    .select(project)
+    .from(users)
+    .where(inArray(users.id, [...ids]))
+    .orderBy(byName)
 }
 
 /** A per-user share as stored: the user id plus their grant tier. */

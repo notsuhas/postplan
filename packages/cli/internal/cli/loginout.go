@@ -3,10 +3,10 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"postplan/internal/config"
 	"net/http"
 	"net/url"
 	"os"
+	"postplan/internal/config"
 	"time"
 )
 

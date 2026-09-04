@@ -35,7 +35,7 @@ describe('C4 setSeen.clamp & empty', () => {
   })
 })
 
-describe('C5 setSeen.isolation — one user\'s watermark never touches another\'s', () => {
+describe("C5 setSeen.isolation — one user's watermark never touches another's", () => {
   test('setSeen(userA) leaves userB untouched', async () => {
     const db = makeDb()
     const a = await seedUser(db, { id: 'a' })

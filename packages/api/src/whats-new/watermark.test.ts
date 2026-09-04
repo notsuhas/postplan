@@ -14,7 +14,6 @@ describe('the watermark column after a fresh migrate', () => {
   // that a row written with no watermark reads back as SQL NULL rather than a default, which is
   // what the "all unread" state depends on.
   test('a user seeded with no watermark field is SQL NULL, not a default', async () => {
-
     const db = makeDb()
     const uid = await seedUser(db, { id: 'u-new' })
     const row = (await db.select({ w: users.lastSeenReleaseAt }).from(users).where(eq(users.id, uid)))[0]

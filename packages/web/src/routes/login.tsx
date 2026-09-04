@@ -140,8 +140,7 @@ export function Component() {
           {/* pitch */}
           <div>
             <div className="bp-rise font-mono text-sm" style={{ animationDelay: '60ms' }}>
-              <span className="text-muted-foreground">~/work $</span>{' '}
-              <span className="text-primary">postplan</span>
+              <span className="text-muted-foreground">~/work $</span> <span className="text-primary">postplan</span>
             </div>
             <h1
               className="bp-rise mt-5 font-mono text-5xl font-semibold leading-[1.04] tracking-tight [text-shadow:0_2px_30px_rgba(7,11,22,0.85)] sm:text-6xl"
@@ -157,15 +156,12 @@ export function Component() {
               className="bp-rise mt-6 max-w-md text-base leading-relaxed text-muted-foreground"
               style={{ animationDelay: '200ms' }}
             >
-              An open-source alternative to Claude Artifacts. Any agent ships a self-contained page
-              or app to a live URL — then you review it in the browser and it fixes itself. No
-              bundler, no Docker, no deploy pipeline to babysit.
+              An open-source alternative to Claude Artifacts. Any agent ships a self-contained page or app to a live URL
+              — then you review it in the browser and it fixes itself. No bundler, no Docker, no deploy pipeline to
+              babysit.
             </p>
 
-            <ul
-              className="bp-rise mt-9 grid gap-x-8 gap-y-5 sm:grid-cols-2"
-              style={{ animationDelay: '280ms' }}
-            >
+            <ul className="bp-rise mt-9 grid gap-x-8 gap-y-5 sm:grid-cols-2" style={{ animationDelay: '280ms' }}>
               {FEATURES.map((f, i) => (
                 <li key={f.label} className="flex gap-3">
                   <span className="mt-0.5 font-mono text-xs tabular-nums text-primary">
@@ -173,9 +169,7 @@ export function Component() {
                   </span>
                   <div>
                     <div className="font-mono text-[13px] font-medium text-foreground">{f.label}</div>
-                    <div className="mt-1 text-[13px] leading-snug text-muted-foreground">
-                      {f.detail}
-                    </div>
+                    <div className="mt-1 text-[13px] leading-snug text-muted-foreground">{f.detail}</div>
                   </div>
                 </li>
               ))}

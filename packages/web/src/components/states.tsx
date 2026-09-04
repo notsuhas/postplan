@@ -48,9 +48,7 @@ export function SectionHeader({
     <div className="flex flex-wrap items-center gap-3">
       <div className="bp-rule flex min-w-0 flex-1 items-center gap-3">
         {index != null && (
-          <span className="font-mono text-xs tabular-nums text-primary">
-            {String(index).padStart(2, '0')}
-          </span>
+          <span className="font-mono text-xs tabular-nums text-primary">{String(index).padStart(2, '0')}</span>
         )}
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
       </div>

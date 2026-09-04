@@ -77,30 +77,27 @@ export function ShareDialog({
   const [selUsers, setSelUsers] = useState<Map<string, ShareRole>>(new Map())
   const [selGroups, setSelGroups] = useState<Set<string>>(new Set())
 
-  const loadOnMount = useCallback(
-    () => {
-      setBusy(true)
-      Promise.all([
-        api.get<UserLite[]>('/api/users'),
-        api.get<SpaceSummary[]>('/api/spaces/mine'),
-        api.get<ShareSet>(`/api/sites/${spaceSlug}/${siteSlug}/shares`),
-      ])
-        .then(([us, sp, shares]) => {
-          setUsers(us)
-          setGroups(sp.filter((s) => s.type === 'group'))
-          // Prefer the role-aware `users` list; fall back to legacy userIds (all viewers) if absent.
-          setSelUsers(
-            new Map(shares.users?.map((u) => [u.id, u.role]) ?? shares.userIds.map((id) => [id, 'viewer' as ShareRole])),
-          )
-          setSelGroups(new Set(shares.groupIds))
-        })
-        .catch((err) =>
-          toast.error('Could not load sharing', { description: err instanceof Error ? err.message : undefined }),
+  const loadOnMount = useCallback(() => {
+    setBusy(true)
+    Promise.all([
+      api.get<UserLite[]>('/api/users'),
+      api.get<SpaceSummary[]>('/api/spaces/mine'),
+      api.get<ShareSet>(`/api/sites/${spaceSlug}/${siteSlug}/shares`),
+    ])
+      .then(([us, sp, shares]) => {
+        setUsers(us)
+        setGroups(sp.filter((s) => s.type === 'group'))
+        // Prefer the role-aware `users` list; fall back to legacy userIds (all viewers) if absent.
+        setSelUsers(
+          new Map(shares.users?.map((u) => [u.id, u.role]) ?? shares.userIds.map((id) => [id, 'viewer' as ShareRole])),
         )
-        .finally(() => setBusy(false))
-    },
-    [spaceSlug, siteSlug],
-  )
+        setSelGroups(new Set(shares.groupIds))
+      })
+      .catch((err) =>
+        toast.error('Could not load sharing', { description: err instanceof Error ? err.message : undefined }),
+      )
+      .finally(() => setBusy(false))
+  }, [spaceSlug, siteSlug])
 
   async function save() {
     setSaving(true)

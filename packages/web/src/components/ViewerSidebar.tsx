@@ -94,7 +94,9 @@ function Row({
           className="min-w-0 flex-1 truncate text-sm"
           title={`${entry.spaceSlug}/${entry.siteSlug}`}
         >
-          <span className={cn(current ? 'font-medium text-foreground' : 'text-foreground/90 group-hover:text-foreground')}>
+          <span
+            className={cn(current ? 'font-medium text-foreground' : 'text-foreground/90 group-hover:text-foreground')}
+          >
             {name}
           </span>
         </Link>

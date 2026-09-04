@@ -204,7 +204,9 @@ describe('GET /api/api-keys — list', () => {
   // the secret being AT REST in a recoverable form — assert the stored column directly.
   test('the stored displaySuffix is only the last 4 characters — the secret is not at rest anywhere', async () => {
     const { req, db } = await scenario()
-    const minted = await (await req(auth('owner'), 'POST', '/', { name: 'k', expiresInDays: 30, grants: FULL_GRANTS })).json()
+    const minted = await (
+      await req(auth('owner'), 'POST', '/', { name: 'k', expiresInDays: 30, grants: FULL_GRANTS })
+    ).json()
 
     const [row] = await db.select().from(apiKeysTable).where(eq(apiKeysTable.id, minted.id))
     expect(row.displaySuffix).toBe(minted.secret.slice(-4))

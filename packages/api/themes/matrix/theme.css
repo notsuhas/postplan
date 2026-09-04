@@ -11,8 +11,8 @@
    * surfaces THIS theme paints (thead strip, code blocks, buttons on hover). */
   --postplan-fg: #008722;
   --postplan-fg-dim: #067027;
-  --postplan-fg-bright: #00e63a;   /* only on theme-owned dark surfaces */
-  --postplan-fg-max: #ccffcc;      /* only on theme-owned dark surfaces */
+  --postplan-fg-bright: #00e63a; /* only on theme-owned dark surfaces */
+  --postplan-fg-max: #ccffcc; /* only on theme-owned dark surfaces */
   --postplan-surface: #041207;
   --postplan-border: #0c4d1d;
   color-scheme: dark;
@@ -29,10 +29,15 @@ body {
     radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0, 230, 58, 0.08), transparent 70%);
   background-attachment: fixed;
   color: var(--postplan-fg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, 'Courier New', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, "Courier New", monospace;
   line-height: 1.6;
 }
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   color: var(--postplan-fg);
   font-family: inherit;
   font-weight: 700;
@@ -40,23 +45,59 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.08em;
 }
 /* Subtle halo, not a smear — must stay legible when a heading sits on an author-white card. */
-h1, h2 { text-shadow: 0 0 10px rgba(0, 230, 58, 0.3); }
-h1::before, h2::before { content: '> '; color: var(--postplan-fg-dim); }
-small { color: var(--postplan-fg-dim); }
-strong, b { color: inherit; font-weight: 700; }
-em, i { color: inherit; }
-mark { background: var(--postplan-fg); color: #000000; padding: 0 0.25em; }
-a { color: var(--postplan-fg); text-decoration-color: var(--postplan-fg-dim); text-underline-offset: 3px; }
-a:hover { background: rgba(0, 230, 58, 0.15); }
-hr { border: 0; border-top: 1px dashed var(--postplan-border); }
+h1,
+h2 {
+  text-shadow: 0 0 10px rgba(0, 230, 58, 0.3);
+}
+h1::before,
+h2::before {
+  content: "> ";
+  color: var(--postplan-fg-dim);
+}
+small {
+  color: var(--postplan-fg-dim);
+}
+strong,
+b {
+  color: inherit;
+  font-weight: 700;
+}
+em,
+i {
+  color: inherit;
+}
+mark {
+  background: var(--postplan-fg);
+  color: #000000;
+  padding: 0 0.25em;
+}
+a {
+  color: var(--postplan-fg);
+  text-decoration-color: var(--postplan-fg-dim);
+  text-underline-offset: 3px;
+}
+a:hover {
+  background: rgba(0, 230, 58, 0.15);
+}
+hr {
+  border: 0;
+  border-top: 1px dashed var(--postplan-border);
+}
 blockquote {
   margin-left: 0;
   padding: 0.4rem 0 0.4rem 1rem;
   border-left: 2px solid var(--postplan-fg-dim);
   color: var(--postplan-fg-dim);
 }
-code, kbd, samp, pre { font-family: inherit; }
-code, kbd, samp {
+code,
+kbd,
+samp,
+pre {
+  font-family: inherit;
+}
+code,
+kbd,
+samp {
   background: var(--postplan-surface);
   color: var(--postplan-fg-bright); /* theme-owned dark surface → neon allowed */
   border: 1px solid var(--postplan-border);
@@ -70,9 +111,20 @@ pre {
   padding: 1rem;
   overflow: auto;
 }
-pre code { background: none; border: 0; padding: 0; }
-table { border-collapse: collapse; }
-th, td { border: 1px solid var(--postplan-border); padding: 0.5rem 0.9rem; text-align: left; }
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+table {
+  border-collapse: collapse;
+}
+th,
+td {
+  border: 1px solid var(--postplan-border);
+  padding: 0.5rem 0.9rem;
+  text-align: left;
+}
 thead th {
   background: var(--postplan-surface);
   color: var(--postplan-fg-max); /* theme-owned dark strip */
@@ -96,7 +148,9 @@ button:hover {
   color: var(--postplan-fg-bright);
   box-shadow: 0 0 10px rgba(0, 230, 58, 0.35);
 }
-input, select, textarea {
+input,
+select,
+textarea {
   background: var(--postplan-surface);
   color: var(--postplan-fg);
   border: 1px solid var(--postplan-border);
@@ -105,14 +159,40 @@ input, select, textarea {
   font-family: inherit;
   caret-color: var(--postplan-fg);
 }
-input::placeholder, textarea::placeholder { color: var(--postplan-fg-dim); }
-input:focus, select:focus, textarea:focus { outline: 1px solid var(--postplan-fg); }
-::selection { background: rgba(0, 230, 58, 0.4); color: #000000; text-shadow: none; }
-fieldset { border: 1px solid var(--postplan-border); }
-legend { color: var(--postplan-fg); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 0.4em; }
-figcaption { color: var(--postplan-fg-dim); font-size: 0.85em; }
+input::placeholder,
+textarea::placeholder {
+  color: var(--postplan-fg-dim);
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 1px solid var(--postplan-fg);
+}
+::selection {
+  background: rgba(0, 230, 58, 0.4);
+  color: #000000;
+  text-shadow: none;
+}
+fieldset {
+  border: 1px solid var(--postplan-border);
+}
+legend {
+  color: var(--postplan-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 0.4em;
+}
+figcaption {
+  color: var(--postplan-fg-dim);
+  font-size: 0.85em;
+}
 
 /* Reading measure: flowing text caps at ~72ch so a bare full-width document stays readable.
  * Tables, code blocks, and headings run full width; author containers narrower than the cap
  * are unaffected. */
-p, ul, ol, dl { max-width: 72ch; }
+p,
+ul,
+ol,
+dl {
+  max-width: 72ch;
+}

@@ -64,9 +64,11 @@ describe('C33 summary state machine', () => {
 
   test('a successful POST becomes a fresh ready snapshot', () => {
     const generating = { kind: 'generating', retryForce: false, requestToken: 2 } as const
-    expect(
-      summaryReducer(generating, { type: 'postResolved', requestToken: 2, response: readyResponse }),
-    ).toEqual({ kind: 'ready', requestToken: 2, snapshot: readySnapshot })
+    expect(summaryReducer(generating, { type: 'postResolved', requestToken: 2, response: readyResponse })).toEqual({
+      kind: 'ready',
+      requestToken: 2,
+      snapshot: readySnapshot,
+    })
   })
 
   test('a stale GET snapshot retains both banner versions', () => {

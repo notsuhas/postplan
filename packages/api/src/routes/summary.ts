@@ -111,7 +111,9 @@ summary.post('/:space/:site/summary', async (c) => {
 
   const deps = summarizeDeps(c.env)
   if (!deps.ai) {
-    return c.json(notReadyBody('unavailable', existing ? isStale(existing, site.contentVersion) : false, site.contentVersion))
+    return c.json(
+      notReadyBody('unavailable', existing ? isStale(existing, site.contentVersion) : false, site.contentVersion),
+    )
   }
   if (c.env.SUMMARY_LIMITER) {
     const { success } = await c.env.SUMMARY_LIMITER.limit({ key: user.id })

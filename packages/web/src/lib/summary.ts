@@ -51,12 +51,7 @@ export type SummaryEvent =
 
 export const SUMMARY_INITIAL_STATE: SummaryState = { kind: 'loading', requestToken: 0 }
 
-function failedState(
-  error: unknown,
-  requestToken: number,
-  prior?: ReadySnapshot,
-  retryForce = false,
-): SummaryState {
+function failedState(error: unknown, requestToken: number, prior?: ReadySnapshot, retryForce = false): SummaryState {
   return {
     kind: 'failed',
     prior,

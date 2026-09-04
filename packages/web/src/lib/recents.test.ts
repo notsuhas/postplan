@@ -30,8 +30,11 @@ globalThis.localStorage = fakeStorage as unknown as Storage
 // clobbering it here without restoring leaks a `window` with no `.happyDOM` into every test file
 // that runs afterwards in the same process (broke viewer.test.tsx's happyDOM.settings read).
 const realWindow = globalThis.window
-globalThis.window = { dispatchEvent: () => true, addEventListener: () => {}, removeEventListener: () => {} } as unknown as Window &
-  typeof globalThis
+globalThis.window = {
+  dispatchEvent: () => true,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+} as unknown as Window & typeof globalThis
 afterAll(() => {
   globalThis.window = realWindow
 })
@@ -82,7 +85,9 @@ describe('applyVisit', () => {
   })
 
   test('caps at 15 sites, dropping the oldest', () => {
-    const existing = Array.from({ length: 15 }, (_, i) => entry({ siteSlug: `site-${i}`, at: `2026-01-${String(30 - i).padStart(2, '0')}T00:00:00.000Z` }))
+    const existing = Array.from({ length: 15 }, (_, i) =>
+      entry({ siteSlug: `site-${i}`, at: `2026-01-${String(30 - i).padStart(2, '0')}T00:00:00.000Z` }),
+    )
     const fresh = entry({ siteSlug: 'newcomer', at: '2026-02-01T00:00:00.000Z' })
     const result = applyVisit(existing, fresh)
     const slugs = result.map((e) => e.siteSlug)

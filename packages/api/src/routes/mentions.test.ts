@@ -34,7 +34,12 @@ async function setup() {
   const db = makeDb()
   const r2 = makeR2()
   const kv = makeKv()
-  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv, POSTPLAN_FILES: r2 } as unknown as AppEnv['Bindings']
+  const env = {
+    APP_URL,
+    SESSION_SECRET: 's',
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
+  } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {
@@ -60,7 +65,11 @@ async function mintUser(
   return id
 }
 
-const auth = (id: string) => ({ Authorization: `Bearer tok-${id}`, Origin: APP_URL, 'Content-Type': 'application/json' })
+const auth = (id: string) => ({
+  Authorization: `Bearer tok-${id}`,
+  Origin: APP_URL,
+  'Content-Type': 'application/json',
+})
 
 /** Seed a space + site (default team) with one HTML file. Returns ids. */
 async function seedSiteWithFile(
@@ -156,7 +165,11 @@ describe('C9 — mentions:[valid] → 1 row for target; none for self even if se
     const owner = await mintUser(db, kv, 'owner')
     const target = await mintUser(db, kv, 'target')
     await seedSiteWithFile(db, r2, owner, 'team')
-    const res = await app.request(commentsUrl, postThread(owner, { body: 'hi @target', mentions: [target, owner] }), env)
+    const res = await app.request(
+      commentsUrl,
+      postThread(owner, { body: 'hi @target', mentions: [target, owner] }),
+      env,
+    )
     expect(res.status).toBe(201)
     const { threadId } = (await res.json()) as { threadId: string }
     const forTarget = await listNotifications(db, target)
@@ -252,11 +265,7 @@ describe('C14 — voice multipart mentions remain ignored', () => {
     await seedSiteWithFile(db, r2, owner, 'team')
     // Voice notifications deliberately pass rawMentions: undefined; multipart mentions are unsupported.
     const fd = audioForm(new Uint8Array([1, 2, 3]), { filePath: 'index.html', mentions: JSON.stringify([target]) })
-    const res = await app.request(
-      commentsUrl,
-      voice(owner, fd),
-      aiEnv(env, 'transcribed'),
-    )
+    const res = await app.request(commentsUrl, voice(owner, fd), aiEnv(env, 'transcribed'))
     expect(res.status).toBe(201)
     expect((await listNotifications(db, target)).unreadCount).toBe(0)
   })
@@ -594,9 +603,7 @@ describe('S2 — members visibility re-authorizes reply participants', () => {
     expect(beforeLeaving.status).toBe(201)
     expect((await listNotifications(db, participant)).items).toHaveLength(1)
     await db.delete(notificationsTable).where(eq(notificationsTable.recipientId, participant))
-    await db
-      .delete(spaceMembers)
-      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, participant)))
+    await db.delete(spaceMembers).where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, participant)))
 
     const afterLeaving = await app.request(
       `${commentsUrl}/${threadId}/replies`,
@@ -805,7 +812,11 @@ describe('S2 C16 — mark-all-read covers mixed mention and comment notification
     expect(new Set(before.items.map((item) => item.type))).toEqual(new Set(['mention', 'comment']))
     expect(before.unreadCount).toBe(2)
 
-    const read = await app.request('/api/notifications/read', { method: 'POST', headers: auth(target), body: '{}' }, env)
+    const read = await app.request(
+      '/api/notifications/read',
+      { method: 'POST', headers: auth(target), body: '{}' },
+      env,
+    )
     expect(read.status).toBe(200)
     expect((await listNotifications(db, target)).unreadCount).toBe(0)
   })

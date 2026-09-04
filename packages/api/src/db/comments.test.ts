@@ -167,7 +167,12 @@ describe('createThread — stores the anchor', () => {
     expect(thread.id).toBe(threadId)
     expect(thread.anchorType).toBe('element')
     expect(thread.quote).toBeNull()
-    expect(thread.anchor).toEqual({ selector: '#chart > svg', tag: 'svg', preview: 'Bar chart', textFallback: 'Revenue' })
+    expect(thread.anchor).toEqual({
+      selector: '#chart > svg',
+      tag: 'svg',
+      preview: 'Bar chart',
+      textFallback: 'Revenue',
+    })
     expect(thread.context).toBeNull() // an element row never reads back as text context
     expect(thread.comments.map((c) => c.body)).toEqual(['this chart is wrong'])
   })
@@ -196,7 +201,6 @@ describe('createThread — stores the anchor', () => {
     const [thread] = await listThreads(db, sp, siteId, path)
     expect(thread.context).toBeNull()
   })
-
 })
 
 // The `anchor` column is shared by two payload kinds and discriminated only by the sibling
@@ -214,7 +218,8 @@ describe('createThread — the anchor column never holds the wrong payload', () 
     context?: unknown
     anchor?: unknown
   }
-  const createThreadLoose = (db: DrizzleD1Database, input: LooseCreateInput) => createThread(db, input as CreateThreadInput)
+  const createThreadLoose = (db: DrizzleD1Database, input: LooseCreateInput) =>
+    createThread(db, input as CreateThreadInput)
 
   const storedAnchor = async (db: DrizzleD1Database, threadId: string) =>
     (await db.select().from(commentThreads).where(eq(commentThreads.id, threadId)))[0].anchor
@@ -276,7 +281,13 @@ describe('createThread — the anchor column never holds the wrong payload', () 
 describe('addComment — flat replies', () => {
   test('reply-appends-flat-row-same-thread: reply lands on the same thread, after the opener', async () => {
     const { db, sp, siteId, user, path } = await siteWithFile('<p>hello world</p>')
-    const { threadId } = await createThread(db, { siteId, filePath: path, createdBy: user, body: 'opening', quote: 'hello' })
+    const { threadId } = await createThread(db, {
+      siteId,
+      filePath: path,
+      createdBy: user,
+      body: 'opening',
+      quote: 'hello',
+    })
     await addComment(db, { threadId, authorId: user, body: 'a reply' })
     const [thread] = await listThreads(db, sp, siteId, path)
     expect(thread.comments.map((c) => c.body)).toEqual(['opening', 'a reply'])
@@ -315,7 +326,13 @@ describe('listThreads — ordering + soft-delete shape', () => {
 
   test('soft-delete-keeps-thread-shape: deleted comment row stays, body redacted', async () => {
     const { db, sp, siteId, user, path } = await siteWithFile('<p>hi there</p>')
-    const { threadId } = await createThread(db, { siteId, filePath: path, createdBy: user, body: 'keep me', quote: 'hi' })
+    const { threadId } = await createThread(db, {
+      siteId,
+      filePath: path,
+      createdBy: user,
+      body: 'keep me',
+      quote: 'hi',
+    })
     const { id: replyId } = await addComment(db, { threadId, authorId: user, body: 'delete me' })
     await deleteComment(db, threadId, replyId)
     const [thread] = await listThreads(db, sp, siteId, path)
@@ -406,7 +423,13 @@ describe('author legibility — display name resolution', () => {
   test('author-retained-on-soft-delete: deleted comment redacts body but keeps author', async () => {
     const { db, sp, siteId } = await bareSite()
     const author = await seedUser(db, { id: 'au3', name: 'Grace Hopper', email: 'grace@example.com' })
-    const { threadId } = await createThread(db, { siteId, filePath: 'index.html', createdBy: author, body: 'keep', quote: 'hello' })
+    const { threadId } = await createThread(db, {
+      siteId,
+      filePath: 'index.html',
+      createdBy: author,
+      body: 'keep',
+      quote: 'hello',
+    })
     const { id: replyId } = await addComment(db, { threadId, authorId: author, body: 'delete me' })
     await deleteComment(db, threadId, replyId)
     const [thread] = await listThreads(db, sp, siteId, 'index.html')
@@ -419,7 +442,13 @@ describe('author legibility — display name resolution', () => {
     const { db, sp, siteId } = await bareSite()
     const creator = await seedUser(db, { id: 'creator1', name: 'Creator One', email: 'c1@example.com' })
     const resolver = await seedUser(db, { id: 'resolver1', name: null, email: 'resolver@example.com' })
-    const { threadId } = await createThread(db, { siteId, filePath: 'index.html', createdBy: creator, body: 'hi', quote: 'hello' })
+    const { threadId } = await createThread(db, {
+      siteId,
+      filePath: 'index.html',
+      createdBy: creator,
+      body: 'hi',
+      quote: 'hello',
+    })
     await resolveThread(db, threadId, resolver)
     const [thread] = await listThreads(db, sp, siteId, 'index.html')
     expect(thread.createdByName).toBe('Creator One')

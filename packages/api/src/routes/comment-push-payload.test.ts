@@ -28,7 +28,13 @@ describe('S4 C5 — thread.created payload equals the real GET list response', (
     const thread = (await threadByIdStmt(db, out.threadId))[0]!
     const comment = (await commentByIdStmt(db, out.openingCommentId))[0]!
     const pushed = buildThreadCreatedView(
-      { thread, creatorName: 'Author One', creatorEmail: 'author1@example.com', resolverName: null, resolverEmail: null },
+      {
+        thread,
+        creatorName: 'Author One',
+        creatorEmail: 'author1@example.com',
+        resolverName: null,
+        resolverEmail: null,
+      },
       { comment, authorName: 'Author One', authorEmail: 'author1@example.com' },
     )
 

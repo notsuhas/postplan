@@ -32,7 +32,13 @@ import { anchorIdAtPoint, anchorRanges, type ElementAnchor, installIndexInvalida
 import { installSelectionCapture, type Rect } from './selection'
 
 type Boot = { siteId: string; filePath: string; appOrigin: string }
-type PaintAnchor = { id: string; anchorType?: 'text' | 'page' | 'element'; quote?: string; selector?: string; context?: TextContext }
+type PaintAnchor = {
+  id: string
+  anchorType?: 'text' | 'page' | 'element'
+  quote?: string
+  selector?: string
+  context?: TextContext
+}
 
 const boot = (window as unknown as { __POSTPLAN__?: Boot }).__POSTPLAN__
 
@@ -266,7 +272,10 @@ function focus(target: { quote?: string; selector?: string; context?: TextContex
   // Same context as paint uses — otherwise focusing a thread on the second occurrence of a repeated
   // quote would scroll to the first, away from its own highlight.
   if (target.quote)
-    findRange(target.quote, document, target.context)?.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    findRange(target.quote, document, target.context)?.startContainer.parentElement?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
 }
 
 // Paint/focus commands are trusted ONLY from the parent app origin (the inverse of the hostile-
@@ -275,7 +284,14 @@ function focus(target: { quote?: string; selector?: string; context?: TextContex
 // is ignored.
 window.addEventListener('message', (e: MessageEvent) => {
   if (!boot || e.origin !== boot.appOrigin) return
-  const d = e.data as { type?: string; anchors?: PaintAnchor[]; quote?: string; selector?: string; context?: TextContext; href?: string | null }
+  const d = e.data as {
+    type?: string
+    anchors?: PaintAnchor[]
+    quote?: string
+    selector?: string
+    context?: TextContext
+    href?: string | null
+  }
   if (d?.type === 'postplan:paint' && Array.isArray(d.anchors)) paint(d.anchors)
   else if (d?.type === 'postplan:focus') focus({ quote: d.quote, selector: d.selector, context: d.context })
   else if (d?.type === 'postplan:pending') setPending(typeof d.selector === 'string' ? d.selector : null)
@@ -299,7 +315,8 @@ window.addEventListener('message', (e: MessageEvent) => {
 
 // The site's server-injected theme href, captured at boot so a viewer override can be undone
 // back to the true default (content.ts stamps the link with id="postplan-theme").
-const serverThemeHref = (document.getElementById('postplan-theme') as HTMLLinkElement | null)?.getAttribute('href') ?? null
+const serverThemeHref =
+  (document.getElementById('postplan-theme') as HTMLLinkElement | null)?.getAttribute('href') ?? null
 
 function applyViewTheme(href: string | null): void {
   const target = href ?? serverThemeHref

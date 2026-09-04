@@ -252,7 +252,7 @@ describe('ReviewRail — reveal-by-nonce', () => {
         onCreateVoice={() => {}}
         onChanged={() => {}}
         onFocusAnchor={() => {}}
-      onClose={() => {}}
+        onClose={() => {}}
         onStartComment={() => {}}
         focusRequest={{ id: 't1', nonce: 2 }}
       />,
@@ -280,7 +280,7 @@ describe('ReviewRail — reveal-by-nonce', () => {
         onCreateVoice={() => {}}
         onChanged={() => {}}
         onFocusAnchor={() => {}}
-      onClose={() => {}}
+        onClose={() => {}}
         onStartComment={() => {}}
         focusRequest={{ id: 't1', nonce: 1 }}
       />,
@@ -304,7 +304,7 @@ describe('ReviewRail — reveal-by-nonce', () => {
         onCreateVoice={() => {}}
         onChanged={() => {}}
         onFocusAnchor={() => {}}
-      onClose={() => {}}
+        onClose={() => {}}
         onStartComment={() => {}}
         focusRequest={{ id: 't2', nonce: 2 }}
       />,
@@ -337,7 +337,7 @@ describe('ReviewRail — reveal-by-nonce', () => {
         onCreateVoice={() => {}}
         onChanged={() => {}}
         onFocusAnchor={() => {}}
-      onClose={() => {}}
+        onClose={() => {}}
         onStartComment={() => {}}
         focusRequest={{ id: 't1', nonce: 1 }}
       />,

@@ -24,13 +24,19 @@ function fakeFetch(handler: (url: string, init?: RequestInit) => Response | Prom
 
 const mintOk = () => Response.json({ token: 'tok-1', caps: ['read', 'write'], expiresIn: 300 })
 
-function makeBroker(handler: (url: string, init?: RequestInit) => Response | Promise<Response>, source: Window = iframeWin) {
+function makeBroker(
+  handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
+  source: Window = iframeWin,
+) {
   const { calls, fetchFn } = fakeFetch(handler)
   const broker = createDbBroker({ site: SITE, contentOrigin: CONTENT, getSource: () => source }, { fetchFn })
   return { broker, calls }
 }
 
-function hello(broker: { onWindowMessage: (e: MessageEvent) => void }, over: { origin?: string; source?: unknown } = {}) {
+function hello(
+  broker: { onWindowMessage: (e: MessageEvent) => void },
+  over: { origin?: string; source?: unknown } = {},
+) {
   const ch = new MessageChannel()
   const received: unknown[] = []
   let notify: (() => void) | null = null
@@ -104,19 +110,22 @@ describe('request surface', () => {
 
   test('create round-trips with the broker token, never exposing it to the page', async () => {
     const h = await ready((url) =>
-      url.includes('/api/_data/')
-        ? Response.json({ id: 'd1', data: { a: 1 } }, { status: 201 })
-        : mintOk(),
+      url.includes('/api/_data/') ? Response.json({ id: 'd1', data: { a: 1 } }, { status: 201 }) : mintOk(),
     )
     h.port.postMessage({ id: 7, op: 'create', collection: 'notes', data: { a: 1 } })
     await h.waitFor((m) => m.some((x) => (x as { id?: number }).id === 7))
-    const reply = h.received.find((x) => (x as { id?: number }).id === 7) as { ok: boolean; status: number; body: { id: string } }
+    const reply = h.received.find((x) => (x as { id?: number }).id === 7) as {
+      ok: boolean
+      status: number
+      body: { id: string }
+    }
     expect(reply.ok).toBe(true)
     expect(reply.status).toBe(201)
     expect(reply.body.id).toBe('d1')
     const dataCall = h.calls.find((c) => c.url.includes('/api/_data/'))
     expect(dataCall?.url).toBe('/api/_data/notes')
-    expect((dataCall?.init?.headers as Record<string, string>).Authorization).toBe('Bearer tok-1')
+    const headers = dataCall?.init?.headers as Record<string, string> | undefined
+    expect(headers?.Authorization).toBe('Bearer tok-1')
     // no reply message ever carries the token
     expect(JSON.stringify(h.received)).not.toContain('tok-1')
   })
@@ -154,9 +163,7 @@ describe('request surface', () => {
         return Response.json({ token: `tok-${minted}`, caps: ['read'], expiresIn: 300 })
       }
       dataCalls++
-      return dataCalls === 1
-        ? Response.json({ error: 'unauthorized' }, { status: 401 })
-        : Response.json({ items: [] })
+      return dataCalls === 1 ? Response.json({ error: 'unauthorized' }, { status: 401 }) : Response.json({ items: [] })
     })
     h.port.postMessage({ id: 4, op: 'list', collection: 'notes' })
     await h.waitFor((m) => m.some((x) => (x as { id?: number }).id === 4))

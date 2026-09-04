@@ -21,7 +21,7 @@ describe('E2 web.client.behavior', () => {
     expect(calls).toHaveLength(1)
     expect(calls[0].url).toBe('/api/whats-new')
     expect(calls[0].init?.credentials).toBe('include')
-    expect((calls[0].init?.method ?? 'GET')).toBe('GET')
+    expect(calls[0].init?.method ?? 'GET').toBe('GET')
   })
 
   test('seen(d) POSTs /api/whats-new/seen with the exact JSON body + credentials', async () => {
@@ -67,7 +67,11 @@ describe('E3 ui.state.transition — catchUpWhatsNew pure fn', () => {
 
 describe('E4 firstrun.dialog.contents — unreadReleases picks the head of the newest-first list', () => {
   const rel = (slug: string, date: string): Release => ({ slug, title: slug, date, featured: false, bodyHtml: '' })
-  const items = [rel('c', '2026-07-14T00:00:00.000Z'), rel('b', '2026-07-01T00:00:00.000Z'), rel('a', '2026-06-20T00:00:00.000Z')]
+  const items = [
+    rel('c', '2026-07-14T00:00:00.000Z'),
+    rel('b', '2026-07-01T00:00:00.000Z'),
+    rel('a', '2026-06-20T00:00:00.000Z'),
+  ]
 
   test('unreadCount 2 → the two NEWEST releases, in order', () => {
     const got = unreadReleases({ items, unreadCount: 2, throughDate: items[0].date })
@@ -78,7 +82,11 @@ describe('E4 firstrun.dialog.contents — unreadReleases picks the head of the n
   })
   test('count larger than the items on hand → clamped, never over-sliced', () => {
     // A release published between the loader fetch and this render would otherwise over-slice.
-    expect(unreadReleases({ items, unreadCount: 9, throughDate: items[0].date }).map((r) => r.slug)).toEqual(['c', 'b', 'a'])
+    expect(unreadReleases({ items, unreadCount: 9, throughDate: items[0].date }).map((r) => r.slug)).toEqual([
+      'c',
+      'b',
+      'a',
+    ])
   })
   test('empty catalog → empty', () => {
     expect(unreadReleases(EMPTY_WHATS_NEW)).toEqual([])

@@ -112,7 +112,11 @@ describe('postUnfurl', () => {
 
   test('addresses the message by unfurl_id + source when present, keyed by the pasted URL', async () => {
     const { deps, body } = capture()
-    await postUnfurl(deps, { unfurl_id: 'C1.1', source: 'conversations_history', channel: 'C1', message_ts: '1.2' }, unfurls)
+    await postUnfurl(
+      deps,
+      { unfurl_id: 'C1.1', source: 'conversations_history', channel: 'C1', message_ts: '1.2' },
+      unfurls,
+    )
     expect(body()).toMatchObject({ unfurl_id: 'C1.1', source: 'conversations_history' })
     // Exclusive with the channel+ts form — Slack gets one addressing scheme, not both.
     expect(body()?.channel).toBeUndefined()

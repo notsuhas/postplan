@@ -31,10 +31,7 @@ export type TabId = (typeof TAB_IDS)[number]
 export const tabFromParam = (value: string | null): TabId =>
   TAB_IDS.includes(value as TabId) ? (value as TabId) : 'sites'
 
-export type TabContent<T> =
-  | { kind: 'loading' }
-  | { kind: 'rows'; rows: T }
-  | { kind: 'error'; message: string }
+export type TabContent<T> = { kind: 'loading' } | { kind: 'rows'; rows: T } | { kind: 'error'; message: string }
 
 // Discriminated on `id` so the component can switch and get the right row type per tab.
 // Shared and Spaces exist only when their feed resolved with rows, so they carry `rows`
@@ -81,8 +78,7 @@ const contentOf = <T>(slot: FeedSlot<T>): TabContent<T> => {
 }
 
 export function deriveFeedState(slots: FeedSlots, view: { requestedTab: TabId }): FeedState {
-  const groupSpaces =
-    slots.spaces.status === 'resolved' ? slots.spaces.data.filter((s) => s.type === 'group') : null
+  const groupSpaces = slots.spaces.status === 'resolved' ? slots.spaces.data.filter((s) => s.type === 'group') : null
 
   // Sites, Team and Comments always exist (a failed feed degrades to a contained error INSIDE its
   // tab). Shared and Spaces exist only once their feeds resolve with rows — no tab for an empty or

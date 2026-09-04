@@ -15,7 +15,11 @@ const cookie = '__Host-postplan_session=signed-token'
 
 describe('requireSameOrigin', () => {
   test('cookie POST with foreign Origin → 403', async () => {
-    const res = await app.request('/api/thing', { method: 'POST', headers: { cookie, Origin: 'https://evil.com' } }, env)
+    const res = await app.request(
+      '/api/thing',
+      { method: 'POST', headers: { cookie, Origin: 'https://evil.com' } },
+      env,
+    )
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: 'csrf' })
   })

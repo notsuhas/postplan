@@ -48,7 +48,8 @@ async function themedSite(
 
 // id="postplan-theme" makes the link addressable by the annotate client's postplan:theme
 // handler (viewer-local override) — pinned here so a rename breaks loudly.
-const themeLink = (slug: string) => `<link id="postplan-theme" rel="stylesheet" href="/_postplan/theme/${slug}.css?v=${THEMES_VERSION}">`
+const themeLink = (slug: string) =>
+  `<link id="postplan-theme" rel="stylesheet" href="/_postplan/theme/${slug}.css?v=${THEMES_VERSION}">`
 
 describe('themeHrefFor', () => {
   test('registry slug → versioned href; null/unknown → null', () => {

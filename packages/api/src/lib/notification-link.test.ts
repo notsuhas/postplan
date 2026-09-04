@@ -41,9 +41,9 @@ describe('notificationLink (S5)', () => {
   })
 
   test('trailing-slash appUrl yields no doubled slash', () => {
-    expect(notificationLink('https://postplan.example.com/', { siteLabel: 'acme/doc', filePath: null, threadId: null })).toBe(
-      'https://postplan.example.com/acme/doc?review=1',
-    )
+    expect(
+      notificationLink('https://postplan.example.com/', { siteLabel: 'acme/doc', filePath: null, threadId: null }),
+    ).toBe('https://postplan.example.com/acme/doc?review=1')
   })
 
   test('missing siteLabel degrades to the absolute root', () => {

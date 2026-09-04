@@ -37,6 +37,12 @@ describe('timeAgo', () => {
   test('at/after 30 days falls back to an absolute date', () => {
     const label = ago(31 * DAY)
     expect(label).not.toMatch(/ago$/)
-    expect(label).toBe(new Date(Date.now() - 31 * DAY * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))
+    expect(label).toBe(
+      new Date(Date.now() - 31 * DAY * 1000).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    )
   })
 })

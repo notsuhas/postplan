@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"postplan/internal/config"
 	"os"
+	"postplan/internal/config"
 )
 
 // Run is the CLI's entry point. cmd/postplan/main.go passes os.Args[1:] and the build-stamped
