@@ -158,7 +158,7 @@ export function makeDb(recorder?: Recorder): HarnessDb {
         if (inBatch && m === 'values') {
           const row = (out as unknown[][])[0]
           const distinctNames = new Set(stmt.columnNames)
-          if (row && distinctNames.size !== stmt.columnNames.length)
+          if (row && distinctNames.size !== row.length)
             throw new Error(
               `D1 batch result-name collision: statement returns ${row.length} columns but only ${distinctNames.size} distinct names — real D1 batch maps rows by name and collapses duplicates, shifting every later field; alias one (.as()). SQL: ${sql.slice(0, 200)}`,
             )
