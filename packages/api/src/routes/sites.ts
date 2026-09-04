@@ -28,7 +28,7 @@ import { deliverSlack, type SlackRecipient, slackDepsFromEnv, slackEnabled } fro
 import { isValidSlug, slugForVisibility, withUnlistedSuffix } from '../lib/slug'
 import { copyObjects, deleteKeys, deleteSiteObjects } from '../lib/storage'
 import { signToken } from '../lib/token'
-import { isVisibility, normalizeVisibility } from '../lib/visibility'
+import { isVisibility } from '../lib/visibility'
 import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv, SessionUser } from '../types'
 
@@ -159,8 +159,7 @@ sites.post('/', requireAuth, requireControlGrant, async (c) => {
     return c.json({ error: 'spaceSlug and siteSlug are required' }, 400)
   }
   if (!isValidSlug(siteSlug)) return c.json({ error: 'invalid siteSlug' }, 400)
-  const vis = normalizeVisibility(visibility)
-  if (visibility !== undefined && !isVisibility(vis)) {
+  if (visibility !== undefined && !isVisibility(visibility)) {
     return c.json({ error: 'invalid visibility' }, 400)
   }
   if (title !== undefined && title !== null && typeof title !== 'string') {
@@ -183,14 +182,14 @@ sites.post('/', requireAuth, requireControlGrant, async (c) => {
   const id = crypto.randomUUID()
   // An unlisted site is protected only by its URL being unguessable, so the stored slug carries
   // entropy the caller did not supply. The response below returns the real slug and url.
-  const storedSlug = slugForVisibility(siteSlug, vis)
+  const storedSlug = slugForVisibility(siteSlug, visibility)
   try {
     await db.insert(sitesTable).values({
       id,
       spaceId: space.id,
       slug: storedSlug,
       title: typeof title === 'string' ? title : null,
-      visibility: isVisibility(vis) ? vis : 'team',
+      visibility: isVisibility(visibility) ? visibility : 'team',
       ownerId: user.id,
     })
   } catch (err) {
@@ -573,10 +572,9 @@ sites.patch('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
 
   const patch: { slug?: string; visibility?: Visibility; title?: string | null } = {}
   if (visibility !== undefined) {
-    const vis = normalizeVisibility(visibility)
-    if (!isVisibility(vis)) return c.json({ error: 'invalid visibility' }, 400)
-    patch.visibility = vis
-    if (vis === 'unlisted' && site.visibility !== 'unlisted') patch.slug = withUnlistedSuffix(site.slug)
+    if (!isVisibility(visibility)) return c.json({ error: 'invalid visibility' }, 400)
+    patch.visibility = visibility
+    if (visibility === 'unlisted' && site.visibility !== 'unlisted') patch.slug = withUnlistedSuffix(site.slug)
   }
   if (title !== undefined) {
     if (title !== null && typeof title !== 'string') return c.json({ error: 'invalid title' }, 400)
@@ -691,12 +689,10 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
   if (wantSlug !== undefined && typeof wantSlug !== 'string') return c.json({ error: 'invalid slug' }, 400)
   if (typeof wantSlug === 'string' && !isValidSlug(wantSlug)) return c.json({ error: 'invalid slug' }, 400)
 
-  // Same normalize-then-validate as PATCH, so legacy wire tiers are mapped rather than rejected.
   let wantVisibility: Visibility | undefined
   if (body?.visibility !== undefined) {
-    const vis = normalizeVisibility(body.visibility)
-    if (!isVisibility(vis)) return c.json({ error: 'invalid visibility' }, 400)
-    wantVisibility = vis
+    if (!isVisibility(body.visibility)) return c.json({ error: 'invalid visibility' }, 400)
+    wantVisibility = body.visibility
   }
 
   // Destination: an explicitly named space, else the caller's personal space. A user with neither

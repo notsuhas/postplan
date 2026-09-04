@@ -6,7 +6,7 @@ import { fireAndForget } from '../lib/events'
 import { revokeUserAccess, revokeUserCliTokens } from '../lib/session'
 import { cachedStats } from '../lib/stats'
 import { deleteSiteObjects } from '../lib/storage'
-import { isVisibility, normalizeVisibility } from '../lib/visibility'
+import { isVisibility } from '../lib/visibility'
 import { isAdminEmail, superadminEmails } from '../lib/workos'
 import { requireAuth, requireHumanCredential, requireSuperAdmin } from '../middleware/auth'
 import type { AppEnv } from '../types'
@@ -31,8 +31,10 @@ admin.get('/sites', async (c) => {
 
   const filters = []
   if (statusParam === 'active' || statusParam === 'archived') filters.push(eq(sites.status, statusParam))
-  const vis = normalizeVisibility(visibilityParam)
-  if (isVisibility(vis)) filters.push(eq(sites.visibility, vis))
+  if (visibilityParam !== undefined && !isVisibility(visibilityParam)) {
+    return c.json({ error: 'invalid visibility' }, 400)
+  }
+  if (isVisibility(visibilityParam)) filters.push(eq(sites.visibility, visibilityParam))
   const where = filters.length > 0 ? and(...filters) : undefined
 
   const rows = await db

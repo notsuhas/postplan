@@ -10,7 +10,7 @@ import { fireAndForget } from '../lib/events'
 import { capTitle, extractHtmlMeta, NO_META, pickEntry } from '../lib/extract'
 import { isValidSlug, slugForVisibility } from '../lib/slug'
 import { deleteKeys, MAX_FILE_BYTES, sanitizePath } from '../lib/storage'
-import { isVisibility, normalizeVisibility } from '../lib/visibility'
+import { isVisibility } from '../lib/visibility'
 import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv, SessionUser } from '../types'
 
@@ -86,10 +86,12 @@ async function parseUpload(c: UploadContext): Promise<ParsedUpload | Response> {
 
   const validationError = validateItems(c, items)
   if (validationError) return validationError
+  const visibility = rawVisibility || 'team'
+  if (!isVisibility(visibility)) return c.json({ error: 'invalid visibility' }, 400)
 
   return {
     hasVisibility: typeof rawVisibility === 'string' && rawVisibility !== '',
-    visibility: normalizeVisibility(rawVisibility || 'team'),
+    visibility,
     title: typeof rawTitle === 'string' ? capTitle(rawTitle.trim()) || null : null,
     expectedVersion:
       typeof rawExpected === 'string' && rawExpected.trim() !== '' && Number.isInteger(Number(rawExpected))

@@ -141,6 +141,16 @@ describe('upload — duplicate-path guard', () => {
 })
 
 describe('upload — visibility on replace', () => {
+  test('obsolete visibility values are rejected before storage writes', async () => {
+    const { app, env, db, r2 } = await setup()
+    const res = await postUpload(app, env, 'bad-tier', [html('<html></html>', 'index.html')], {
+      visibility: 'public',
+    })
+    expect(res.status).toBe(400)
+    expect(await db.select().from(files)).toHaveLength(0)
+    expect(r2.store.size).toBe(0)
+  })
+
   test('replace-with-visibility-updates-tier: re-upload choosing private flips the site off team', async () => {
     const { app, env, db } = await setup()
     // CREATE with no visibility field → defaults to team.

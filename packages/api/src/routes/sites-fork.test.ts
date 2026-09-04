@@ -217,19 +217,9 @@ describe('POST /api/sites/:space/:site/fork', () => {
     expect(body.siteSlug).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
   })
 
-  // Same normalization the PATCH route uses: legacy wire values are mapped, never rejected.
-  test('fork.visibility.legacy: `public` normalizes to unlisted rather than 400ing', async () => {
-    const { db, app, env } = await setup()
-    const res = await fork(app, env, 'rd', { visibility: 'public', slug: 'legacy' })
-    expect(res.status).toBe(200)
-    const { siteSlug } = (await res.json()) as { siteSlug: string }
-    const copy = (await db.select().from(sitesTable).where(eq(sitesTable.slug, siteSlug)))[0]
-    expect(copy?.visibility).toBe('unlisted')
-  })
-
   test('fork.visibility.invalid: junk 400s and copies nothing', async () => {
     const { db, app, env, r2 } = await setup()
-    for (const visibility of ['nope', 42, null, {}]) {
+    for (const visibility of ['public', 'group', 'nope', 42, null, {}]) {
       const res = await fork(app, env, 'rd', { visibility })
       expect(res.status).toBe(400)
       expect(await res.json()).toMatchObject({ error: 'invalid visibility' })
