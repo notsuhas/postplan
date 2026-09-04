@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { invites, sites, spaceMembers, spaces as spacesTable, users } from '../db/schema'
 import { revokeUserApiKeys } from '../lib/api-key'
 import { fireAndForget } from '../lib/events'
-import { revokeUserCliTokens } from '../lib/session'
+import { revokeUserAccess, revokeUserCliTokens } from '../lib/session'
 import { cachedStats } from '../lib/stats'
 import { deleteSiteObjects } from '../lib/storage'
 import { isVisibility, normalizeVisibility } from '../lib/visibility'
@@ -212,6 +212,7 @@ admin.delete('/invites/:email', async (c) => {
 
   const existing = (await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]
   if (existing) {
+    await revokeUserAccess(c.env.POSTPLAN_SESSIONS, existing.id)
     await revokeUserCliTokens(c, existing.id)
     await revokeUserApiKeys(db, existing.id)
   }

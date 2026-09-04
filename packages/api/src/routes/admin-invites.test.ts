@@ -121,6 +121,8 @@ describe('DELETE /api/admin/invites/:email', () => {
 
     // Access must actually STOP — otherwise removal is cosmetic until the session TTL lapses.
     expect((await app.request('/api/api-keys', { headers: authKey(secret) }, env)).status).toBe(401)
+    expect((await app.request('/api/api-keys', { headers: auth('guest') }, env)).status).toBe(401)
+    expect(await kv.get('revoked_user:guest')).toBe('1')
   })
 
   test('an unknown address 404s', async () => {

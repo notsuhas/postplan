@@ -15,6 +15,7 @@ import {
   destroyCliToken,
   destroySession,
   readCredential,
+  restoreUserAccess,
 } from '../lib/session'
 import type { AppEnv, Bindings, SessionUser } from '../types'
 
@@ -128,6 +129,7 @@ auth.get('/callback', async (c) => {
   )
 
   const user = await findOrCreateUser(c.get('db'), c.env, claims, email)
+  await restoreUserAccess(c.env.POSTPLAN_SESSIONS, user.id)
   await createSession(c, user)
   return c.redirect(safeNext(parsed.next) ?? '/dashboard')
 })
@@ -139,7 +141,10 @@ auth.post('/logout', async (c) => {
   // silently doing nothing: destroyCliToken below is a KV delete and no-ops on a D1 key, and a
   // false { ok: true } would tell the caller a credential was revoked when it was not.
   if ((await readCredential(c))?.kind === 'key') {
-    return c.json({ error: 'not_a_session', message: 'This is an API key — revoke it from the keys screen, not logout.' }, 400)
+    return c.json(
+      { error: 'not_a_session', message: 'This is an API key — revoke it from the keys screen, not logout.' },
+      400,
+    )
   }
 
   await destroySession(c)
@@ -297,11 +302,9 @@ auth.post('/cli/approve', requireAuth, async (c) => {
   const deviceCode = await c.env.POSTPLAN_SESSIONS.get(`cli_user:${userCode.toUpperCase()}`)
   if (!deviceCode) return c.json({ error: 'invalid or expired code' }, 404)
   const token = await createCliToken(c, c.get('user'))
-  await c.env.POSTPLAN_SESSIONS.put(
-    `cli_device:${deviceCode}`,
-    JSON.stringify({ status: 'complete', token }),
-    { expirationTtl: 600 },
-  )
+  await c.env.POSTPLAN_SESSIONS.put(`cli_device:${deviceCode}`, JSON.stringify({ status: 'complete', token }), {
+    expirationTtl: 600,
+  })
   await c.env.POSTPLAN_SESSIONS.delete(`cli_user:${userCode.toUpperCase()}`)
   return c.json({ ok: true })
 })

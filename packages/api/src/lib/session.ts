@@ -12,6 +12,7 @@ const SESSION_COOKIE = '__Host-postplan_session'
 // against cannot happen, and the cost was a forced re-login every day.
 const SESSION_TTL = 60 * 60 * 24 * 30 // 30d
 const CLI_TTL = 60 * 60 * 24 * 30 // 30d
+const REVOKED_USER_PREFIX = 'revoked_user:'
 
 // `__Host-` prefix: the browser refuses the cookie unless it is Secure, Path=/, and carries NO
 // Domain — which also blocks a sibling subdomain (the content worker, same registrable domain as
@@ -29,7 +30,7 @@ export async function createSession(c: Context<AppEnv>, user: SessionUser): Prom
   await setSignedCookie(c, SESSION_COOKIE, token, c.env.SESSION_SECRET, { ...cookieOpts(), maxAge: SESSION_TTL })
 }
 
-export async function readSession(c: Context<AppEnv>): Promise<SessionUser | null> {
+async function readSession(c: Context<AppEnv>): Promise<SessionUser | null> {
   const token = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE)
   if (typeof token !== 'string') return null // false = tampered, undefined = missing
   const raw = await c.env.POSTPLAN_SESSIONS.get(`session:${token}`)
@@ -89,7 +90,18 @@ export async function revokeUserCliTokens(c: Context<AppEnv>, userId: string): P
   } while (cursor)
 }
 
-export async function readCliToken(c: Context<AppEnv>, token: string): Promise<SessionUser | null> {
+/** Persistent offboarding marker checked by every credential path, including inline viewer auth. */
+export const revokeUserAccess = (kv: KVNamespace, userId: string): Promise<void> =>
+  kv.put(`${REVOKED_USER_PREFIX}${userId}`, '1')
+
+/** A fresh successful identity-provider login is the only action that restores revoked access. */
+export const restoreUserAccess = (kv: KVNamespace, userId: string): Promise<void> =>
+  kv.delete(`${REVOKED_USER_PREFIX}${userId}`)
+
+const isUserAccessRevoked = async (kv: KVNamespace, userId: string): Promise<boolean> =>
+  (await kv.get(`${REVOKED_USER_PREFIX}${userId}`)) !== null
+
+async function readCliToken(c: Context<AppEnv>, token: string): Promise<SessionUser | null> {
   const raw = await c.env.POSTPLAN_SESSIONS.get(`cli:${token}`)
   if (!raw) return null
   try {
@@ -114,7 +126,10 @@ export function bearerToken(c: Context<AppEnv>): string | null {
 // a second shot at the CLI token store (or vice versa).
 export async function readCredential(c: Context<AppEnv>): Promise<Credential | null> {
   const sessionUser = await readSession(c)
-  if (sessionUser) return { kind: 'session', user: sessionUser }
+  if (sessionUser)
+    return (await isUserAccessRevoked(c.env.POSTPLAN_SESSIONS, sessionUser.id))
+      ? null
+      : { kind: 'session', user: sessionUser }
 
   const token = bearerToken(c)
   if (token === null) return null
@@ -123,6 +138,7 @@ export async function readCredential(c: Context<AppEnv>): Promise<Credential | n
     const db = apiKeyDb(c)
     const resolved = await resolveApiKey(db, token)
     if (!resolved) return null
+    if (await isUserAccessRevoked(c.env.POSTPLAN_SESSIONS, resolved.userId)) return null
     const keyUser = await getUserById(db, resolved.userId)
     if (!keyUser) return null
     // Best-effort, throttled usage touch — off the response's critical path (fireAndForget) and
@@ -132,7 +148,8 @@ export async function readCredential(c: Context<AppEnv>): Promise<Credential | n
   }
 
   const cliUser = await readCliToken(c, token)
-  return cliUser ? { kind: 'cli', user: cliUser } : null
+  if (!cliUser || (await isUserAccessRevoked(c.env.POSTPLAN_SESSIONS, cliUser.id))) return null
+  return { kind: 'cli', user: cliUser }
 }
 
 // Resolve the request's user from the session cookie, falling back to a CLI/API-key Bearer

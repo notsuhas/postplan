@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { apiKeys as apiKeysTable } from '../db/schema'
 import { API_KEY_PREFIX, LAST_USED_THROTTLE_MS, generateApiKey, hashApiKey } from '../lib/api-key'
-import { createSession, readSessionOrBearer } from '../lib/session'
+import { createSession, readSessionOrBearer, revokeUserAccess } from '../lib/session'
 import { makeDb, makeKv, seedApiKey, seedUser } from '../test/harness'
 import type { AppEnv } from '../types'
 import { requireAuth } from './auth'
@@ -126,13 +126,19 @@ describe('requireAuth credential dispatch', () => {
     await seedApiKey(db, { userId: keyOwner, hash: await hashApiKey(secret) })
     const cookie = await sessionCookie(app, env, { id: owner, email: 'u1@x.com', name: null, role: 'member' })
 
-    const res = await app.request(
-      '/whoami',
-      { headers: { Cookie: cookie, Authorization: `Bearer ${secret}` } },
-      env,
-    )
+    const res = await app.request('/whoami', { headers: { Cookie: cookie, Authorization: `Bearer ${secret}` } }, env)
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ kind: 'session', user: { id: owner } })
+  })
+
+  test('an offboarded user loses an existing browser session immediately', async () => {
+    const { app, db, kv, env } = setup()
+    const uid = await seedUser(db, { id: 'u1' })
+    const cookie = await sessionCookie(app, env, { id: uid, email: 'u1@x.com', name: null, role: 'member' })
+
+    await revokeUserAccess(kv, uid)
+
+    expect((await app.request('/whoami', { headers: { Cookie: cookie } }, env)).status).toBe(401)
   })
 })
 
