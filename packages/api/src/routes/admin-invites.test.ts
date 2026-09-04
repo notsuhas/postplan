@@ -135,4 +135,19 @@ describe('DELETE /api/admin/invites/:email', () => {
     )
     expect(res.status).toBe(404)
   })
+
+  test('accepts an encoded percent sign in the address', async () => {
+    const { app, db, kv, env } = makeRouteApp()
+    await mintUser(db, kv, 'admin', { role: 'superadmin' })
+    await db.insert(invites).values({ email: 'guest%tag@example.com', invitedBy: 'a@b.c', createdAt: 1 })
+
+    const res = await app.request(
+      '/api/admin/invites/guest%25tag%40example.com',
+      { method: 'DELETE', headers: auth('admin') },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(await db.select().from(invites)).toHaveLength(0)
+  })
 })

@@ -206,7 +206,7 @@ admin.post('/invites', async (c) => {
 // of access, not a purge, and deleting the user row would cascade their content away.
 admin.delete('/invites/:email', async (c) => {
   const db = c.get('db')
-  const email = decodeURIComponent(c.req.param('email')).trim().toLowerCase()
+  const email = c.req.param('email').trim().toLowerCase()
   const deleted = await db.delete(invites).where(eq(invites.email, email)).returning({ email: invites.email })
   if (!deleted[0]) return c.json({ error: 'not found' }, 404)
 
