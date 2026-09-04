@@ -29,6 +29,7 @@ async function setup() {
   } as unknown as AppEnv['Bindings']
 
   const app = new Hono<AppEnv>()
+  app.onError((_error, c) => c.json({ error: 'internal error' }, 500))
   app.use('*', async (c, next) => {
     c.set('db', db)
     await next()

@@ -35,14 +35,6 @@ mock.module('@/components/CommandPalette', () => ({ CommandPalette: () => null }
 
 const { Component } = await import('./viewer')
 
-// The real component renders a real <iframe src="https://content.example.com/...">; without this,
-// happy-dom actually tries to fetch it over the network on every render, which is slow and noisy
-// (and would be outright flaky off-VPN/offline). Nothing in this file depends on iframe navigation
-// — only on the element's contentWindow (for message `source`) and its measured box (stubbed below).
-;(
-  window as unknown as { happyDOM: { settings: { disableIframePageLoading: boolean } } }
-).happyDOM.settings.disableIframePageLoading = true
-
 const SITE: ViewerSite = {
   id: 's1',
   spaceSlug: 'sp',
@@ -51,10 +43,10 @@ const SITE: ViewerSite = {
   visibility: 'team',
   status: 'active',
   isOwner: true,
-  contentUrl: 'https://content.example.com/sp/site/',
+  contentUrl: 'about:blank#/sp/site/',
   indexPath: 'index.html',
 }
-const CONTENT_ORIGIN = 'https://content.example.com'
+const CONTENT_ORIGIN = 'null'
 
 function mkThread(overrides: Partial<Thread> & { id: string }): Thread {
   return {
@@ -91,7 +83,7 @@ function makeLoaderData({ params }: LoaderFunctionArgs): ViewerLoaderData {
           ...SITE,
           id: `s-${params.site}`,
           siteSlug: params.site ?? '',
-          contentUrl: `${CONTENT_ORIGIN}/${params.space}/${params.site}/`,
+          contentUrl: `about:blank#/${params.space}/${params.site}/`,
         }
   return { site, entryPath: 'index.html', commentsPromise: Promise.resolve(THREADS) }
 }

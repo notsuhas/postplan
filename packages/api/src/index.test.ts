@@ -6,7 +6,11 @@ import { makeKv } from './test/harness'
 // Composition-level checks against the real worker export (routes registered before the /api/*
 // guards need no DB, so a minimal env suffices). Exercised through `worker.fetch` — the handler
 // production actually invokes — not a Hono test helper.
-const ENV = { CONTENT_URL: 'https://content.example.com', APP_URL: 'https://postplan.example.com' } as never
+const ENV = {
+  CONTENT_URL: 'https://content.example.com',
+  APP_URL: 'https://postplan.example.com',
+  POSTPLAN_DB: { withSession: () => ({ prepare: () => ({}), getBookmark: () => null }) },
+} as never
 
 describe('shared-backend routes on the root app', () => {
   test('/api/postplan.js serves the built SDK with the global CSP applied', async () => {
@@ -21,7 +25,7 @@ describe('shared-backend routes on the root app', () => {
 
   test('no demo page ships (deleted — rebuilt broker-side in Phase 2)', async () => {
     const res = await worker.fetch(new Request('https://postplan.example.com/api/postplan-demo'), ENV)
-    expect(res.status).not.toBe(200)
+    expect(res.status).toBe(404)
   })
 })
 

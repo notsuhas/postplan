@@ -34,6 +34,7 @@ export function makeRouteApp() {
     POSTPLAN_FILES: r2,
   } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
+  app.onError((_error, c) => c.json({ error: 'internal error' }, 500))
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {
     c.set('db', db)
