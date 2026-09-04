@@ -42,6 +42,7 @@ export const users = sqliteTable('users', {
   // (findOrCreateUser / bootstrapSuperadminByEmail) so new signups start caught up. NO catalog
   // import here — keeping the schema catalog-free is what stops the content worker from baking it in.
   lastSeenReleaseAt: text('lastSeenReleaseAt'),
+  disabledAt: text('disabledAt'),
 })
 
 export const spaces = sqliteTable('spaces', {

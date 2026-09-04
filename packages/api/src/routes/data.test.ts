@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { documents, sites } from '../db/schema'
+import { documents, sites, users } from '../db/schema'
 import { generateApiKey, hashApiKey } from '../lib/api-key'
 import type { ApiKeyGrants } from '../lib/api-key'
 import { signDataToken } from '../lib/data-token'
@@ -92,6 +92,12 @@ async function seedDocs(db: DrizzleD1Database, siteId: string, collection: strin
 }
 
 describe('postplan.db data plane — happy path', () => {
+  test('a disabled viewer cannot use an already-minted data token', async () => {
+    const { db, app, tokens } = await scenario()
+    await db.update(users).set({ disabledAt: new Date().toISOString() }).where(eq(users.id, 'userB'))
+    expect((await req(app, tokens.viewerB, 'GET', '/posts')).status).toBe(403)
+  })
+
   test('owner can create, read back, and list own documents', async () => {
     const { app, tokens } = await scenario()
     const id = await create(app, tokens.ownerA, 'posts', { title: 'Hello Postplan DB' })

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { type Context, Hono } from 'hono'
 import { createNotifications, usersEmailsByIds } from '../db/notifications'
@@ -528,7 +528,14 @@ sites.put('/:spaceSlug/:siteSlug/shares', requireAuth, requireControlGrant, asyn
   // insert on an FK violation.
   const wantUsers = grants.users.map((u) => u.userId)
   const present = wantUsers.length
-    ? new Set((await db.select({ id: users.id }).from(users).where(inArray(users.id, wantUsers))).map((r) => r.id))
+    ? new Set(
+        (
+          await db
+            .select({ id: users.id })
+            .from(users)
+            .where(and(inArray(users.id, wantUsers), isNull(users.disabledAt)))
+        ).map((r) => r.id),
+      )
     : new Set<string>()
   const validUsers = grants.users.filter((u) => present.has(u.userId))
   const validGroups = grants.groupIds.length

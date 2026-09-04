@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { batchAll } from '../lib/d1'
 import { RESERVED_SLUGS, slugifyHandle } from '../lib/slug'
@@ -27,7 +27,7 @@ export async function getUserById(
   const row = await db
     .select({ id: users.id, email: users.email, name: users.name, role: users.role })
     .from(users)
-    .where(eq(users.id, id))
+    .where(and(eq(users.id, id), isNull(users.disabledAt)))
     .limit(1)
   return row[0] ?? null
 }
@@ -43,7 +43,7 @@ export async function getUserByEmail(
   const row = await db
     .select({ id: users.id, email: users.email, name: users.name, role: users.role })
     .from(users)
-    .where(eq(users.email, email.toLowerCase()))
+    .where(and(eq(users.email, email.toLowerCase()), isNull(users.disabledAt)))
     .limit(1)
   return row[0] ?? null
 }
@@ -83,6 +83,16 @@ export function isUniqueConstraintError(err: unknown): boolean {
  * which has already inserted the user row, never strands a user with no personal space.
  */
 export async function createPersonalSpace(db: DrizzleD1Database, userId: string, email: string): Promise<void> {
+  const existing = await db
+    .select({ id: spaces.id })
+    .from(spaces)
+    .where(and(eq(spaces.createdBy, userId), eq(spaces.type, 'personal')))
+    .limit(1)
+  if (existing[0]) {
+    await db.insert(spaceMembers).values({ spaceId: existing[0].id, userId }).onConflictDoNothing()
+    return
+  }
+
   let base = slugifyHandle(email)
   if (RESERVED_SLUGS.has(base)) base = `${base}-1`
   const candidates = [base, ...Array.from({ length: 25 }, (_, i) => `${base}-${i + 1}`)]
@@ -120,8 +130,11 @@ export async function bootstrapSuperadminByEmail(
 
   if (existing) {
     if (existing.role !== 'superadmin') {
-      await db.update(users).set({ role: 'superadmin' }).where(eq(users.id, existing.id))
+      await db.update(users).set({ role: 'superadmin', disabledAt: null }).where(eq(users.id, existing.id))
+    } else if (existing.disabledAt) {
+      await db.update(users).set({ disabledAt: null }).where(eq(users.id, existing.id))
     }
+    await createPersonalSpace(db, existing.id, existing.email)
     return toSessionUser({ ...existing, role: 'superadmin' })
   }
 
@@ -284,7 +297,11 @@ export async function listMentionableUsers(
 
   // team: any authenticated user can open the site, so everyone (minus the caller) is mentionable.
   if (site.visibility === 'team') {
-    return db.select(project).from(users).where(ne(users.id, callerId)).orderBy(byName)
+    return db
+      .select(project)
+      .from(users)
+      .where(and(ne(users.id, callerId), isNull(users.disabledAt)))
+      .orderBy(byName)
   }
 
   // Additive grants shared by every non-team tier: owner + direct user-shares + group-share members.
@@ -315,7 +332,7 @@ export async function listMentionableUsers(
   return db
     .select(project)
     .from(users)
-    .where(inArray(users.id, [...ids]))
+    .where(and(inArray(users.id, [...ids]), isNull(users.disabledAt)))
     .orderBy(byName)
 }
 

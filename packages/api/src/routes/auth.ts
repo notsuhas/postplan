@@ -348,8 +348,9 @@ export async function findOrCreateUser(
     const role = admin ? 'superadmin' : existing.role
     await db
       .update(users)
-      .set({ name, googleId: claims.sub, avatarUrl: avatarUrl ?? existing.avatarUrl, role })
+      .set({ name, googleId: claims.sub, avatarUrl: avatarUrl ?? existing.avatarUrl, role, disabledAt: null })
       .where(eq(users.id, existing.id))
+    await createPersonalSpace(db, existing.id, email)
     return toSessionUser({ ...existing, name, role })
   }
 

@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { invites, sites, spaceMembers, spaces as spacesTable, users } from '../db/schema'
+import { invites, sites, siteUserShares, spaceMembers, spaces as spacesTable, users } from '../db/schema'
 import { revokeUserApiKeys } from '../lib/api-key'
 import { fireAndForget } from '../lib/events'
 import { revokeUserAccess, revokeUserCliTokens } from '../lib/session'
@@ -119,6 +119,7 @@ admin.get('/users', async (c) => {
       email: users.email,
       name: users.name,
       role: users.role,
+      disabledAt: users.disabledAt,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -196,14 +197,32 @@ admin.post('/invites', async (c) => {
 admin.delete('/invites/:email', async (c) => {
   const db = c.get('db')
   const email = c.req.param('email').trim().toLowerCase()
-  const deleted = await db.delete(invites).where(eq(invites.email, email)).returning({ email: invites.email })
-  if (!deleted[0]) return c.json({ error: 'not found' }, 404)
-
   const existing = (await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]
+  const invited = (await db.select({ email: invites.email }).from(invites).where(eq(invites.email, email)).limit(1))[0]
+  if (!existing && !invited) return c.json({ error: 'not found' }, 404)
+
   if (existing) {
+    const ownedGroup = (
+      await db
+        .select({ id: spacesTable.id })
+        .from(spacesTable)
+        .where(and(eq(spacesTable.createdBy, existing.id), eq(spacesTable.type, 'group')))
+        .limit(1)
+    )[0]
+    if (ownedGroup) return c.json({ error: 'transfer or delete this user’s group spaces first' }, 409)
+
+    const disabledAt = new Date().toISOString()
+    await db.batch([
+      db.update(users).set({ disabledAt }).where(eq(users.id, existing.id)),
+      db.delete(siteUserShares).where(eq(siteUserShares.userId, existing.id)),
+      db.delete(spaceMembers).where(eq(spaceMembers.userId, existing.id)),
+      db.delete(invites).where(eq(invites.email, email)),
+    ])
     await revokeUserAccess(c.env.POSTPLAN_SESSIONS, existing.id)
     await revokeUserCliTokens(c, existing.id)
     await revokeUserApiKeys(db, existing.id)
+  } else {
+    await db.delete(invites).where(eq(invites.email, email))
   }
   return c.json({ ok: true, revokedCredentials: Boolean(existing) })
 })

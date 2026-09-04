@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { createSpace, foldSharedSiteRoles, sharedSiteRoleStmts } from '../db/repo'
@@ -162,7 +162,11 @@ spaces.post('/:slug/members', requireAuth, requireControlGrant, async (c) => {
   if (space.type === 'personal') return c.json({ error: 'cannot invite members to a personal space' }, 409)
 
   const target = (
-    await db.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = lower(${email})`).limit(1)
+    await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(sql`lower(${users.email}) = lower(${email})`, isNull(users.disabledAt)))
+      .limit(1)
   )[0]
   if (!target) return c.json({ error: 'user not found — they must sign in once first' }, 404)
 

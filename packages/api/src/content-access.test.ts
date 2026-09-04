@@ -108,6 +108,18 @@ describe('T1.5 cross-space same-slug isolation (pin)', () => {
 // cache ops — authorization is decided purely in D1, bytes are never touched.
 // ---------------------------------------------------------------------------------------------
 describe('T1.3 denial matrix — no R2/cache work on any denial (pin)', () => {
+  test('a disabled viewer cannot use an already-minted content token', async () => {
+    const s = setup()
+    const { viewer, token: liveToken } = await teamSite(s, [{ path: 'index.html', text: '<p>x</p>' }])
+    await s.db.update(users).set({ disabledAt: new Date().toISOString() }).where(eq(users.id, viewer))
+    s.db.resetCounters()
+    s.recorder.resetCounters()
+
+    const res = await s.app.request(`/_t/${liveToken}/sp/site/`, {}, s.env)
+    expect(res.status).toBe(403)
+    expectNoByteWork(s)
+  })
+
   async function privateSite(s: Setup, o: { status?: 'active' | 'archived' } = {}) {
     const owner = await seedUser(s.db)
     const sp = await seedSpace(s.db, { createdBy: owner, slug: 'sp' })

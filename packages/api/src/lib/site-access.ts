@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { BatchItem, BatchResponse } from 'drizzle-orm/batch'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { isSpaceMember, resolveIsShared, toSessionUser } from '../db/repo'
@@ -106,7 +106,7 @@ function accessFactsStatements(
   const user = db
     .select({ id: users.id, email: users.email, name: users.name, role: users.role })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(and(eq(users.id, userId), isNull(users.disabledAt)))
     .limit(1)
   const membership = db
     .select({ userId: spaceMembers.userId })
@@ -230,7 +230,7 @@ export async function authorizeViewerById(
     db
       .select({ id: users.id, email: users.email, name: users.name, role: users.role })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(and(eq(users.id, userId), isNull(users.disabledAt)))
       .limit(1)
       .then((rows) => rows[0]),
     isSpaceMember(db, site.spaceId, userId),

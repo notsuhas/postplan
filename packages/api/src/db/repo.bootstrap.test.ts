@@ -77,6 +77,17 @@ describe('getUserById', () => {
 })
 
 describe('createPersonalSpace — slug-conflict resilience (#27)', () => {
+  test('repairs a stranded existing user and is idempotent', async () => {
+    const db = makeDb()
+    await db.insert(users).values({ id: 'stranded', email: 'stranded@example.com', role: 'member' })
+
+    await createPersonalSpace(db, 'stranded', 'stranded@example.com')
+    await createPersonalSpace(db, 'stranded', 'stranded@example.com')
+
+    expect(await db.select().from(spaces).where(eq(spaces.createdBy, 'stranded'))).toHaveLength(1)
+    expect(await db.select().from(spaceMembers).where(eq(spaceMembers.userId, 'stranded'))).toHaveLength(1)
+  })
+
   test('retries-next-candidate-on-unique-conflict: base slug taken → uses base-1, never strands', async () => {
     const db = makeDb()
     // A racing signup already owns the base slug derived from the handle ('alice').

@@ -1,4 +1,4 @@
-import { asc } from 'drizzle-orm'
+import { asc, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { users as usersTable } from '../db/schema'
 import { requireAuth } from '../middleware/auth'
@@ -15,6 +15,7 @@ users.get('/', requireAuth, async (c) => {
   const rows = await db
     .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name })
     .from(usersTable)
+    .where(isNull(usersTable.disabledAt))
     .orderBy(asc(usersTable.email))
   return c.json(rows.filter((u) => u.id !== me.id))
 })

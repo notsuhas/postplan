@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { invites } from '../db/schema'
+import { invites, siteUserShares, spaceMembers, users } from '../db/schema'
+import { eq } from 'drizzle-orm'
+import { seedMember, seedSite, seedSpace, seedUserShare } from '../test/harness'
 import { authHeaders as auth, authKey, DATA_ONLY_GRANTS, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 
 // The shared fixture leaves SUPERADMIN_EMAILS unset; these routes read it, so each test that cares
@@ -136,6 +138,77 @@ describe('DELETE /api/admin/invites/:email', () => {
     expect((await app.request('/api/api-keys', { headers: authKey(secret) }, env)).status).toBe(401)
     expect((await app.request('/api/api-keys', { headers: auth('guest') }, env)).status).toBe(401)
     expect(await kv.get('revoked_user:guest')).toBe('1')
+  })
+
+  test('revocation durably disables the user and removes dormant entitlements', async () => {
+    const { app, db, kv, env } = makeRouteApp()
+    await mintUser(db, kv, 'admin', { role: 'superadmin' })
+    await mintUser(db, kv, 'owner')
+    await mintUser(db, kv, 'guest')
+    const spaceId = await seedSpace(db, { id: 'group', slug: 'group', createdBy: 'owner' })
+    await seedMember(db, spaceId, 'owner')
+    await seedMember(db, spaceId, 'guest')
+    const siteId = await seedSite(db, { id: 'site', spaceId, ownerId: 'owner', slug: 'site' })
+    await seedUserShare(db, siteId, 'guest')
+    await db.insert(invites).values({ email: 'guest@example.com', invitedBy: 'a@b.c', createdAt: 1 })
+
+    const res = await app.request(
+      '/api/admin/invites/guest%40example.com',
+      { method: 'DELETE', headers: auth('admin') },
+      env,
+    )
+    expect(res.status).toBe(200)
+    expect((await db.select().from(users).where(eq(users.id, 'guest')))[0]?.disabledAt).not.toBeNull()
+    expect(await db.select().from(spaceMembers).where(eq(spaceMembers.userId, 'guest'))).toEqual([])
+    expect(await db.select().from(siteUserShares).where(eq(siteUserShares.userId, 'guest'))).toEqual([])
+  })
+
+  test('retry finishes credential cleanup after the durable disable succeeded', async () => {
+    const { app, db, kv, env } = makeRouteApp()
+    await mintUser(db, kv, 'admin', { role: 'superadmin' })
+    await mintUser(db, kv, 'guest')
+    await db.insert(invites).values({ email: 'guest@example.com', invitedBy: 'a@b.c', createdAt: 1 })
+    const put = kv.put.bind(kv)
+    let fail = true
+    kv.put = ((key: string, value: string, options?: { expirationTtl?: number }) => {
+      if (fail) {
+        fail = false
+        return Promise.reject(new Error('KV unavailable'))
+      }
+      return put(key, value, options)
+    }) as typeof kv.put
+
+    const first = await app.request(
+      '/api/admin/invites/guest%40example.com',
+      { method: 'DELETE', headers: auth('admin') },
+      env,
+    )
+    expect(first.status).toBe(500)
+    expect((await db.select().from(users).where(eq(users.id, 'guest')))[0]?.disabledAt).not.toBeNull()
+
+    const retry = await app.request(
+      '/api/admin/invites/guest%40example.com',
+      { method: 'DELETE', headers: auth('admin') },
+      env,
+    )
+    expect(retry.status).toBe(200)
+    expect(await kv.get('revoked_user:guest')).toBe('1')
+  })
+
+  test('refuses to strand a group when revoking its owner', async () => {
+    const { app, db, kv, env } = makeRouteApp()
+    await mintUser(db, kv, 'admin', { role: 'superadmin' })
+    await mintUser(db, kv, 'owner')
+    await seedSpace(db, { id: 'group', slug: 'group', createdBy: 'owner' })
+    await db.insert(invites).values({ email: 'owner@example.com', invitedBy: 'a@b.c', createdAt: 1 })
+
+    const res = await app.request(
+      '/api/admin/invites/owner%40example.com',
+      { method: 'DELETE', headers: auth('admin') },
+      env,
+    )
+    expect(res.status).toBe(409)
+    expect((await db.select().from(users).where(eq(users.id, 'owner')))[0]?.disabledAt).toBeNull()
   })
 
   test('an unknown address 404s', async () => {
