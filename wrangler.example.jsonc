@@ -17,8 +17,7 @@
   "vars": {
     "APP_URL": "https://postplan.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
     "CONTENT_URL": "https://postplan-content.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
-    "SUPERADMIN_EMAILS": "", // EDIT: optional extra superadmins, comma-separated (SUPERADMIN_EMAIL is always one)
-    "SUPERADMIN_EMAIL": "you@yourcompany.com" // EDIT: replace with your own (see README)
+    "SUPERADMIN_EMAILS": "you@yourcompany.com" // EDIT: first address owns bootstrap; extras are comma-separated
   },
   // Main worker serves the React SPA as static assets. run_worker_first forces
   // /api/* to Hono BEFORE the asset layer (otherwise SPA fallback returns index.html

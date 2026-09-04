@@ -32,7 +32,7 @@ scripts/set-secrets.sh
 
 ## First admin
 
-Open `$APP_URL/login` and submit the `BOOTSTRAP_TOKEN` from `deploy.env`. It can claim only `SUPERADMIN_EMAIL`, and becomes inert after the first admin exists.
+Open `$APP_URL/login` and submit the `BOOTSTRAP_TOKEN` from `deploy.env`. It claims the first address in `SUPERADMIN_EMAILS`, then becomes inert after the first admin exists.
 
 ## WorkOS login
 

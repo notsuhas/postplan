@@ -33,5 +33,4 @@ APP_URL="http://localhost:8787"
 CONTENT_URL="http://localhost:8788"
 
 # First superadmin plus optional additional superadmins, comma-separated.
-SUPERADMIN_EMAIL="you@example.com"
-SUPERADMIN_EMAILS=""
+SUPERADMIN_EMAILS="you@example.com"

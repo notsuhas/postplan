@@ -139,7 +139,7 @@ describe('B2 newuser.caughtUp — created through the real insert paths → 0 un
     const { app, db, kv, env } = setup()
     const u = await findOrCreateUser(
       db,
-      { SUPERADMIN_EMAIL: 'boss@example.com' } as never,
+      { SUPERADMIN_EMAILS: 'boss@example.com' } as never,
       { sub: 'g1', name: 'A' } as never,
       'a@example.com',
     )
@@ -161,7 +161,7 @@ describe('B3 relogin.noReset — the existing-user branch must not clear an exis
     const { app, db, kv, env } = setup()
     const first = await findOrCreateUser(
       db,
-      { SUPERADMIN_EMAIL: 'boss@example.com' } as never,
+      { SUPERADMIN_EMAILS: 'boss@example.com' } as never,
       { sub: 'g1', name: 'A' } as never,
       'a@example.com',
     )
@@ -171,7 +171,7 @@ describe('B3 relogin.noReset — the existing-user branch must not clear an exis
     // Re-login: same googleId/email → the existing-user branch (updates name/googleId only).
     await findOrCreateUser(
       db,
-      { SUPERADMIN_EMAIL: 'boss@example.com' } as never,
+      { SUPERADMIN_EMAILS: 'boss@example.com' } as never,
       { sub: 'g1', name: 'A2' } as never,
       'a@example.com',
     )

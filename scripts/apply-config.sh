@@ -17,17 +17,17 @@ if [[ -f deploy.env ]]; then
   . ./deploy.env
   set +a
 fi
-: "${APP_URL:?}" "${CONTENT_URL:?}" "${SUPERADMIN_EMAIL:?}" "${D1_DATABASE_ID:?}" "${KV_NAMESPACE_ID:?}"
+: "${APP_URL:?}" "${CONTENT_URL:?}" "${SUPERADMIN_EMAILS:?}" "${D1_DATABASE_ID:?}" "${KV_NAMESPACE_ID:?}"
 : "${WORKER_NAME:=postplan}" "${CONTENT_WORKER_NAME:=postplan-content}" "${D1_DATABASE_NAME:=postplan-db}"
 : "${R2_BUCKET:=postplan-files}"
 [[ "$APP_URL" != "$CONTENT_URL" ]] || { echo "APP_URL and CONTENT_URL must use separate origins"; exit 1; }
 
-python3 - "$APP_URL" "$CONTENT_URL" "$SUPERADMIN_EMAIL" "${SUPERADMIN_EMAILS:-${ADMIN_EMAILS:-}}" "$D1_DATABASE_ID" "$KV_NAMESPACE_ID" \
+python3 - "$APP_URL" "$CONTENT_URL" "$SUPERADMIN_EMAILS" "$D1_DATABASE_ID" "$KV_NAMESPACE_ID" \
   "$WORKER_NAME" "$CONTENT_WORKER_NAME" "$D1_DATABASE_NAME" "$R2_BUCKET" <<'PY'
 import json, re, sys
 from urllib.parse import urlsplit
 
-app, content, sup, admins, d1, kv, worker, content_worker, d1_name, bucket = sys.argv[1:11]
+app, content, admins, d1, kv, worker, content_worker, d1_name, bucket = sys.argv[1:10]
 
 def host(origin):
     parsed = urlsplit(origin)
@@ -50,7 +50,6 @@ def render(example, real, host, name):
     s = replace_value(s, 'bucket_name', bucket)
     s = replace_value(s, 'APP_URL', app)
     s = replace_value(s, 'CONTENT_URL', content)
-    s = replace_value(s, 'SUPERADMIN_EMAIL', sup)
     s = replace_value(s, 'SUPERADMIN_EMAILS', admins)
     s = replace_value(s, 'database_id', d1)
     s = re.sub(r'("binding": "POSTPLAN_SESSIONS", "id": )"[^"]*"', lambda m: m.group(1) + json.dumps(kv), s)
@@ -69,7 +68,7 @@ PY
 echo "rendered from deploy.env:"
 echo "  app      $APP_URL"
 echo "  content  $CONTENT_URL"
-echo "  superadmins  $SUPERADMIN_EMAIL${SUPERADMIN_EMAILS:+, $SUPERADMIN_EMAILS}"
+echo "  superadmins  $SUPERADMIN_EMAILS"
 echo "  workers      $WORKER_NAME, $CONTENT_WORKER_NAME"
 echo "  resources    $D1_DATABASE_NAME, $R2_BUCKET"
 echo "  git sees $(git status --porcelain | wc -l | tr -d ' ') changes (generated files are ignored)"

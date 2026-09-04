@@ -15,7 +15,7 @@ function setup(overrides: Partial<AppEnv['Bindings']> = {}) {
   const env = {
     APP_URL,
     SESSION_SECRET: 'sess-secret',
-    SUPERADMIN_EMAIL: 'owner@example.com',
+    SUPERADMIN_EMAILS: 'owner@example.com,backup@example.com',
     BOOTSTRAP_TOKEN: TOKEN,
     POSTPLAN_SESSIONS: kv,
     ...overrides,

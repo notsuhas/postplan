@@ -24,7 +24,7 @@ describe('the watermark column after a fresh migrate', () => {
 describe('S10 caught-up default on the insert paths (unit)', () => {
   test('findOrCreateUser stamps a new user with the newest release date', async () => {
     const db = makeDb()
-    const env = { SUPERADMIN_EMAIL: 'boss@example.com' } as never
+    const env = { SUPERADMIN_EMAILS: 'boss@example.com' } as never
     const u = await findOrCreateUser(db, env, { sub: 'g-1', name: 'A' } as never, 'a@example.com')
     const row = (await db.select({ w: users.lastSeenReleaseAt }).from(users).where(eq(users.id, u.id)))[0]
     expect(row.w).toBe(NEWEST_RELEASE_DATE as string)

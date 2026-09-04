@@ -26,7 +26,7 @@ export async function secretEquals(a: string, b: string): Promise<boolean> {
 
 export interface SuperadminStatus {
   hasSuperadmin: boolean
-  /** Whether the existing superadmin (if any) is exactly SUPERADMIN_EMAIL. */
+  /** Whether the existing superadmin is the first configured superadmin email. */
   superadminIsConfiguredEmail: boolean
 }
 

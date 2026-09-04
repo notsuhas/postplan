@@ -7,7 +7,7 @@ import { auth } from './auth'
 const base = {
   APP_URL: 'https://postplan.example.com',
   SESSION_SECRET: 'test-session-secret',
-  SUPERADMIN_EMAIL: 'you@example.com',
+  SUPERADMIN_EMAILS: 'you@example.com',
 } as AppEnv['Bindings']
 
 describe('GET /workos guard (creds optional)', () => {
@@ -45,12 +45,12 @@ describe('POST /dev-login guard', () => {
     const local = await app.request(
       '/api/auth/dev-login',
       { method: 'POST' },
-      { ...env, APP_URL: 'http://localhost:5173', SUPERADMIN_EMAIL: 'dev@example.com' },
+      { ...env, APP_URL: 'http://localhost:5173', SUPERADMIN_EMAILS: 'dev@example.com' },
     )
     const lookalike = await app.request(
       '/api/auth/dev-login',
       { method: 'POST' },
-      { ...env, APP_URL: 'http://localhost.evil.example', SUPERADMIN_EMAIL: 'dev@example.com' },
+      { ...env, APP_URL: 'http://localhost.evil.example', SUPERADMIN_EMAILS: 'dev@example.com' },
     )
 
     expect(local.status).toBe(200)

@@ -19,8 +19,7 @@ function fixture(overrides: Record<string, string> = {}): string {
   const values = {
     APP_URL: 'https://app.example.com',
     CONTENT_URL: 'https://content.example.com',
-    SUPERADMIN_EMAIL: 'admin@example.com',
-    SUPERADMIN_EMAILS: 'second@example.com',
+    SUPERADMIN_EMAILS: 'admin@example.com,second@example.com',
     D1_DATABASE_ID: '11111111-1111-1111-1111-111111111111',
     KV_NAMESPACE_ID: '22222222222222222222222222222222',
     R2_BUCKET: 'files',
@@ -79,7 +78,7 @@ describe('apply-config.sh', () => {
         ...process.env,
         APP_URL: 'https://ci.example.com',
         CONTENT_URL: 'https://ci-content.example.com',
-        SUPERADMIN_EMAIL: 'admin@example.com',
+        SUPERADMIN_EMAILS: 'admin@example.com',
         D1_DATABASE_ID: '11111111-1111-1111-1111-111111111111',
         KV_NAMESPACE_ID: '22222222222222222222222222222222',
       },

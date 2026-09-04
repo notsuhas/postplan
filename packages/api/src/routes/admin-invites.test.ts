@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { invites } from '../db/schema'
 import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 
-// The shared fixture leaves SUPERADMIN_EMAIL unset; these routes read it, so each test that cares
+// The shared fixture leaves SUPERADMIN_EMAILS unset; these routes read it, so each test that cares
 // about the admin bypass sets it explicitly rather than relying on a fixture default.
 const ADMIN_EMAIL = 'boss@example.com'
 
@@ -73,7 +73,7 @@ describe('POST /api/admin/invites', () => {
     await mintUser(db, kv, 'admin', { role: 'superadmin' })
     const res = await app.request('/api/admin/invites', post({ email: ADMIN_EMAIL }), {
       ...env,
-      SUPERADMIN_EMAIL: ADMIN_EMAIL,
+      SUPERADMIN_EMAILS: ADMIN_EMAIL,
     })
     expect(res.status).toBe(409)
     expect((await res.json()).error).toContain('admin')
@@ -88,7 +88,7 @@ describe('GET /api/admin/invites', () => {
     await db.insert(invites).values({ email: 'newer@example.com', invitedBy: 'a@b.c', createdAt: 2000 })
 
     const body = (await (
-      await app.request('/api/admin/invites', { headers: auth('admin') }, { ...env, SUPERADMIN_EMAIL: ADMIN_EMAIL })
+      await app.request('/api/admin/invites', { headers: auth('admin') }, { ...env, SUPERADMIN_EMAILS: ADMIN_EMAIL })
     ).json()) as {
       invites: { email: string; usedAt: number | null }[]
       admins: string[]

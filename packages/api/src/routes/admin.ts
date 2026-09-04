@@ -7,24 +7,13 @@ import { revokeUserAccess, revokeUserCliTokens } from '../lib/session'
 import { cachedStats } from '../lib/stats'
 import { deleteSiteObjects } from '../lib/storage'
 import { isVisibility, normalizeVisibility } from '../lib/visibility'
-import { isAdminEmail } from '../lib/workos'
+import { isAdminEmail, superadminEmails } from '../lib/workos'
 import { requireAuth, requireSuperAdmin } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 export const admin = new Hono<AppEnv>()
 
 const PAGE_SIZE = 50
-
-// The superadmin allowlist: SUPERADMIN_EMAIL plus SUPERADMIN_EMAILS. These bypass the invite gate
-// and hold the `superadmin` role. Mirrors lib/workos.ts isAdminEmail, including its fallback to the
-// deprecated ADMIN_EMAILS spelling.
-function superadminEmails(env: AppEnv['Bindings']): string[] {
-  return `${env.SUPERADMIN_EMAIL ?? ''},${env.SUPERADMIN_EMAILS ?? env.ADMIN_EMAILS ?? ''}`
-    .toLowerCase()
-    .split(',')
-    .map((e) => e.trim())
-    .filter(Boolean)
-}
 
 // Every admin route requires a superadmin: requireAuth first (401 if anonymous),
 // then requireSuperAdmin (403 if a non-superadmin member).

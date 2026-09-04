@@ -9,7 +9,7 @@ import { findOrCreateUser } from './auth'
 // it is also the only backfill available: a user who signed up before this column existed gets one
 // on their next sign-in, and everyone keeps initials until then.
 
-const env = { SUPERADMIN_EMAIL: 'boss@example.com' } as AppEnv['Bindings']
+const env = { SUPERADMIN_EMAILS: 'boss@example.com' } as AppEnv['Bindings']
 const claims = (picture?: string) =>
   ({ sub: 'idp-1', email: 'a@example.com', email_verified: true, name: 'A', picture }) as never
 

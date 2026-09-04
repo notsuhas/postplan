@@ -127,7 +127,7 @@ describe('indexes (0007 migration reaches the harness)', () => {
 describe('backfill identity onto bootstrap user', () => {
   test('IdP login on a bootstrap user backfills the subject and keeps superadmin', async () => {
     const db = makeDb()
-    const env = { SUPERADMIN_EMAIL: 'owner@example.com' } as AppEnv['Bindings']
+    const env = { SUPERADMIN_EMAILS: 'owner@example.com' } as AppEnv['Bindings']
 
     const bootstrapped = await bootstrapSuperadminByEmail(db, 'owner@example.com', null)
     expect(bootstrapped.role).toBe('superadmin')

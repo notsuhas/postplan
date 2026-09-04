@@ -17,21 +17,21 @@ export function createWorkos(env: Bindings): WorkOS {
   return new WorkOS(env.WORKOS_API_KEY as string, { clientId: env.WORKOS_CLIENT_ID as string })
 }
 
-/** The superadmin allowlist. Two effects: these addresses bypass the invite gate (so a fresh
- *  instance is reachable before any invite row exists), and findOrCreateUser grants them the
- *  `superadmin` role on every login. SUPERADMIN_EMAIL is always one — it is the address the
- *  first-run bootstrap token claims — and SUPERADMIN_EMAILS adds the rest.
- *
- *  There is no lesser "admin" role: users.role is `member | superadmin`, so a name like
- *  ADMIN_EMAILS promised a tier that does not exist. That spelling is still read as a fallback. */
-export function isAdminEmail(env: Bindings, email: string): boolean {
-  // Both are optional in tests and on a half-configured deploy; interpolating an undefined here
-  // would put the literal string "undefined" in the allowlist.
-  const extra = env.SUPERADMIN_EMAILS ?? env.ADMIN_EMAILS ?? ''
-  const list = `${env.SUPERADMIN_EMAIL ?? ''},${extra}`.toLowerCase()
-  return list
+/** Configured superadmins; the first address owns bootstrap and local dev login. */
+export function superadminEmails(env: Pick<Bindings, 'SUPERADMIN_EMAILS'>): string[] {
+  return (env.SUPERADMIN_EMAILS ?? '')
     .split(',')
     .map((e) => e.trim())
     .filter(Boolean)
-    .includes(email.toLowerCase())
+    .map((e) => e.toLowerCase())
+}
+
+export function primarySuperadminEmail(env: Pick<Bindings, 'SUPERADMIN_EMAILS'>): string {
+  const email = superadminEmails(env)[0]
+  if (!email) throw new Error('SUPERADMIN_EMAILS must contain at least one email')
+  return email
+}
+
+export function isAdminEmail(env: Pick<Bindings, 'SUPERADMIN_EMAILS'>, email: string): boolean {
+  return superadminEmails(env).includes(email.toLowerCase())
 }

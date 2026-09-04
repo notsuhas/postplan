@@ -70,7 +70,7 @@ interface AdminInvite {
 
 interface InvitesData {
   invites: AdminInvite[]
-  // SUPERADMIN_EMAIL + SUPERADMIN_EMAILS: they bypass the gate and may hold no invite row, so without
+  // Configured superadmins bypass the gate and may hold no invite row, so without
   // this the tab would look empty on a fresh instance and imply nobody can sign in.
   admins: string[]
 }
@@ -709,7 +709,7 @@ function InvitesPanel({ data }: { data: InvitesData }) {
             ))}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Set by SUPERADMIN_EMAIL and SUPERADMIN_EMAILS in deploy config — change them there, not here.
+            Set by SUPERADMIN_EMAILS in deploy config — change it there, not here.
           </p>
         </div>
       )}

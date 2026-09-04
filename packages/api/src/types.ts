@@ -50,14 +50,8 @@ export interface Bindings {
   SITE_ROOM?: DurableObjectNamespace
   APP_URL: string
   CONTENT_URL: string
-  // Comma-separated superadmins, in addition to SUPERADMIN_EMAIL. Both bypass the invite gate and
-  // both grant the `superadmin` role — there is no lesser "admin" tier, which is why this is not
-  // called ADMIN_EMAILS.
-  SUPERADMIN_EMAILS?: string
-  // Deprecated spelling of SUPERADMIN_EMAILS, still read so an existing deploy keeps working
-  // without a config edit. Remove once no instance sets it.
-  ADMIN_EMAILS?: string
-  SUPERADMIN_EMAIL: string
+  // Comma-separated superadmins. The first address is the bootstrap/dev-login identity.
+  SUPERADMIN_EMAILS: string
 }
 
 /** The minimal user identity stored in KV and attached to the request context. */

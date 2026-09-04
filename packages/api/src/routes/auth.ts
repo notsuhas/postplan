@@ -7,7 +7,7 @@ import { NEWEST_RELEASE_DATE } from '../whats-new/catalog'
 import { requireAuth } from '../middleware/auth'
 import { sanitizeAvatarUrl } from '../lib/avatar'
 import { bootstrapDecision } from '../lib/bootstrap'
-import { createWorkos, isAdminEmail, isWorkosEnabled } from '../lib/workos'
+import { createWorkos, isAdminEmail, isWorkosEnabled, primarySuperadminEmail } from '../lib/workos'
 import {
   bearerToken,
   createCliToken,
@@ -181,7 +181,7 @@ function isLocalAppUrl(value: string): boolean {
 // DEV ONLY: skip the IdP round-trip for local browser testing.
 auth.post('/dev-login', async (c) => {
   if (!isLocalAppUrl(c.env.APP_URL)) return c.notFound()
-  const email = c.env.SUPERADMIN_EMAIL.toLowerCase()
+  const email = primarySuperadminEmail(c.env)
   const user = await findOrCreateUser(
     c.get('db'),
     c.env,
@@ -220,14 +220,14 @@ auth.post('/bootstrap', async (c) => {
     expectedToken: c.env.BOOTSTRAP_TOKEN,
     providedToken: body.token,
     alreadyCompleted,
-    status: () => superadminStatus(db, c.env.SUPERADMIN_EMAIL),
+    status: () => superadminStatus(db, primarySuperadminEmail(c.env)),
   })
   if (!decision.ok) return c.json({ error: 'bootstrap_unavailable' }, decision.status)
 
   // Session (KV) is confirmed before the run is marked "done"; the flag is set only AFTER a
   // successful mint, so a KV failure mid-way leaves it unset and the (anti-lockout) decision
   // lets a retry recover without re-locking the deploy. Once set, bootstrap is one-shot (410).
-  const user = await bootstrapSuperadminByEmail(db, c.env.SUPERADMIN_EMAIL, null, NEWEST_RELEASE_DATE)
+  const user = await bootstrapSuperadminByEmail(db, primarySuperadminEmail(c.env), null, NEWEST_RELEASE_DATE)
   await createSession(c, user)
   await c.env.POSTPLAN_SESSIONS.put(BOOTSTRAP_COMPLETE_KEY, '1')
   return c.json({ ok: true, user })
@@ -337,7 +337,7 @@ export async function findOrCreateUser(
   // that fails the host pin leaves the stored URL untouched rather than clearing a good one.
   const avatarUrl = sanitizeAvatarUrl(claims.picture)
 
-  // Promote on EVERY login, not just at creation: adding an address to ADMIN_EMAILS has to reach
+  // Promote on EVERY login, not just at creation: adding an address to SUPERADMIN_EMAILS has to reach
   // someone who already signed in as a member, or the var silently does nothing for them.
   // Promote-only — removing an address never demotes, so a fat-fingered edit cannot strip the last
   // superadmin out of its own instance. Demote through the admin UI, deliberately.
