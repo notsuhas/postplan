@@ -98,18 +98,11 @@ func (c *client) deploy(argv []string) error {
 		visibility = raw.(string)
 		visibilitySet = true
 	}
-	// `group` was renamed to `members`; keep old commands working (server normalizes too).
-	if visibility == "group" {
-		fmt.Fprintln(c.errOut, "note: --visibility group is now 'members' (this space's people) — using members.")
-		visibility = "members"
-	}
-	// The `public` tier was removed (no anonymous access); old scripts fall back to `team`.
-	if visibility == "public" {
-		fmt.Fprintln(c.errOut, "note: --visibility public was removed — using team (everyone in your org).")
-		visibility = "team"
+	if visibility != "unlisted" && visibility != "private" && visibility != "members" && visibility != "team" {
+		return fmt.Errorf("Invalid visibility %q. Use unlisted, private, members, or team.", visibility)
 	}
 	if path == "" {
-		return fmt.Errorf("Usage: postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team|private|members] [--include-hidden]")
+		return fmt.Errorf("Usage: postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility unlisted|private|members|team] [--include-hidden]")
 	}
 	if err := c.requireAuth(); err != nil {
 		return err
@@ -202,7 +195,6 @@ func (c *client) deploy(argv []string) error {
 	}
 	var ex struct {
 		Exists     bool `json:"exists"`
-		Owned      bool `json:"owned"`
 		CanReplace bool `json:"canReplace"`
 	}
 	decErr := json.NewDecoder(exResp.Body).Decode(&ex)
@@ -212,10 +204,7 @@ func (c *client) deploy(argv []string) error {
 	}
 	replace := false
 	if ex.Exists {
-		// Replace is gated on canReplace (owner / superadmin / editor) — an editor doesn't own the
-		// site but may redeploy its content. `|| Owned` keeps a newer CLI working against an older
-		// server that predates the canReplace field.
-		if !(ex.CanReplace || ex.Owned) {
+		if !ex.CanReplace {
 			return fmt.Errorf("%s/%s is taken by another user.", space, name)
 		}
 		ans := c.prompt(fmt.Sprintf("Site exists at %s/%s. Replace? (y/N) ", space, name))

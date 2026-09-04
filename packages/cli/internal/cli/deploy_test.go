@@ -130,7 +130,7 @@ func TestDeployCommand(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "report.html")
 		writeFile(t, file, "x")
 		srv, st := newDeployServer(t)
-		st.existsBody = `{"exists":true,"owned":true}`
+		st.existsBody = `{"exists":true,"canReplace":true}`
 		c, _ := newTestClient(srv.URL, "tok")
 		c.in = strings.NewReader("y\n")
 		if err := c.deploy([]string{file}); err != nil {
@@ -147,7 +147,7 @@ func TestDeployCommand(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "report.html")
 		writeFile(t, file, "x")
 		srv, st := newDeployServer(t)
-		st.existsBody = `{"exists":true,"owned":true}`
+		st.existsBody = `{"exists":true,"canReplace":true}`
 		c, _ := newTestClient(srv.URL, "tok")
 		c.in = strings.NewReader("y\n")
 		if err := c.deploy([]string{file}); err != nil {
@@ -162,7 +162,7 @@ func TestDeployCommand(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "report.html")
 		writeFile(t, file, "x")
 		srv, st := newDeployServer(t)
-		st.existsBody = `{"exists":true,"owned":true}`
+		st.existsBody = `{"exists":true,"canReplace":true}`
 		c, _ := newTestClient(srv.URL, "tok")
 		c.in = strings.NewReader("y\n")
 		if err := c.deploy([]string{file, "--visibility", "private"}); err != nil {
@@ -190,7 +190,7 @@ func TestDeployCommand(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "report.html")
 		writeFile(t, file, "x")
 		srv, st := newDeployServer(t)
-		st.existsBody = `{"exists":true,"owned":true}`
+		st.existsBody = `{"exists":true,"canReplace":true}`
 		c, out := newTestClient(srv.URL, "tok")
 		c.in = strings.NewReader("\n")
 		if err := c.deploy([]string{file}); err != nil {
@@ -208,7 +208,7 @@ func TestDeployCommand(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "report.html")
 		writeFile(t, file, "x")
 		srv, st := newDeployServer(t)
-		st.existsBody = `{"exists":true,"owned":false}`
+		st.existsBody = `{"exists":true,"canReplace":false}`
 		c, _ := newTestClient(srv.URL, "tok")
 		if err := c.deploy([]string{file}); err == nil {
 			t.Fatal("want error when taken by another user")
@@ -228,16 +228,16 @@ func TestDeployCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("legacy-visibility-normalized", func(t *testing.T) {
+	t.Run("invalid-visibility-rejected", func(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "report.html")
 		writeFile(t, file, "x")
 		srv, st := newDeployServer(t)
 		c, _ := newTestClient(srv.URL, "tok")
-		if err := c.deploy([]string{file, "--visibility", "group"}); err != nil {
-			t.Fatalf("deploy: %v", err)
+		if err := c.deploy([]string{file, "--visibility", "group"}); err == nil {
+			t.Fatal("want invalid visibility error")
 		}
-		if st.visibility != "members" {
-			t.Fatalf("group should normalize to members, got %q", st.visibility)
+		if st.uploadPath != "" {
+			t.Fatal("invalid visibility must not upload")
 		}
 	})
 
