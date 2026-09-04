@@ -38,17 +38,27 @@ function usePlacement(rect: DOMRectLike, height?: number) {
   useLayoutEffect(() => {
     const el = ref.current
     const container = el?.offsetParent
-    if (!el || !(container instanceof HTMLElement) || container.clientHeight === 0) {
+    if (!el || !(container instanceof HTMLElement) || container.clientWidth === 0 || container.clientHeight === 0) {
       setStyle(below(rect))
       return
     }
-    setStyle(
-      placePopover(
-        rect,
-        { width: el.offsetWidth, height: height ?? el.offsetHeight },
-        { width: container.clientWidth, height: container.clientHeight },
-      ),
-    )
+    const update = () =>
+      setStyle(
+        placePopover(
+          rect,
+          { width: el.offsetWidth, height: height ?? el.offsetHeight },
+          { width: container.clientWidth, height: container.clientHeight },
+        ),
+      )
+    update()
+    window.addEventListener('resize', update)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(container)
+    observer?.observe(el)
+    return () => {
+      window.removeEventListener('resize', update)
+      observer?.disconnect()
+    }
   }, [rect, height])
   return { ref, style }
 }
@@ -137,7 +147,7 @@ export function CommentPopover({
           // the reducer means when a click on the chip mints a fresh one over an open (even dirty) box.
           key={composer.id}
           rect={composer.anchor.rect}
-          className="absolute z-30 w-80 rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
+          className="absolute z-30 w-80 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
           // Escape closes the popover — but ONLY once the Composer hasn't already claimed it for its
           // open mention menu (it preventDefaults there). Menu first, popover on the next press.
           onKeyDown={(e) => {
@@ -281,7 +291,7 @@ function AskPanel({
     <div
       ref={panelRef}
       style={style}
-      className="absolute z-30 w-80 rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
+      className="absolute z-30 w-80 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
       onKeyDown={(e) => {
         if (e.key === 'Escape') onDismiss()
       }}

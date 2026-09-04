@@ -18,8 +18,9 @@ export type TypingPing = { viewerId: string; threadId: string; expiresAt: number
 
 // Resize bounds: never narrower than the classic default, never wider than half the screen.
 const RAIL_MIN_WIDTH = 360
+const maxRailWidth = (viewportWidth: number): number => Math.max(RAIL_MIN_WIDTH, Math.floor(viewportWidth / 2))
 const clampRailWidth = (width: number, viewportWidth: number): number =>
-  Math.min(Math.max(width, RAIL_MIN_WIDTH), Math.max(RAIL_MIN_WIDTH, Math.floor(viewportWidth / 2)))
+  Math.min(Math.max(width, RAIL_MIN_WIDTH), maxRailWidth(viewportWidth))
 
 // The comments rail: the filter (open/resolved), an anchor-prefilled composer on select, and the
 // thread list. C2b: this is just a panel now (commenting is unconditional in viewer.tsx; the
@@ -85,16 +86,32 @@ export function ReviewRail({
   // mobile bottom-sheet layout (w-full) is untouched. Pointer capture keeps the drag alive over
   // the content iframe (which otherwise swallows pointermove and freezes the resize).
   const [railWidth, setRailWidth] = useState(RAIL_MIN_WIDTH)
+  const [railMaxWidth, setRailMaxWidth] = useState(() => maxRailWidth(window.innerWidth))
+  const resizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
+
+  useEffect(() => {
+    const onResize = () => {
+      setRailMaxWidth(maxRailWidth(window.innerWidth))
+      setRailWidth((width) => clampRailWidth(width, window.innerWidth))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   const onResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
-    const startX = e.clientX
-    const startWidth = railWidth
-    const onMove = (ev: PointerEvent) =>
-      setRailWidth(clampRailWidth(startWidth + (startX - ev.clientX), window.innerWidth))
-    const target = e.currentTarget
-    target.addEventListener('pointermove', onMove)
-    target.addEventListener('pointerup', () => target.removeEventListener('pointermove', onMove), { once: true })
+    resizeRef.current = { pointerId: e.pointerId, startX: e.clientX, startWidth: railWidth }
+  }
+  const onResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const resize = resizeRef.current
+    if (!resize || resize.pointerId !== e.pointerId) return
+    setRailWidth(clampRailWidth(resize.startWidth + (resize.startX - e.clientX), window.innerWidth))
+  }
+  const onResizeEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (resizeRef.current?.pointerId !== e.pointerId) return
+    resizeRef.current = null
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
   const active = useMemo(() => threads.filter((t) => t.status === filter).sort(byUpdatedDesc), [threads, filter])
@@ -162,7 +179,14 @@ export function ReviewRail({
         aria-label="Resize comments rail"
         aria-valuenow={railWidth}
         aria-valuemin={RAIL_MIN_WIDTH}
+        aria-valuemax={railMaxWidth}
         onPointerDown={onResizeStart}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeEnd}
+        onPointerCancel={onResizeEnd}
+        onLostPointerCapture={() => {
+          resizeRef.current = null
+        }}
         onKeyDown={(e) => {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
           e.preventDefault()

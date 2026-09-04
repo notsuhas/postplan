@@ -74,7 +74,7 @@ function BellMenu({ initial }: { initial: NotificationList }) {
       <DropdownMenuTrigger asChild>
         <BellButton unread={data.unreadCount} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 p-0">
+      <DropdownMenuContent align="end" className="w-[min(20rem,calc(100vw-1rem))] p-0">
         <div className="border-b px-3 py-2 font-medium text-sm">Notifications</div>
         {data.items.length === 0 ? (
           <p className="px-3 py-6 text-center text-muted-foreground text-sm">You're all caught up.</p>

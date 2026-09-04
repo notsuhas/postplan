@@ -438,6 +438,8 @@ describe('PLACE-POPOVER-STAYS-IN-CONTAINER', () => {
     expect(placePopover({ top: 100, left: 40, width: 200, height: 18 }, SIZE, CONTAINER)).toEqual({
       top: 100 + 18 + 8,
       left: 40,
+      maxWidth: 800 - 16,
+      maxHeight: 600 - 8 - (100 + 18 + 8),
     })
   })
 
@@ -452,6 +454,7 @@ describe('PLACE-POPOVER-STAYS-IN-CONTAINER', () => {
     expect(p.top).toBeUndefined()
     expect(p.bottom).toBe(600 - 550 + 8)
     expect(p.left).toBe(40)
+    expect(p.maxHeight).toBe(550 - 8 - 8)
   })
 
   test('fits on neither side: takes the side with more room rather than flipping blindly', () => {
@@ -463,5 +466,22 @@ describe('PLACE-POPOVER-STAYS-IN-CONTAINER', () => {
 
   test('never shifted past the container’s own left inset', () => {
     expect(placePopover({ top: 100, left: -20, width: 50, height: 12 }, SIZE, CONTAINER).left).toBe(8)
+  })
+
+  test('a panel wider than the container shrinks between both horizontal insets', () => {
+    const p = placePopover({ top: 20, left: 100, width: 50, height: 12 }, SIZE, { width: 280, height: 600 })
+    expect(p.left).toBe(8)
+    expect(p.maxWidth).toBe(264)
+  })
+
+  test('a panel taller than both sides is capped to the larger available side', () => {
+    const p = placePopover(
+      { top: 80, left: 20, width: 50, height: 12 },
+      { width: 320, height: 200 },
+      { width: 800, height: 180 },
+    )
+    expect(p.top).toBe(100)
+    expect(p.bottom).toBeUndefined()
+    expect(p.maxHeight).toBe(72)
   })
 })

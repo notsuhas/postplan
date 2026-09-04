@@ -90,6 +90,62 @@ describe('ReviewRail — the header ✕ closes the panel (C2b: replaces the View
   })
 })
 
+describe('ReviewRail — responsive resize bounds', () => {
+  test('re-clamps an open rail when the viewport shrinks and exposes the current maximum', () => {
+    const originalWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 })
+    const view = renderRail([], null)
+    try {
+      const handle = screen.getByRole('separator', { name: 'Resize comments rail' })
+      expect(handle.getAttribute('aria-valuemax')).toBe('800')
+
+      for (let i = 0; i < 10; i++) fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+      expect(handle.getAttribute('aria-valuenow')).toBe('600')
+
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
+      act(() => window.dispatchEvent(new Event('resize')))
+
+      expect(handle.getAttribute('aria-valuenow')).toBe('400')
+      expect(handle.getAttribute('aria-valuemax')).toBe('400')
+    } finally {
+      view.unmount()
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+    }
+  })
+
+  test('pointer cancellation and lost capture both end the active drag', () => {
+    const originalWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 })
+    const view = renderRail([], null)
+    try {
+      const handle = screen.getByRole('separator', { name: 'Resize comments rail' })
+      Object.defineProperties(handle, {
+        setPointerCapture: { configurable: true, value: () => {} },
+        hasPointerCapture: { configurable: true, value: () => false },
+      })
+
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 600 })
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 500 })
+      expect(handle.getAttribute('aria-valuenow')).toBe('460')
+
+      fireEvent.pointerCancel(handle, { pointerId: 1 })
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 300 })
+      expect(handle.getAttribute('aria-valuenow')).toBe('460')
+
+      fireEvent.pointerDown(handle, { pointerId: 2, clientX: 600 })
+      fireEvent.pointerMove(handle, { pointerId: 2, clientX: 550 })
+      expect(handle.getAttribute('aria-valuenow')).toBe('510')
+
+      fireEvent(handle, new Event('lostpointercapture', { bubbles: true }))
+      fireEvent.pointerMove(handle, { pointerId: 2, clientX: 300 })
+      expect(handle.getAttribute('aria-valuenow')).toBe('510')
+    } finally {
+      view.unmount()
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+    }
+  })
+})
+
 // #112 — page comments used to be an audio-only affordance: `onStartComment` was optional, viewer
 // passed it only when isAudio, and the rail rendered the trigger only when it was set. It is now
 // REQUIRED and always rendered, so a page comment can be written from any content type. The
