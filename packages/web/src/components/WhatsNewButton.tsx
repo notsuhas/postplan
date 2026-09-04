@@ -11,7 +11,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import { catchUpWhatsNew, type Release, unreadReleases, type WhatsNewList, whatsNew } from '@/lib/whatsNew'
 
 // Header Sparkles + unread dot, next to the Bell. The root loader's DEFERRED promise seeds the FIRST
@@ -142,9 +150,11 @@ function WhatsNewSheet({ data, onOpen }: { data: WhatsNewList; onOpen: () => voi
           )}
         </div>
         <div className="border-t px-5 py-3 text-center">
-          <Link to="/whats-new" className="font-medium text-primary text-sm hover:underline">
-            View all release notes
-          </Link>
+          <SheetClose asChild>
+            <Link to="/whats-new" className="font-medium text-primary text-sm hover:underline">
+              View all release notes
+            </Link>
+          </SheetClose>
         </div>
       </SheetContent>
     </Sheet>

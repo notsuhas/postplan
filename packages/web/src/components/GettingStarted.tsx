@@ -38,7 +38,7 @@ const PROMPTS = [
   'Turn these notes into a polished HTML page and deploy it to postplan',
 ]
 
-export function GettingStarted() {
+export function GettingStarted({ onNavigate }: { onNavigate?: () => void } = {}) {
   const installCommand = `curl -fsSL ${window.location.origin}/api/install | sh`
   return (
     <div className="space-y-5">
@@ -74,7 +74,7 @@ export function GettingStarted() {
         No CLI? Drop a folder or a lone HTML file on the dashboard to ship it straight from the browser.
       </p>
       <p className="text-xs">
-        <Link to="/docs/api-keys" className="font-medium text-primary hover:underline">
+        <Link to="/docs/api-keys" className="font-medium text-primary hover:underline" onClick={onNavigate}>
           Scripting instead? Set up API keys →
         </Link>
       </p>
