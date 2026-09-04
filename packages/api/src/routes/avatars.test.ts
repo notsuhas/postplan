@@ -123,6 +123,32 @@ describe('GET /api/avatars/:userId', () => {
     expect((await app.request(`/api/avatars/${uid}`, { headers }, env)).status).toBe(404)
   })
 
+  test('rejects unsafe image types and bodies that exceed the cap while streaming', async () => {
+    const { app, env, db, kv } = setup()
+    const uid = await seedUser(db, { id: 'u1', avatarUrl: PHOTO })
+    const headers = await bearer(kv, uid)
+
+    stubFetch(imageResponse('image/svg+xml'))
+    expect((await app.request(`/api/avatars/${uid}`, { headers }, env)).status).toBe(404)
+
+    const oversized = new Uint8Array(2 * 1024 * 1024 + 1)
+    stubFetch(new Response(oversized, { headers: { 'content-type': 'image/png' } }))
+    expect((await app.request(`/api/avatars/${uid}`, { headers }, env)).status).toBe(404)
+  })
+
+  test('does not follow an upstream redirect away from the pinned host', async () => {
+    const { app, env, db, kv } = setup()
+    const uid = await seedUser(db, { id: 'u1', avatarUrl: PHOTO })
+    let redirect: RequestRedirect | undefined
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      redirect = init?.redirect
+      return imageResponse()
+    }) as typeof fetch
+
+    expect((await app.request(`/api/avatars/${uid}`, { headers: await bearer(kv, uid) }, env)).status).toBe(200)
+    expect(redirect).toBe('error')
+  })
+
   test('requires auth — an anonymous caller gets no photo', async () => {
     const { app, env, db } = setup()
     const uid = await seedUser(db, { id: 'u1', avatarUrl: PHOTO })

@@ -5,9 +5,9 @@ import { isValidSlug, slugForVisibility, withUnlistedSuffix } from './slug'
 // caller-supplied name is guessable by construction, so a create adds entropy.
 
 describe('withUnlistedSuffix', () => {
-  test('appends 6 hex chars and stays a valid slug', () => {
+  test('appends 128 bits of entropy and stays a valid slug', () => {
     const s = withUnlistedSuffix('dist')
-    expect(s).toMatch(/^dist-[0-9a-f]{6}$/)
+    expect(s).toMatch(/^dist-[0-9a-f]{32}$/)
     expect(isValidSlug(s)).toBe(true)
   })
 
@@ -25,7 +25,7 @@ describe('withUnlistedSuffix', () => {
 
   // A base ending in '-' would otherwise yield 'name--abc123'.
   test('does not double the separator', () => {
-    expect(withUnlistedSuffix('report-')).toMatch(/^report-[0-9a-f]{6}$/)
+    expect(withUnlistedSuffix('report-')).toMatch(/^report-[0-9a-f]{32}$/)
   })
 })
 

@@ -26,7 +26,7 @@ import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
 import { readSessionOrBearer } from '../lib/session'
 import { fetchAccessFacts, isSharedFromFacts, resolveSite, resolveSiteForAccess } from '../lib/site-access'
 import { deliverSlack, type SlackRecipient, slackDepsFromEnv, slackEnabled } from '../lib/slack'
-import { isValidSlug, slugForVisibility } from '../lib/slug'
+import { isValidSlug, slugForVisibility, withUnlistedSuffix } from '../lib/slug'
 import { copyObjects, deleteKeys, deleteSiteObjects } from '../lib/storage'
 import { signToken } from '../lib/token'
 import { isVisibility, normalizeVisibility } from '../lib/visibility'
@@ -572,11 +572,12 @@ sites.patch('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
   if (!body || typeof body !== 'object') return c.json({ error: 'invalid body' }, 400)
   const { visibility, title, theme } = body as { visibility?: unknown; title?: unknown; theme?: unknown }
 
-  const patch: { visibility?: Visibility; title?: string | null; theme?: string | null } = {}
+  const patch: { slug?: string; visibility?: Visibility; title?: string | null; theme?: string | null } = {}
   if (visibility !== undefined) {
     const vis = normalizeVisibility(visibility)
     if (!isVisibility(vis)) return c.json({ error: 'invalid visibility' }, 400)
     patch.visibility = vis
+    if (vis === 'unlisted' && site.visibility !== 'unlisted') patch.slug = withUnlistedSuffix(site.slug)
   }
   if (title !== undefined) {
     if (title !== null && typeof title !== 'string') return c.json({ error: 'invalid title' }, 400)
@@ -594,7 +595,8 @@ sites.patch('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
     await db.update(sitesTable).set(patch).where(eq(sitesTable.id, site.id))
   }
 
-  return c.json({ ok: true })
+  const nextSlug = patch.slug ?? site.slug
+  return c.json({ ok: true, siteSlug: nextSlug, url: `${c.env.APP_URL}/${spaceSlug}/${nextSlug}` })
 })
 
 // POST /api/sites/:spaceSlug/:siteSlug/move — the owner moves a site to another space they belong

@@ -219,7 +219,14 @@ function ViewerVisibility({ site }: { site: ViewerSite }) {
     const prev = visibility
     setVisibility(v)
     try {
-      await api.patch(`/api/sites/${site.spaceSlug}/${site.siteSlug}`, { visibility: v })
+      const result = await api.patch<{ siteSlug: string; url: string }>(
+        `/api/sites/${site.spaceSlug}/${site.siteSlug}`,
+        { visibility: v },
+      )
+      if (result.siteSlug !== site.siteSlug) {
+        window.location.assign(result.url)
+        return
+      }
       toast.success('Visibility updated', { description: VISIBILITY_META[v].label })
     } catch (err) {
       setVisibility(prev)

@@ -50,26 +50,17 @@ export function slugifyHandle(email: string): string {
   return s.slice(0, 40).replace(/-+$/g, '')
 }
 
-// An `unlisted` site is protected by nothing but the secrecy of its URL, and the slug is the URL.
-// A caller-supplied name is guessable by construction — `postplan deploy ./dist` asks for `dist` —
-// so creating an unlisted site appends entropy. 6 hex chars = 24 bits: not a secret to brute-force
-// over the network, but it ends drive-by enumeration of a shared instance, which is the actual
-// threat. The base is truncated so the result still satisfies SLUG_RE's 40-char ceiling.
-const UNLISTED_SUFFIX_HEX = 6
+const UNLISTED_ENTROPY_BYTES = 16
 const MAX_SLUG = 40
 
 export function withUnlistedSuffix(slug: string): string {
-  const suffix = Array.from(crypto.getRandomValues(new Uint8Array(UNLISTED_SUFFIX_HEX)))
+  const suffix = Array.from(crypto.getRandomValues(new Uint8Array(UNLISTED_ENTROPY_BYTES)))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
-    .slice(0, UNLISTED_SUFFIX_HEX)
-  const base = slug.slice(0, MAX_SLUG - UNLISTED_SUFFIX_HEX - 1).replace(/-+$/, '')
+  const base = slug.slice(0, MAX_SLUG - suffix.length - 1).replace(/-+$/, '')
   return `${base}-${suffix}`
 }
 
-/** Applied at CREATE only. Retiering an existing site to `unlisted` deliberately keeps its slug:
- *  the URL is already public, and rewriting it would break every link already handed out. Create
- *  it unlisted, or use a share link, when the name itself must not be guessable. */
 export function slugForVisibility(slug: string, visibility: unknown): string {
   return visibility === 'unlisted' ? withUnlistedSuffix(slug) : slug
 }
