@@ -82,6 +82,12 @@ export const requireControlGrant = createMiddleware<AppEnv>(async (c, next) => {
   await next()
 })
 
+/** Must run after requireAuth. API keys never carry human-only authority. */
+export const requireHumanCredential = createMiddleware<AppEnv>(async (c, next) => {
+  if (c.get('credential')?.kind === 'key') return c.json({ error: 'forbidden' }, 403)
+  await next()
+})
+
 /** Must run after requireAuth. 403 unless the user is a superadmin. */
 export const requireSuperAdmin = createMiddleware<AppEnv>(async (c, next) => {
   if (c.get('user')?.role !== 'superadmin') return c.json({ error: 'forbidden' }, 403)

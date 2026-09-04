@@ -63,18 +63,14 @@ do — a key never grants access you don't have.
 Without `control: true`, every `POST`/`PUT`/`PATCH`/`DELETE` on the control plane is `403`; reads
 still work, which is what a data-only key needs to resolve a site before minting a token.
 
-Two things are refused for **every** key regardless of grants:
+These operations are refused for **every** key regardless of grants:
 
 | Operation | Result | Why |
 | --- | --- | --- |
 | `DELETE /api/sites/:space/:site` | `403` | A key may create and deploy sites, not destroy them. |
+| `DELETE /api/spaces/:slug` | `403` | Space deletion would also destroy its sites. |
 | `POST` / `DELETE` on `/api/api-keys` | `403` | A leaked key must not mint a successor or revoke your other keys. |
-
-> **Caveat — space deletion is not covered by that rule.** `DELETE /api/spaces/:slug` carries no
-> key check, so a key with `control: true` can delete a **group space it created**, which hard-
-> destroys every site inside it. Personal spaces are protected (`403`), and the delete is refused
-> with `409` if the space holds sites owned by other members — but your own sites in your own
-> group space can be erased this way despite the per-site rule above. Scope keys accordingly.
+| Any `/api/admin/*` route | `403` | Tenant administration requires a human credential. |
 
 A key may also **list** your keys (`GET /api/api-keys`) — names, grants, expiries and
 `glk_…abcd` hints, never a secret or hash.

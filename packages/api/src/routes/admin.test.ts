@@ -2,6 +2,15 @@ import { describe, expect, test } from 'bun:test'
 import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 
 describe('POST /api/admin/users/:id/revoke-cli', () => {
+  test('a superadmin API key cannot enter the human admin plane', async () => {
+    const { app, db, kv, env } = makeRouteApp()
+    await mintUser(db, kv, 'admin', { role: 'superadmin' })
+    const secret = await mintKey(db, 'admin')
+
+    const res = await app.request('/api/admin/users', { headers: authKey(secret) }, env)
+    expect(res.status).toBe(403)
+  })
+
   test('CASE-16: also revokes the user’s D1 API keys — the key stops authenticating afterwards', async () => {
     const { app, db, kv, env } = makeRouteApp()
     await mintUser(db, kv, 'admin', { role: 'superadmin' })

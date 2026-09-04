@@ -102,6 +102,14 @@ describe('requireControlGrant — a key without the control grant cannot change 
     expect(row.title).toBe('Renamed')
   })
 
+  test('a control-granted key still cannot hard-delete a space', async () => {
+    const ctx = await setup()
+    const full = await mintKey(ctx.db, 'owner')
+
+    const res = await ctx.app.request('/api/spaces/acme', { method: 'DELETE', headers: authKey(full) }, ctx.env)
+    expect(res.status).toBe(403)
+  })
+
   // Session and CLI credentials carry no grants at all; they must be governed by ownership alone,
   // exactly as before this middleware existed.
   test('a CLI-token caller is unaffected — it carries no grants to check', async () => {

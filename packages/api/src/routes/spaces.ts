@@ -8,7 +8,7 @@ import { batchAll } from '../lib/d1'
 import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
 import { deleteSpaceObjects } from '../lib/storage'
 import { isValidSlug } from '../lib/slug'
-import { requireAuth, requireControlGrant } from '../middleware/auth'
+import { requireAuth, requireControlGrant, requireHumanCredential } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 export const spaces = new Hono<AppEnv>()
@@ -193,7 +193,7 @@ spaces.delete('/:slug/members/:userId', requireAuth, requireControlGrant, async 
 })
 
 // DELETE /api/spaces/:slug — delete a space (owner or superadmin). Personal spaces are protected.
-spaces.delete('/:slug', requireAuth, requireControlGrant, async (c) => {
+spaces.delete('/:slug', requireAuth, requireControlGrant, requireHumanCredential, async (c) => {
   const user = c.get('user')
   const db = c.get('db')
   const slug = c.req.param('slug')

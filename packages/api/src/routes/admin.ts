@@ -8,7 +8,7 @@ import { cachedStats } from '../lib/stats'
 import { deleteSiteObjects } from '../lib/storage'
 import { isVisibility, normalizeVisibility } from '../lib/visibility'
 import { isAdminEmail, superadminEmails } from '../lib/workos'
-import { requireAuth, requireControlGrant, requireSuperAdmin } from '../middleware/auth'
+import { requireAuth, requireHumanCredential, requireSuperAdmin } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 export const admin = new Hono<AppEnv>()
@@ -17,7 +17,7 @@ const PAGE_SIZE = 50
 
 // Every admin route requires a superadmin: requireAuth first (401 if anonymous),
 // then requireSuperAdmin (403 if a non-superadmin member).
-admin.use('*', requireAuth, requireControlGrant, requireSuperAdmin)
+admin.use('*', requireAuth, requireHumanCredential, requireSuperAdmin)
 
 // GET /api/admin/sites — every site, newest first, with optional status/visibility filters
 // and 50-per-page pagination. Joins spaces for the human-readable space slug.
