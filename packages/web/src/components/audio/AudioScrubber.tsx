@@ -12,11 +12,15 @@ export function AudioScrubber({
   audioRef,
   className,
   compact,
+  disabled = false,
+  onPlaybackError,
 }: {
   audioRef: RefObject<HTMLAudioElement | null>
   className?: string
   // Tighter play button + readout for inline contexts (the voice comment card).
   compact?: boolean
+  disabled?: boolean
+  onPlaybackError?: () => void
 }) {
   const [playing, setPlaying] = useState(false)
   const [current, setCurrent] = useState(0)
@@ -70,7 +74,7 @@ export function AudioScrubber({
   function toggle() {
     const el = audioRef.current
     if (!el) return
-    if (el.paused) el.play().catch(() => {})
+    if (el.paused) el.play().catch(() => onPlaybackError?.())
     else el.pause()
   }
 
@@ -85,6 +89,7 @@ export function AudioScrubber({
     <div className={cn('flex items-center gap-3', className)}>
       <button
         type="button"
+        disabled={disabled}
         onClick={toggle}
         aria-label={playing ? 'Pause' : 'Play'}
         className={cn(
@@ -100,6 +105,7 @@ export function AudioScrubber({
       </button>
       <input
         type="range"
+        disabled={disabled}
         min={0}
         max={duration || 0}
         step={0.01}

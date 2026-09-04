@@ -130,7 +130,7 @@ export function RecordDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record a voice comment</DialogTitle>
+          <DialogTitle>Record a voice note</DialogTitle>
           <DialogDescription>
             {stopped ? 'Give it a name and save.' : 'Tap the mic to start. You can pause and resume.'}
           </DialogDescription>

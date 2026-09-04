@@ -1,5 +1,17 @@
 import { describe, expect, test } from 'bun:test'
-import { defaultRecordingTitle, extForMime, pickAudioMimeType, recordingSlug } from './recorder'
+import { defaultRecordingTitle, extForMime, pickAudioMimeType, recordingAccessError, recordingSlug } from './recorder'
+
+describe('recordingAccessError', () => {
+  test('distinguishes permission, missing-device and busy-device failures', () => {
+    expect(recordingAccessError(new DOMException('', 'NotAllowedError'))).toContain('blocked')
+    expect(recordingAccessError(new DOMException('', 'NotFoundError'))).toContain('No microphone')
+    expect(recordingAccessError(new DOMException('', 'NotReadableError'))).toContain('already in use')
+  })
+
+  test('does not mislabel unknown failures as permission denials', () => {
+    expect(recordingAccessError(new Error('boom'))).toBe('Could not access the microphone. Try again.')
+  })
+})
 
 describe('pickAudioMimeType — cascade with an injectable probe (W3-1, S-A)', () => {
   test('returns the first supported candidate in preference order', () => {

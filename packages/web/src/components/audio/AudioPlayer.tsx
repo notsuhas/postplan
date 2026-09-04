@@ -1,4 +1,4 @@
-import { type RefObject, useRef } from 'react'
+import { type RefObject, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { AudioScrubber } from '@/components/audio/AudioScrubber'
 
@@ -23,11 +23,29 @@ export function AudioPlayer({
 }) {
   const internalRef = useRef<HTMLAudioElement>(null)
   const ref = audioRef ?? internalRef
+  const [error, setError] = useState<string | null>(null)
   return (
-    <div key={src} className={cn('flex w-full flex-col gap-2', className)}>
+    <div className={cn('flex w-full flex-col gap-2', className)}>
       {/* biome-ignore lint/a11y/useMediaCaption: audio-only source, no track to caption */}
-      <audio ref={ref} src={src} preload="metadata" />
-      <AudioScrubber audioRef={ref} compact={compact} />
+      <audio
+        key={src}
+        ref={ref}
+        src={src}
+        preload="metadata"
+        onCanPlay={() => setError(null)}
+        onError={() => setError('This audio could not be loaded.')}
+      />
+      <AudioScrubber
+        audioRef={ref}
+        compact={compact}
+        disabled={error !== null}
+        onPlaybackError={() => setError('Playback was blocked or is not supported by this browser.')}
+      />
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

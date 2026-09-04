@@ -14,6 +14,16 @@ const MIME_CANDIDATES = [
   'audio/ogg',
 ] as const
 
+export function recordingAccessError(error: unknown): string {
+  if (!(error instanceof DOMException)) return 'Could not access the microphone. Try again.'
+  if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
+    return 'Microphone access is blocked. Allow it in your browser and try again.'
+  }
+  if (error.name === 'NotFoundError') return 'No microphone was found.'
+  if (error.name === 'NotReadableError') return 'The microphone is unavailable or already in use.'
+  return 'Could not start the microphone. Try again.'
+}
+
 // Default probe: the platform MediaRecorder support check, guarded for non-browser contexts.
 function defaultIsTypeSupported(type: string): boolean {
   return typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)
