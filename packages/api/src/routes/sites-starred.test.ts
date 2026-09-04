@@ -101,7 +101,7 @@ describe('GET /api/sites/starred', () => {
       {
         method: 'PUT',
         headers: auth('owner'),
-        body: JSON.stringify({ userIds: [] }),
+        body: JSON.stringify({ users: [], groupIds: [] }),
       },
       ctx.env,
     )

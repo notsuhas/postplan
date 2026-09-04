@@ -336,18 +336,12 @@ export async function listMentionableUsers(
     .orderBy(byName)
 }
 
-/** A per-user share as stored: the user id plus their grant tier. */
 export type ShareUser = { userId: string; role: 'viewer' | 'editor' }
 
-/**
- * Current explicit share lists for a site. Returns BOTH the role-aware `users` list (new callers)
- * and the flat `userIds`/`groupIds` (the legacy shape the live web dialog still reads) — a superset,
- * so no existing consumer breaks. Groups are always view-only (no role column on site_group_shares).
- */
 export async function listSiteShares(
   db: DrizzleD1Database,
   siteId: string,
-): Promise<{ userIds: string[]; groupIds: string[]; users: ShareUser[] }> {
+): Promise<{ groupIds: string[]; users: ShareUser[] }> {
   const u = await db
     .select({ id: siteUserShares.userId, role: siteUserShares.role })
     .from(siteUserShares)
@@ -357,7 +351,6 @@ export async function listSiteShares(
     .from(siteGroupShares)
     .where(eq(siteGroupShares.siteId, siteId))
   return {
-    userIds: u.map((r) => r.id),
     groupIds: g.map((r) => r.id),
     users: u.map((r) => ({ userId: r.id, role: r.role })),
   }

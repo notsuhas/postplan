@@ -103,9 +103,7 @@ export interface UserLite {
 export type ShareRole = 'viewer' | 'editor'
 
 export interface ShareSet {
-  userIds: string[]
   groupIds: string[]
-  // Role-aware user list (superset of userIds). Present on the new API; a viewer is the default.
   users: { id: string; role: ShareRole }[]
 }
 

@@ -96,10 +96,7 @@ export function ShareDialog(props: IShareDialog) {
       .then(([us, sp, shares]) => {
         setUsers(us)
         setGroups(sp.filter((s) => s.type === 'group'))
-        // Prefer the role-aware `users` list; fall back to legacy userIds (all viewers) if absent.
-        setSelUsers(
-          new Map(shares.users?.map((u) => [u.id, u.role]) ?? shares.userIds.map((id) => [id, 'viewer' as ShareRole])),
-        )
+        setSelUsers(new Map(shares.users.map((u) => [u.id, u.role])))
         setSelGroups(new Set(shares.groupIds))
         setLoaded(true)
       })

@@ -170,12 +170,10 @@ describe('superadmin is not an owner: owner-only site endpoints refuse it', () =
       app.request('/api/sites/mine/doc/shares', { method: 'PUT', headers: auth(id), body: JSON.stringify(body) }, env)
 
     expect((await getShares('admin')).status).toBe(403)
-    expect((await putShares('admin', { userIds: [{ userId: 'admin', role: 'viewer' }], groupIds: [] })).status).toBe(
-      403,
-    )
+    expect((await putShares('admin', { users: [{ id: 'admin', role: 'viewer' }], groupIds: [] })).status).toBe(403)
 
     expect((await getShares('rando')).status).toBe(403)
-    expect((await putShares('rando', { userIds: [] })).status).toBe(403)
+    expect((await putShares('rando', { users: [], groupIds: [] })).status).toBe(403)
   })
 
   test('DELETE — the one power that survives: a superadmin removes a site it can never open', async () => {

@@ -3,13 +3,11 @@ import { Hono } from 'hono'
 import { listNotifications } from '../db/notifications'
 import { resolveShareRole } from '../db/repo'
 import { requireSameOrigin } from '../middleware/auth'
-import { makeDb, makeKv, seedSite, seedSpace, seedUser } from '../test/harness'
+import { makeDb, makeKv, seedMember, seedSite, seedSpace, seedUser } from '../test/harness'
 import type { AppEnv } from '../types'
 import { parseShareGrants, sites } from './sites'
 
-// PUT/GET /shares is role-aware AND backward-compatible: the live web dialog still PUTs legacy
-// `userIds[]` (→ viewer) while the new dialog PUTs `users:[{id,role}]`. Groups stay view-only —
-// there is no editor row on site_group_shares, so an editor grant on a group is a 400.
+// PUT/GET /shares uses one role-aware shape. Groups stay view-only.
 
 const APP_URL = 'https://postplan.example.com'
 
@@ -30,6 +28,7 @@ async function setup() {
   await seedUser(db, { id: 'vw', email: 'vw@example.com' })
   await seedSpace(db, { id: 'sp', slug: 'mine', createdBy: 'owner' })
   const grp = await seedSpace(db, { id: 'grp', slug: 'grp', createdBy: 'owner', type: 'group' })
+  await seedMember(db, grp, 'owner')
   const site = await seedSite(db, { id: 'site', spaceId: 'sp', ownerId: 'owner', slug: 'doc' })
   return { db, app, env, site, grp }
 }
@@ -42,7 +41,15 @@ const get = (app: Hono<AppEnv>, env: AppEnv['Bindings']) =>
 
 describe('parseShareGrants — pure body normalization', () => {
   test('new users:[{id,role}] shape carries roles; groups view-only', () => {
-    expect(parseShareGrants({ users: [{ id: 'a', role: 'editor' }, { id: 'b' }], groupIds: ['g'] })).toEqual({
+    expect(
+      parseShareGrants({
+        users: [
+          { id: 'a', role: 'editor' },
+          { id: 'b', role: 'viewer' },
+        ],
+        groupIds: ['g'],
+      }),
+    ).toEqual({
       users: [
         { userId: 'a', role: 'editor' },
         { userId: 'b', role: 'viewer' },
@@ -50,27 +57,16 @@ describe('parseShareGrants — pure body normalization', () => {
       groupIds: ['g'],
     })
   })
-  test('legacy userIds → viewer; users wins on collision; ids dedup', () => {
-    expect(parseShareGrants({ users: [{ id: 'a', role: 'editor' }], userIds: ['a', 'b', 'b'] })).toEqual({
-      users: [
-        { userId: 'a', role: 'editor' },
-        { userId: 'b', role: 'viewer' },
-      ],
-      groupIds: [],
+  test('old and malformed shapes are rejected', () => {
+    expect(parseShareGrants(null)).toEqual({ error: 'invalid request' })
+    expect(parseShareGrants({ userIds: ['a'], groupIds: [] })).toEqual({ error: 'invalid request' })
+    expect(parseShareGrants({ users: [{ id: 'a', role: 'owner' }], groupIds: [] })).toEqual({
+      error: 'invalid user grant',
     })
-  })
-  test('an editor role on a group is rejected', () => {
-    expect(parseShareGrants({ groups: [{ id: 'g', role: 'editor' }] })).toEqual({
-      error: 'groups cannot be granted editor',
-    })
-  })
-  test('garbage/empty body → empty grants, never throws', () => {
-    expect(parseShareGrants(null)).toEqual({ users: [], groupIds: [] })
-    expect(parseShareGrants({ users: 'nope', userIds: [1, 2] })).toEqual({ users: [], groupIds: [] })
   })
 })
 
-describe('PUT/GET /shares — roles + backcompat', () => {
+describe('PUT/GET /shares — roles', () => {
   test('shares.role.roundtrip: PUT users:[{id,role:editor}] → GET returns role editor, DB agrees', async () => {
     const { db, app, env, site } = await setup()
     const res = await put(app, env, {
@@ -86,26 +82,13 @@ describe('PUT/GET /shares — roles + backcompat', () => {
     expect(await resolveShareRole(db, site, 'ed')).toBe('editor')
   })
 
-  test('shares.backcompat: legacy PUT userIds:[id] still 200, role defaults viewer', async () => {
-    const { db, app, env, site } = await setup()
-    const res = await put(app, env, { userIds: ['ed'], groupIds: [] })
+  test('cannot share into a group the owner does not belong to', async () => {
+    const { db, app, env } = await setup()
+    const foreign = await seedSpace(db, { id: 'foreign', slug: 'foreign', createdBy: 'ed', type: 'group' })
+    await seedMember(db, foreign, 'ed')
+    const res = await put(app, env, { users: [], groupIds: [foreign] })
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ ok: true })
-    const body = (await get(app, env).then((r) => r.json())) as {
-      userIds: string[]
-      users: { id: string; role: string }[]
-    }
-    expect(body.userIds).toContain('ed')
-    expect(body.users).toContainEqual({ id: 'ed', role: 'viewer' })
-    expect(await resolveShareRole(db, site, 'ed')).toBe('viewer')
-  })
-
-  test('shares.group.editor.rejected: a group granted editor → 400, nothing written', async () => {
-    const { db, app, env, site, grp } = await setup()
-    const res = await put(app, env, { groups: [{ id: grp, role: 'editor' }] })
-    expect(res.status).toBe(400)
-    // no direct share smuggled in for the group id
-    expect(await resolveShareRole(db, site, grp)).toBeNull()
+    expect(await res.json()).toMatchObject({ groupIds: [] })
   })
 })
 

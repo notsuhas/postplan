@@ -16,7 +16,7 @@ import {
   sharedSiteRoles,
 } from '../db/repo'
 import type { Visibility } from '../db/schema'
-import { files as filesTable, siteStars, sites as sitesTable, spaces, users } from '../db/schema'
+import { files as filesTable, siteStars, sites as sitesTable, spaceMembers, spaces, users } from '../db/schema'
 import { canDiscover, canReplace, checkAccess } from '../lib/access'
 import { batchAll, chunk, D1_MAX_IN, FEED_ID_CHUNK } from '../lib/d1'
 import { fireAndForget } from '../lib/events'
@@ -426,27 +426,23 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
   })
 })
 
-// Normalize a PUT /shares body into role-aware user grants + view-only group ids. Pure (no DB), so
-// it's unit-testable and keeps every cast out of the request path. Accepts the new `users:[{id,role}]`
-// shape and the legacy `userIds:[id]` list (defaulted to viewer; `users` wins on a collision). Groups
-// arrive as `groupIds:[id]` or `groups:[{id}]` and are ALWAYS view-only — an editor role on a group is
-// a client error (there is no role column on site_group_shares), surfaced as `{ error }`.
+// Normalize the role-aware user grants and view-only group ids.
 export function parseShareGrants(body: unknown): { users: ShareUser[]; groupIds: string[] } | { error: string } {
-  const b = (body ?? {}) as Record<string, unknown>
-  const asIds = (v: unknown) =>
-    Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string'))] : []
-  const groupObjs = Array.isArray(b.groups) ? (b.groups as { id?: unknown; role?: unknown }[]) : []
-  if (groupObjs.some((g) => g?.role === 'editor')) return { error: 'groups cannot be granted editor' }
-
-  const roles = new Map<string, 'viewer' | 'editor'>()
-  if (Array.isArray(b.users)) {
-    for (const u of b.users as { id?: unknown; role?: unknown }[]) {
-      if (typeof u?.id === 'string') roles.set(u.id, u.role === 'editor' ? 'editor' : 'viewer')
-    }
+  if (typeof body !== 'object' || body === null) return { error: 'invalid request' }
+  const b = body as Record<string, unknown>
+  if (!Array.isArray(b.users) || (b.groupIds !== undefined && !Array.isArray(b.groupIds))) {
+    return { error: 'invalid request' }
   }
-  for (const id of asIds(b.userIds)) if (!roles.has(id)) roles.set(id, 'viewer')
-
-  const groupIds = [...new Set([...asIds(b.groupIds), ...asIds(groupObjs.map((g) => g?.id))])]
+  const roles = new Map<string, 'viewer' | 'editor'>()
+  for (const u of b.users as { id?: unknown; role?: unknown }[]) {
+    if (typeof u?.id !== 'string' || (u.role !== 'viewer' && u.role !== 'editor')) {
+      return { error: 'invalid user grant' }
+    }
+    roles.set(u.id, u.role)
+  }
+  const rawGroups = (b.groupIds ?? []) as unknown[]
+  if (rawGroups.some((id) => typeof id !== 'string')) return { error: 'invalid group grant' }
+  const groupIds = [...new Set(rawGroups as string[])]
   return { users: [...roles].map(([userId, role]) => ({ userId, role })), groupIds }
 }
 
@@ -502,10 +498,7 @@ sites.get('/:spaceSlug/:siteSlug/shares', requireAuth, async (c) => {
   if (!site) return c.json({ error: 'not found' }, 404)
   if (site.ownerId !== user.id) return c.json({ error: 'forbidden' }, 403)
   const shares = await listSiteShares(db, site.id)
-  // Boundary shape: expose users as {id, role} (mirrors the PUT input); keep flat userIds/groupIds
-  // for the legacy web dialog.
   return c.json({
-    userIds: shares.userIds,
     groupIds: shares.groupIds,
     users: shares.users.map((u) => ({ id: u.userId, role: u.role })),
   })
@@ -543,13 +536,14 @@ sites.put('/:spaceSlug/:siteSlug/shares', requireAuth, requireControlGrant, asyn
         await db
           .select({ id: spaces.id })
           .from(spaces)
-          .where(and(inArray(spaces.id, grants.groupIds), eq(spaces.type, 'group')))
+          .innerJoin(spaceMembers, eq(spaceMembers.spaceId, spaces.id))
+          .where(and(inArray(spaces.id, grants.groupIds), eq(spaces.type, 'group'), eq(spaceMembers.userId, user.id)))
       ).map((r) => r.id)
     : []
 
   // Diff BEFORE the replace so only newly granted users are notified (a re-PUT of the same set,
   // a role change, or a group grant raises nothing).
-  const prior = new Set((await listSiteShares(db, site.id)).userIds)
+  const prior = new Set((await listSiteShares(db, site.id)).users.map((share) => share.userId))
   await replaceSiteShares(db, site.id, validUsers, validGroups)
   await notifyForShare(
     c,
@@ -558,7 +552,6 @@ sites.put('/:spaceSlug/:siteSlug/shares', requireAuth, requireControlGrant, asyn
   )
   return c.json({
     ok: true,
-    userIds: validUsers.map((u) => u.userId),
     groupIds: validGroups,
     users: validUsers.map((u) => ({ id: u.userId, role: u.role })),
   })
