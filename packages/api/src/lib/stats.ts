@@ -69,7 +69,7 @@ async function scalarCount(query: Promise<{ n: number }[]>): Promise<number> {
  * and `sum(size)` over every file) — this is the unbounded term, and the reason the cache below
  * gives it its own long-lived key. Nothing here moves fast enough to be worth a live scan.
  */
-export async function computeTotals(db: DrizzleD1Database): Promise<StatsTotals> {
+async function computeTotals(db: DrizzleD1Database): Promise<StatsTotals> {
   const [u, s, f, storage, cm, vw, uv, purgedVw] = await Promise.all([
     scalarCount(db.select({ n: count() }).from(users)),
     scalarCount(db.select({ n: count() }).from(sites)),
@@ -105,7 +105,7 @@ export async function computeTotals(db: DrizzleD1Database): Promise<StatsTotals>
  * database grows (a busier month costs more, a longer-lived deploy does not). Refreshed far more
  * often than the totals — it is the half that actually changes day to day.
  */
-export async function computeWindow(db: DrizzleD1Database, now: Date = new Date()): Promise<WindowStats> {
+async function computeWindow(db: DrizzleD1Database, now: Date = new Date()): Promise<WindowStats> {
   // Inclusive 30-day window: today back through 29 days ago, from midnight UTC of the first day.
   const startDay = new Date(now.getTime() - (WINDOW_DAYS - 1) * DAY_MS)
   const sinceTs = `${dayKey(startDay)}T00:00:00.000Z`

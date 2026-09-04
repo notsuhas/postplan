@@ -8,12 +8,12 @@ import { useSyncExternalStore } from 'react'
 export type Theme = 'light' | 'dark'
 const KEY = 'postplan-theme'
 
-export function getTheme(): Theme {
+function getTheme(): Theme {
   if (typeof document === 'undefined') return 'dark'
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 }
 
-export function setTheme(t: Theme): void {
+function setTheme(t: Theme): void {
   document.documentElement.classList.toggle('dark', t === 'dark')
   try {
     localStorage.setItem(KEY, t)

@@ -18,6 +18,8 @@
     "patterns": ["packages/api", "packages/web"]
   },
   "ignoreExports": [
+    { "file": "packages/api/src/annotate/reflow.ts", "exports": ["ElementAnchor"] },
+    { "file": "packages/api/src/lib/anchor.ts", "exports": ["ElementAnchor"] },
     { "file": "packages/web/src/components/ui/*", "exports": ["*"] },
     { "file": "packages/web/src/routes/*", "exports": ["*"] }
   ]

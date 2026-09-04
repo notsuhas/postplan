@@ -24,7 +24,7 @@ export interface FeedSlots {
   comments: FeedSlot<CommentFeedItem[]>
 }
 
-export const TAB_IDS = ['sites', 'starred', 'shared', 'spaces', 'team', 'comments'] as const
+const TAB_IDS = ['sites', 'starred', 'shared', 'spaces', 'team', 'comments'] as const
 export type TabId = (typeof TAB_IDS)[number]
 
 /** Parse a ?tab= URL value: a known tab id passes through, anything else means 'sites'. */

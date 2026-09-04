@@ -17,8 +17,8 @@ const byUpdatedDesc = (a: Thread, b: Thread) => b.updatedAt.localeCompare(a.upda
 export type TypingPing = { viewerId: string; threadId: string; expiresAt: number }
 
 // Resize bounds: never narrower than the classic default, never wider than half the screen.
-export const RAIL_MIN_WIDTH = 360
-export const clampRailWidth = (width: number, viewportWidth: number): number =>
+const RAIL_MIN_WIDTH = 360
+const clampRailWidth = (width: number, viewportWidth: number): number =>
   Math.min(Math.max(width, RAIL_MIN_WIDTH), Math.max(RAIL_MIN_WIDTH, Math.floor(viewportWidth / 2)))
 
 // The comments rail: the filter (open/resolved), an anchor-prefilled composer on select, and the

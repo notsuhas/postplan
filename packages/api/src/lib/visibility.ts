@@ -2,7 +2,7 @@ import type { Visibility } from '../db/schema'
 
 // Single source of truth for the visibility tiers accepted on the wire. Shared by the create,
 // upload, update, and admin-filter paths so the accepted set never drifts between them.
-export const VISIBILITIES: readonly Visibility[] = ['unlisted', 'private', 'members', 'team']
+const VISIBILITIES: readonly Visibility[] = ['unlisted', 'private', 'members', 'team']
 
 const SET: ReadonlySet<string> = new Set(VISIBILITIES)
 

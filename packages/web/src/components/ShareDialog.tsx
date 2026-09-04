@@ -254,7 +254,7 @@ export function PeoplePicker({
 }
 
 // Shared with the space page's invite dialog — one checkbox-row look across both pickers.
-export function PickerRow({
+function PickerRow({
   checked,
   onToggle,
   label,

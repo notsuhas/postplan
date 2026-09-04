@@ -1,5 +1,5 @@
 import type { CommentView, ThreadView } from '../db/comments'
-import { type Attached, type Partitioned, partitionAuthorized } from './site-room'
+import { type Attached, type Partitioned, partitionAuthorized } from './socket-auth'
 
 // The comments-channel fan-out policy. A comment event has neither a document `collection` nor a
 // `createdBy` — canViewerRead asks about a document's creator/collection, and there is no such

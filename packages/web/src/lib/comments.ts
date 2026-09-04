@@ -121,7 +121,7 @@ type SiteRef = Pick<ViewerSite, 'spaceSlug' | 'siteSlug'>
 
 // Anchor-shaping fields for a voice thread — everything a create payload carries EXCEPT the body,
 // which the server derives from the recording's transcript. Mirrors NewThreadInput sans `body`.
-export type VoiceCreateFields = Omit<NewThreadInput, 'body'>
+type VoiceCreateFields = Omit<NewThreadInput, 'body'>
 
 const base = (s: SiteRef) => `/api/sites/${s.spaceSlug}/${s.siteSlug}/comments`
 

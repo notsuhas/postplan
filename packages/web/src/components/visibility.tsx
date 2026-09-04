@@ -14,7 +14,7 @@ import {
 
 // Ordered least-restrictive first so the menu reads as a ramp; `unlisted` is the only tier
 // that admits an anonymous reader, so it is labelled by its risk, not by its convenience.
-export const VISIBILITIES: Visibility[] = ['unlisted', 'private', 'members', 'team']
+const VISIBILITIES: Visibility[] = ['unlisted', 'private', 'members', 'team']
 
 export const VISIBILITY_META: Record<Visibility, { label: string; hint: string; icon: LucideIcon; badge: string }> = {
   unlisted: {

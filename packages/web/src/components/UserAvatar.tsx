@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 // hidden until it loads, so a miss (or an offline user, or a rotated URL) simply leaves initials.
 
 /** First letter of the display name, else the email, else '?' — the pre-avatar behaviour. */
-export function initialsOf(name?: string | null, email?: string | null): string {
+function initialsOf(name?: string | null, email?: string | null): string {
   return (name || email || '?').trim().slice(0, 1).toUpperCase() || '?'
 }
 

@@ -104,7 +104,7 @@ export function parseTextContext(raw: unknown): StoredTextContext | null {
 
 /** Like `normalizeText` but WITHOUT the trim: the space separating the quote from its neighbours is
  *  part of what distinguishes one occurrence from another, so the edges must survive. */
-export function normalizeEdges(s: string): string {
+function normalizeEdges(s: string): string {
   return collapseWhitespace(s.normalize('NFKC'))
 }
 

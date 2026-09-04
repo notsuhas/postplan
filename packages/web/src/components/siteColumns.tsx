@@ -14,7 +14,7 @@ import type { SiteSummary, Visibility } from '@/lib/types'
 // cell + actions.
 
 const VIS_RANK: Record<Visibility, number> = { unlisted: 0, private: 1, members: 2, team: 3 }
-export const visRank = (v: Visibility): number => VIS_RANK[v]
+const visRank = (v: Visibility): number => VIS_RANK[v]
 
 // Leading star cell — defined here, beside nameColumn, so all five site tables get the identical
 // control rather than five near-copies. A PRIVATE row renders no control at all (not a disabled

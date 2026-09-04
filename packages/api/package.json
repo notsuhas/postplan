@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@workos-inc/node": "^10.13.0",
-    "arctic": "^3.7.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.5",
     "marked": "^18.0.11",

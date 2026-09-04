@@ -1,4 +1,4 @@
-import { type DataCapability, type DataClaims, verifyDataToken } from '../lib/data-token'
+import { type DataClaims, verifyDataToken } from '../lib/data-token'
 import { canViewerRead } from '../lib/data-visibility'
 import type { Bindings } from '../types'
 import { type ChangeEvent, toEvent } from './change-log'
@@ -6,6 +6,22 @@ import { type CommentEvent, selectCommentRecipients } from './comment-events'
 import { encodeCursor } from './cursor'
 export { TOKEN_HEADER } from './protocol'
 import { type Channel, TOKEN_HEADER, parseChannel } from './protocol'
+import {
+  type Attached,
+  decodeAttachment,
+  encodeAttachment,
+  isAttachmentExpired,
+  type Partitioned,
+  partitionAuthorized,
+  type SocketAuth,
+} from './socket-auth'
+export {
+  type Attached,
+  decodeAttachment,
+  encodeAttachment,
+  isAttachmentExpired,
+  type Partitioned,
+} from './socket-auth'
 
 // ONE hibernating Durable Object per site: a pure fan-out relay that STORES NOTHING. D1 stays the
 // source of truth (the change_log is already committed before a broadcast is even attempted), so
@@ -29,11 +45,6 @@ import { type Channel, TOKEN_HEADER, parseChannel } from './protocol'
 // `WebSocketRequestResponsePair` are ambient workerd globals; the last two are absent in bun, so
 // tests install fakes on globalThis (the seam content.ts uses for `caches.default`).
 
-/** Everything one connection is allowed to be, small enough to sit far under the attachment's 16KB
- *  cap. `subject` is the viewer, `owner` the site. THE BEARER TOKEN IS NEVER STORED — only this
- *  snapshot of its verified claims, so a leaked attachment cannot be replayed as a credential. */
-export type SocketAuth = { subject: string; owner: string; exp: number; caps: DataCapability[] }
-
 /** How long one `typing` ping keeps an indicator alive on the receiving page. It rides the wire as
  *  an ABSOLUTE `expiresAt` so the receiver forgets it on its own clock — the room schedules nothing
  *  (rule 2). Longer than the send cap the composer will apply, or a viewer who never stops typing
@@ -54,57 +65,6 @@ const MAX_THREAD_ID = 64
 const siteTag = (siteId: string) => `site:${siteId}`
 const viewerTag = (viewerId: string) => `viewer:${viewerId}`
 const chanTag = (channel: Channel) => `chan:${channel}`
-
-/** Project verified claims onto the snapshot — a WHITELIST, so no extra field (a token, a session)
- *  can ride along into storage just because a caller passed a wider object. */
-export function encodeAttachment(auth: SocketAuth): SocketAuth {
-  return { subject: auth.subject, owner: auth.owner, exp: auth.exp, caps: auth.caps }
-}
-
-/** Read a snapshot back after a hibernation cycle. Null for anything malformed or absent: an
- *  unreadable attachment is not a weaker identity, it is NO identity, and the caller closes it. */
-export function decodeAttachment(raw: unknown): SocketAuth | null {
-  const a = raw as SocketAuth | null
-  if (!a || typeof a !== 'object') return null
-  if (typeof a.subject !== 'string' || !a.subject) return null
-  if (typeof a.owner !== 'string' || !a.owner) return null
-  if (typeof a.exp !== 'number' || !Number.isFinite(a.exp)) return null
-  if (!Array.isArray(a.caps)) return null
-  return encodeAttachment(a)
-}
-
-/** Same boundary `verifyDataToken` applies (valid while `now <= exp`) — a socket must never outlive
- *  the 300s token that authorized it, and the DO has no D1 session to re-authorize with. */
-export function isAttachmentExpired(auth: SocketAuth, nowSec: number): boolean {
-  return nowSec > auth.exp
-}
-
-export type Attached = { deserializeAttachment(): unknown }
-export type Partitioned<T> = { deliver: { ws: T; auth: SocketAuth }[]; close: T[] }
-
-/**
- * The AUTHORIZATION bar every fan-out on this object applies first — PURE, decided from the
- * attachment snapshots alone, so the policy is testable without a socket runtime.
- *
- * `close` is for sockets that are no longer AUTHORIZED at all: no readable snapshot, past exp, or
- * bound to another site. The site wall is defence in depth behind the room-name binding — one room
- * only ever holds one site's sockets, so a mismatch here means something upstream is wrong and the
- * connection is dropped rather than quietly skipped.
- *
- * Everything a caller adds on top is a VISIBILITY question, and visibility is silent: a socket the
- * caller then filters out of `deliver` is skipped, never closed. That split is why this is shared
- * by all three fan-outs (documents, comments, typing) while each keeps its own policy.
- */
-export function partitionAuthorized<T extends Attached>(sockets: T[], siteId: string, nowSec: number): Partitioned<T> {
-  const deliver: { ws: T; auth: SocketAuth }[] = []
-  const close: T[] = []
-  for (const ws of sockets) {
-    const auth = decodeAttachment(ws.deserializeAttachment())
-    if (!auth || isAttachmentExpired(auth, nowSec) || auth.owner !== siteId) close.push(ws)
-    else deliver.push({ ws, auth })
-  }
-  return { deliver, close }
-}
 
 /**
  * Who receives one document event.

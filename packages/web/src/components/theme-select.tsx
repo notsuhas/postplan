@@ -47,7 +47,7 @@ function loadThemes(): Promise<ThemeInfo[]> {
   return inflight
 }
 
-export function useThemes(): ThemeInfo[] {
+function useThemes(): ThemeInfo[] {
   const [themes, setThemes] = useState<ThemeInfo[]>(catalog ?? [])
   useEffect(() => {
     let live = true
@@ -61,7 +61,7 @@ export function useThemes(): ThemeInfo[] {
   return themes
 }
 
-export function themeLabel(themes: ThemeInfo[], slug: string | null): string {
+function themeLabel(themes: ThemeInfo[], slug: string | null): string {
   if (!slug) return 'Default'
   return themes.find((t) => t.slug === slug)?.name ?? slug
 }

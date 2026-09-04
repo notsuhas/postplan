@@ -1,4 +1,4 @@
-import { Link, type LoaderFunctionArgs, type RouteObject, redirect, useRouteError } from 'react-router'
+import { Link, type RouteObject, redirect, useRouteError } from 'react-router'
 import { AppShell } from './components/AppShell'
 import { Button } from './components/ui/button'
 import { api, ApiError } from './lib/api'
@@ -46,9 +46,6 @@ function RootError() {
     </div>
   )
 }
-
-export { rootLoader as _rootLoader }
-export type { LoaderFunctionArgs }
 
 // Split out from the entry file (main.tsx) so a test can assert on route ORDER without importing
 // the createRoot/render side effect. See router.test.ts.

@@ -15,7 +15,7 @@ export function escapeHtml(s: string): string {
 // while leaving relative paths, fragments, and http(s)/mailto intact. `data:` is allowed
 // only for images, where the CSP img-src already permits it. Anything with a disallowed
 // scheme collapses to a harmless target.
-export function safeUrl(href: string, allowData: boolean): string {
+function safeUrl(href: string, allowData: boolean): string {
   const m = /^\s*([a-z][a-z0-9+.-]*):/i.exec(href)
   if (!m) return href // relative / fragment / scheme-less — safe
   const scheme = m[1].toLowerCase()

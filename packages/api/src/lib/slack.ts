@@ -152,7 +152,7 @@ export const escapeSlack = (s: string): string => s.replace(/&/g, '&amp;').repla
 
 /** Slack's hyperlink idiom, `<url|label>`. The `&` in a query string must be entity-escaped even
  *  inside the URL (mrkdwn's rule), and the label is escaped like any other text. */
-export const slackLink = (url: string, label: string): string => `<${url.replace(/&/g, '&amp;')}|${escapeSlack(label)}>`
+const slackLink = (url: string, label: string): string => `<${url.replace(/&/g, '&amp;')}|${escapeSlack(label)}>`
 
 // The verb clause per reason (owner > participant > share precedence is decided upstream). The
 // wording is Slack-only — the in-app bell keeps its terse "commented" (no schema change).
