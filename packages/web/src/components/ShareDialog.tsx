@@ -22,7 +22,7 @@ import { MountSensor } from '@/components/ui/mount-sensor'
 import { Spinner } from '@/components/states'
 import { cn } from '@/lib/utils'
 
-type Props = {
+export interface IShareDialog {
   spaceSlug: string
   siteSlug: string
   title?: string | null
@@ -54,14 +54,15 @@ function toggleUser(map: Map<string, ShareRole>, id: string): Map<string, ShareR
 // site's visibility tier. Data loads on open via a ref-callback on the dialog content (Radix
 // mounts it on every open — and a controlled/external open does NOT fire Radix onOpenChange,
 // so the load can't live there); Save replaces the whole set via PUT.
-export function ShareDialog({
-  spaceSlug,
-  siteSlug,
-  title,
-  open: openProp,
-  onOpenChange,
-  triggerLabel = 'Share with people & groups',
-}: Props) {
+export function ShareDialog(props: IShareDialog) {
+  const {
+    spaceSlug,
+    siteSlug,
+    title,
+    open: openProp,
+    onOpenChange,
+    triggerLabel = 'Share with people & groups',
+  } = props
   const navigate = useNavigate()
   const location = useLocation()
   const [internalOpen, setInternalOpen] = useState(false)

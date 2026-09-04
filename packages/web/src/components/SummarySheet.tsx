@@ -16,7 +16,7 @@ import {
   summaryReducer,
 } from '@/lib/summary'
 
-type Props = {
+export interface ISummarySheet {
   spaceSlug: string
   siteSlug: string
   open: boolean
@@ -126,7 +126,8 @@ function SummaryFooter({ state, generate }: { state: SummaryState; generate: (fo
   }
 }
 
-export function SummarySheet({ spaceSlug, siteSlug, open, onOpenChange, onGenerated }: Props) {
+export function SummarySheet(props: ISummarySheet) {
+  const { spaceSlug, siteSlug, open, onOpenChange, onGenerated } = props
   // The ref is the source of truth, reduced exactly once per event; useState only mirrors it for
   // rendering. Async callbacks need the post-event state synchronously (toast decisions below),
   // which useReducer/setState(fn) can't hand back.

@@ -11,7 +11,7 @@ export type CacheLike = {
 
 // A stored object body: R2 streams, the harness mock hands owned bytes. Bytes are re-readable,
 // streams must be tee'd before feeding two consumers (client response + cache warm).
-type StoredBody = ReadableStream | Uint8Array
+export type StoredBody = ReadableStream | Uint8Array
 
 // Minimal surface of the R2 bucket this layer uses (the plain full `get`): the real R2Bucket
 // binding satisfies it structurally, the harness mock hands owned bytes instead of a stream.

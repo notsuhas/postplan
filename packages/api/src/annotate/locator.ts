@@ -53,7 +53,7 @@ function escapeRegExp(s: string): string {
  *  twice the stored cap still yields at least TEXT_CONTEXT_LIMIT of comparable text. */
 const CONTEXT_WINDOW = TEXT_CONTEXT_LIMIT * 2
 
-type TextIndex = { acc: string; segs: { node: Text; start: number; end: number; folded: boolean }[] }
+export type TextIndex = { acc: string; segs: { node: Text; start: number; end: number; folded: boolean }[] }
 
 /** Walk every RENDERED text node once and concatenate it (NFKC-folded), remembering where each node
  *  landed. One index serves both re-finding a quote and capturing a selection's context, so the two

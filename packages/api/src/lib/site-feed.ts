@@ -60,7 +60,7 @@ export function siteFeedColumns(userId: string) {
   }
 }
 
-type FeedSourceRow = {
+export type FeedSourceRow = {
   id: string
   spaceSlug: string
   slug: string

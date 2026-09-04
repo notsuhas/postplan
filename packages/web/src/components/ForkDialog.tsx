@@ -16,9 +16,20 @@ import { MountSensor } from '@/components/ui/mount-sensor'
 import { Spinner } from '@/components/states'
 import { VisibilityMenu } from '@/components/visibility'
 
-type ForkSource = { spaceSlug: string; siteSlug: string; title: string | null; visibility: Visibility }
+export interface IForkSource {
+  spaceSlug: string
+  siteSlug: string
+  title: string | null
+  visibility: Visibility
+}
 
-const forkName = (site: ForkSource) => `${site.title ?? site.siteSlug} (copy)`
+export interface IForkDialog {
+  site: IForkSource
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+const forkName = (site: IForkSource) => `${site.title ?? site.siteSlug} (copy)`
 
 // Fork used to be fire-and-forget: an empty POST body, a `-copy` slug the user never saw and the
 // source's visibility inherited in silence. This dialog is the ask — a name and a tier — and it is
@@ -27,15 +38,8 @@ const forkName = (site: ForkSource) => `${site.title ?? site.siteSlug} (copy)`
 // The URL slug is derived from the name rather than typed: one field to fill, and the destination
 // path is shown under it so the derivation is never a surprise. The destination SPACE is
 // deliberately not offered — a fork still lands in the caller's personal space.
-export function ForkDialog({
-  site,
-  open,
-  onOpenChange,
-}: {
-  site: ForkSource
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
+export function ForkDialog(props: IForkDialog) {
+  const { site, open, onOpenChange } = props
   const { fork, forking } = useForkSite(site)
   const [name, setName] = useState(() => forkName(site))
   const [visibility, setVisibility] = useState<Visibility>(site.visibility)

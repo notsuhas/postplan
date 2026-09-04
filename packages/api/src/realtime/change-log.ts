@@ -26,7 +26,7 @@ export type ChangeEvent = {
 
 /** The literal columns of a log row, in the table's declaration order — drizzle's insert-select
  *  emits `insert into change_log (<every column>) <select>`, so the select list must line up. */
-type ChangeInput = Omit<ChangeEvent, 'seq'>
+export type ChangeInput = Omit<ChangeEvent, 'seq'>
 
 const RETURNING = {
   siteId: changeLog.siteId,
