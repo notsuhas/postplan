@@ -40,6 +40,8 @@
     "test": "bun test scripts && bun run --filter '*' test",
     "lint": "biome lint .",
     "format": "biome check --write .",
+    "format:check": "biome check .",
+    "dead-code": "fallow dead-code --type-aware",
     "cf-typegen": "bunx wrangler types -c wrangler.example.jsonc packages/api/worker-configuration.d.ts",
     "db:generate": "cd packages/api && bunx drizzle-kit generate",
     "db:migrate:local": "bunx wrangler d1 migrations apply postplan-db -c wrangler.jsonc --local --persist-to .wrangler-shared",

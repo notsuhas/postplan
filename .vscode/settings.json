@@ -1,4 +1,8 @@
 {
+  "editor.formatOnSave": true,
+  "[javascript][javascriptreact][typescript][typescriptreact][json][jsonc][css]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
   "typescript.tsdk": "node_modules/typescript/lib",
   "js/ts.implicitProjectConfig.target": "ES2022"
 }
