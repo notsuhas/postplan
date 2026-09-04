@@ -154,6 +154,26 @@ const listedIds = async (app: Hono<AppEnv>, env: AppEnv['Bindings'], viewer: str
 }
 
 describe('GET /api/spaces/:slug/sites — visibility pins (S6 T6.1)', () => {
+  test('pin: a space member cannot enumerate another owner’s unlisted link', async () => {
+    const { db, kv, app, env } = await setup()
+    await mintUser(db, kv, 'owner')
+    await mintUser(db, kv, 'member')
+    await seedSpace(db, { id: 'sp', createdBy: 'owner', slug: 'acme' })
+    await seedMember(db, 'sp', 'owner')
+    await seedMember(db, 'sp', 'member')
+    await seedSite(db, {
+      id: 'hidden',
+      spaceId: 'sp',
+      ownerId: 'owner',
+      slug: 'hidden-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      visibility: 'unlisted',
+    })
+    const rows = (await (await app.request('/api/spaces/acme/sites', { headers: auth('member') }, env)).json()) as {
+      id: string
+    }[]
+    expect(rows).toEqual([])
+  })
+
   test('pin: an authed non-member sees team-tier + explicitly-shared sites only', async () => {
     const { app, env } = await seedVisibilityFixture()
     // t1 (team), p-shared (direct grant), g1 (group grant) — NOT m1/p1 (tier), NOT gone (archived).

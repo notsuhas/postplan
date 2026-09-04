@@ -28,6 +28,23 @@ describe('searchSites (cmdk site search)', () => {
     expect(ids(await searchSites(db, member(me), 'group-plan')).has(site)).toBe(true)
   })
 
+  test('search-member-cannot-discover-an-unlisted-site by title or space', async () => {
+    const db = makeDb()
+    const me = await seedUser(db, { id: 'me' })
+    const owner = await seedUser(db)
+    const sp = await seedSpace(db, { createdBy: owner, slug: 'secret-space' })
+    await seedMember(db, sp, me)
+    const hidden = await seedSite(db, {
+      spaceId: sp,
+      ownerId: owner,
+      slug: 'hidden-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      title: 'Buried roadmap',
+      visibility: 'unlisted',
+    })
+    expect(ids(await searchSites(db, member(me), 'roadmap')).has(hidden)).toBe(false)
+    expect(ids(await searchSites(db, member(me), 'secret-space')).has(hidden)).toBe(false)
+  })
+
   test('search-nonmember-excluded: non-member sees neither the group nor the private site', async () => {
     const db = makeDb()
     const me = await seedUser(db, { id: 'me' })

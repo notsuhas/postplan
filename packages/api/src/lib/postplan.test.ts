@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import type { SessionUser } from '../types'
-import { checkAccess } from './access'
+import { canDiscover, checkAccess } from './access'
 import { isValidSlug, slugifyHandle } from './slug'
 import { signToken, verifyToken } from './token'
 
 const owner: SessionUser = { id: 'u1', email: 'a@example.com', name: null, role: 'member' }
 const other: SessionUser = { id: 'u2', email: 'b@example.com', name: null, role: 'member' }
 const admin: SessionUser = { id: 'u3', email: 'c@example.com', name: null, role: 'superadmin' }
-const site = (visibility: 'private' | 'members' | 'team', status: 'active' | 'archived' = 'active') =>
+const site = (visibility: 'unlisted' | 'private' | 'members' | 'team', status: 'active' | 'archived' = 'active') =>
   ({ visibility, status, ownerId: 'u1' }) as const
 
 describe('checkAccess', () => {
@@ -44,6 +44,14 @@ describe('checkAccess', () => {
   })
   test('explicit share is still blocked when archived', () => {
     expect(checkAccess(site('private', 'archived'), other, false, true)).toEqual({ ok: false, status: 410 })
+  })
+})
+
+describe('canDiscover', () => {
+  test('an unlisted site is discoverable only to its owner or an explicit share', () => {
+    expect(canDiscover(site('unlisted'), owner, true)).toBe(true)
+    expect(canDiscover(site('unlisted'), other, true)).toBe(false)
+    expect(canDiscover(site('unlisted'), other, false, true)).toBe(true)
   })
 })
 

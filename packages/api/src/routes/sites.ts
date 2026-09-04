@@ -17,7 +17,7 @@ import {
 } from '../db/repo'
 import type { Visibility } from '../db/schema'
 import { files as filesTable, siteStars, sites as sitesTable, spaces, users } from '../db/schema'
-import { canReplace, checkAccess } from '../lib/access'
+import { canDiscover, canReplace, checkAccess } from '../lib/access'
 import { batchAll, chunk, D1_MAX_IN, FEED_ID_CHUNK } from '../lib/d1'
 import { fireAndForget } from '../lib/events'
 import { resolveIndexPath } from '../lib/extract'
@@ -138,7 +138,7 @@ export async function searchSites(
   for (const rows of batches) for (const r of rows) byId.set(r.id, r)
   return [...byId.values()]
     .sort(byCreatedAtDesc)
-    .filter((r) => checkAccess(r, user, memberSpaces.has(r.spaceId), shared.has(r.id)).ok)
+    .filter((r) => canDiscover(r, user, memberSpaces.has(r.spaceId), shared.has(r.id)))
     .slice(0, limit)
 }
 

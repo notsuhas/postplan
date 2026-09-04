@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { createSpace, foldSharedSiteRoles, sharedSiteRoleStmts } from '../db/repo'
 import { sites, spaceMembers, spaces as spacesTable, users } from '../db/schema'
-import { checkAccess } from '../lib/access'
+import { canDiscover } from '../lib/access'
 import { batchAll } from '../lib/d1'
 import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
 import { deleteSpaceObjects } from '../lib/storage'
@@ -111,7 +111,7 @@ spaces.get('/:slug', requireAuth, async (c) => {
 // space existence, share reach, membership, and the site rows — with the pure-audio badge folded in
 // as a correlated scalar (pureAudioSql, as /mine and /team do) — all travel in a single db.batch.
 // Each statement is a non-failing SELECT (missing space → empty rows), so the 404 is decided
-// post-batch on the space row alone. Visibility filtering stays in JS (checkAccess); computing the
+// post-batch on the space row alone. Visibility filtering stays in JS; computing the
 // audio scalar for rows the caller can't see is harmless — only visible rows reach the response.
 spaces.get('/:slug/sites', requireAuth, async (c) => {
   const user = c.get('user')
@@ -137,7 +137,7 @@ spaces.get('/:slug/sites', requireAuth, async (c) => {
 
   const isMember = memberRows.length > 0
   const shared = foldSharedSiteRoles(direct, viaGroup)
-  const visible = rows.filter((s) => checkAccess(s, user, isMember, shared.has(s.id)).ok)
+  const visible = rows.filter((s) => canDiscover(s, user, isMember, shared.has(s.id)))
   return c.json(
     visible.map((s) => ({
       ...toFeedRow(s, c.env.APP_URL),

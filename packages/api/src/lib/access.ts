@@ -55,6 +55,18 @@ export function checkAccess(
   }
 }
 
+export function canDiscover(
+  site: Pick<Site, 'visibility' | 'status' | 'ownerId'>,
+  user: Pick<SessionUser, 'id' | 'role'>,
+  isMember: boolean,
+  isShared = false,
+): boolean {
+  if (site.status === 'archived') return false
+  if (site.ownerId === user.id || isShared) return true
+  if (site.visibility === 'unlisted') return false
+  return checkAccess(site, user, isMember, false).ok
+}
+
 /**
  * Whether a user may CONTENT-REPLACE (redeploy) a site — a strictly narrower capability than
  * `checkAccess` (which is read/view). Owner always; a direct EDITOR share otherwise (a plain
