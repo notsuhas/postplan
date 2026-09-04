@@ -236,13 +236,23 @@ describe('GET /api/spaces/:slug — post-auth D1 request budget + member facts (
     expect(await asOutsider.json()).toMatchObject({ slug: 'acme', memberCount: 3, isMember: false, isOwner: false })
 
     expect(postAuthRequests(db)).toBeLessThanOrEqual(2)
-    // Exact shape: ONE batch carrying all three SELECTs (space row, member count, membership).
+    // Exact shape: ONE batch carrying metadata, count, caller membership and the owner roster.
     expect(db.counters.loose).toBe(1)
     expect(db.counters.batches).toBe(1)
-    expect(db.counters.batchStmts).toBe(3)
+    expect(db.counters.batchStmts).toBe(4)
 
     const asOwner = await app.request('/api/spaces/acme', { headers: auth('owner') }, env)
-    expect(await asOwner.json()).toMatchObject({ slug: 'acme', isMember: true, isOwner: true })
+    expect(await asOwner.json()).toMatchObject({
+      slug: 'acme',
+      isMember: true,
+      isOwner: true,
+      ownerId: 'owner',
+      members: [
+        { id: 'm2', email: 'm2@example.com' },
+        { id: 'm3', email: 'm3@example.com' },
+        { id: 'owner', email: 'owner@example.com' },
+      ],
+    })
   })
 })
 

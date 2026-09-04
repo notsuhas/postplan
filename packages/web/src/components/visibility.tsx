@@ -23,7 +23,12 @@ export const VISIBILITY_META: Record<Visibility, { label: string; hint: string; 
     icon: Globe,
     badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
   },
-  private: { label: 'Private', hint: 'Only you', icon: Lock, badge: 'bg-muted text-muted-foreground' },
+  private: {
+    label: 'Restricted',
+    hint: 'Only you and people you share with',
+    icon: Lock,
+    badge: 'bg-muted text-muted-foreground',
+  },
   members: {
     label: 'Space members',
     hint: 'People added to this space',

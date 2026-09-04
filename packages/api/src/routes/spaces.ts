@@ -62,14 +62,12 @@ function memberOfSlugStmt(db: DrizzleD1Database, slug: string, userId: string) {
     .limit(1)
 }
 
-// GET /api/spaces/:slug — metadata + member count + caller membership, in ONE post-auth D1 request:
-// all three reads are independent non-failing SELECTs keyed on the slug, so they share a db.batch
-// and the 404 for a missing space is decided post-batch on the space row alone.
+// GET /api/spaces/:slug — metadata, count, caller membership and owner roster in one batch.
 spaces.get('/:slug', requireAuth, async (c) => {
   const user = c.get('user')
   const db = c.get('db')
   const slug = c.req.param('slug')
-  const [spaceRows, counted, memberRows] = await batchAll(db, [
+  const [spaceRows, counted, callerMembership, memberRows] = await batchAll(db, [
     db.select().from(spacesTable).where(eq(spacesTable.slug, slug)).limit(1),
     db
       // Aliased: real D1 `.batch()` maps rows by column NAME and SQLite's name for an
@@ -79,12 +77,20 @@ spaces.get('/:slug', requireAuth, async (c) => {
       .innerJoin(spacesTable, eq(spaceMembers.spaceId, spacesTable.id))
       .where(eq(spacesTable.slug, slug)),
     memberOfSlugStmt(db, slug, user.id),
+    db
+      .select({ id: users.id, email: users.email, name: users.name })
+      .from(spaceMembers)
+      .innerJoin(spacesTable, eq(spaceMembers.spaceId, spacesTable.id))
+      .innerJoin(users, eq(spaceMembers.userId, users.id))
+      .where(eq(spacesTable.slug, slug))
+      .orderBy(users.email),
   ])
   const space = spaceRows[0]
   if (!space) return c.json({ error: 'space not found' }, 404)
 
   const memberCount = Number(counted[0]?.count ?? 0)
-  const isMember = memberRows.length > 0
+  const isMember = callerMembership.length > 0
+  const isOwner = space.createdBy === user.id
   // isOwner lets the UI gate owner-only affordances (invite members) instead of offering
   // actions that can only 403 — the member routes below all enforce createdBy.
   return c.json({
@@ -94,7 +100,9 @@ spaces.get('/:slug', requireAuth, async (c) => {
     type: space.type,
     memberCount,
     isMember,
-    isOwner: space.createdBy === user.id,
+    isOwner,
+    ownerId: space.createdBy,
+    ...(isOwner && space.type === 'group' ? { members: memberRows } : {}),
   })
 })
 

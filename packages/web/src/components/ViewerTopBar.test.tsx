@@ -83,7 +83,7 @@ describe('ViewerTopBar — the visibility tier rides beside the site name', () =
 
   test('the owner gets the picker trigger for the tier', () => {
     renderTopBar({ site: { ...SITE, visibility: 'private', isOwner: true } })
-    expect(screen.getByRole('button', { name: /Private/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Restricted/ })).toBeTruthy()
   })
 })
 

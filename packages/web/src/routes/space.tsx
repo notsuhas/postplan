@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useNavigate, useRevalidator } from 'react-router'
-import { ExternalLink, Trash2, UserPlus } from 'lucide-react'
+import { ExternalLink, Trash2, UserMinus, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { PeoplePicker, ShareDialog, toggle } from '@/components/ShareDialog'
@@ -19,6 +19,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { MountSensor } from '@/components/ui/mount-sensor'
+import { UserAvatar } from '@/components/UserAvatar'
 import { api, ApiError } from '@/lib/api'
 import { toLogin } from '@/lib/nav'
 import type { SiteSummary, SpaceDetail, UserLite } from '@/lib/types'
@@ -45,7 +46,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 // of a free-text email form. Multi-select, then one POST per pick — the API invites by email and
 // is idempotent for existing members. Directory loads on open via MountSensor (Radix mounts the
 // content each open). On any success the route revalidates so the member count stays honest.
-function InviteMembersDialog({ slug }: { slug: string }) {
+function InviteMembersDialog({ slug, members }: { slug: string; members: UserLite[] }) {
   const revalidator = useRevalidator()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -58,12 +59,12 @@ function InviteMembersDialog({ slug }: { slug: string }) {
     setSelected(new Set())
     api
       .get<UserLite[]>('/api/users')
-      .then(setUsers)
+      .then((all) => setUsers(all.filter((candidate) => !members.some((member) => member.id === candidate.id))))
       .catch((err) =>
         toast.error('Could not load people', { description: err instanceof Error ? err.message : undefined }),
       )
       .finally(() => setBusy(false))
-  }, [])
+  }, [members])
 
   async function invite() {
     setSaving(true)
@@ -103,7 +104,7 @@ function InviteMembersDialog({ slug }: { slug: string }) {
         <MountSensor onMount={loadOnMount} />
         <DialogHeader>
           <DialogTitle>Invite members</DialogTitle>
-          <DialogDescription>Pick teammates to grant them access to this space.</DialogDescription>
+          <DialogDescription>Pick a signed-in Postplan user to add to this space.</DialogDescription>
         </DialogHeader>
 
         {busy ? (
@@ -129,6 +130,57 @@ function InviteMembersDialog({ slug }: { slug: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function MembersSection({ space }: { space: SpaceDetail }) {
+  const revalidator = useRevalidator()
+  const members = space.members ?? []
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SectionHeader index={2} title="Members" />
+        <InviteMembersDialog slug={space.slug} members={members} />
+      </div>
+      <div className="divide-y rounded-lg border bg-card">
+        {members.map((member) => {
+          const owner = member.id === space.ownerId
+          return (
+            <div key={member.id} className="flex items-center gap-3 px-4 py-3">
+              <UserAvatar userId={member.id} name={member.name} email={member.email} className="size-8" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{member.name ?? member.email}</p>
+                {member.name && <p className="truncate text-muted-foreground text-xs">{member.email}</p>}
+              </div>
+              {owner ? (
+                <Badge variant="secondary">Owner</Badge>
+              ) : (
+                <ConfirmDialog
+                  title="Remove this member?"
+                  description={`${member.name ?? member.email} will lose access granted through this space.`}
+                  confirmLabel="Remove member"
+                  destructive
+                  onConfirm={async () => {
+                    await api.delete(`/api/spaces/${space.slug}/members/${member.id}`)
+                    toast.success('Member removed')
+                    revalidator.revalidate()
+                  }}
+                >
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                    <UserMinus />
+                    Remove
+                  </Button>
+                </ConfirmDialog>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-muted-foreground text-xs">
+        New people must be invited by an admin and sign in once before they appear here.
+      </p>
+    </section>
   )
 }
 
@@ -195,10 +247,7 @@ export function Component() {
             <span className="font-mono">/{space.slug}</span>
           </span>
         }
-      >
-        {/* Invite is owner-only server-side — don't offer a button that can only 403. */}
-        {isGroup && space.isOwner && <InviteMembersDialog slug={space.slug} />}
-      </PageHeader>
+      />
 
       <section className="space-y-4">
         <SectionHeader index={1} title="Sites" />
@@ -214,7 +263,9 @@ export function Component() {
         )}
       </section>
 
-      {isGroup && <DangerZone space={space} />}
+      {isGroup && space.isOwner && <MembersSection space={space} />}
+
+      {isGroup && space.isOwner && <DangerZone space={space} />}
     </div>
   )
 }

@@ -29,6 +29,8 @@ export interface SpaceDetail extends SpaceSummary {
   memberCount: number
   isMember: boolean
   isOwner: boolean
+  ownerId: string
+  members?: UserLite[]
 }
 
 export interface SiteSummary {
