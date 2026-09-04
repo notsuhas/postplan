@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VisibilityBadge } from '@/components/visibility'
 import { api, ApiError } from '@/lib/api'
 import type { SiteStatus, Visibility } from '@/lib/types'
@@ -387,7 +387,7 @@ function StatsPanel({ data }: { data: StatsData }) {
 }
 
 const STATUS_OPTIONS = ['active', 'archived'] as const
-const VISIBILITY_OPTIONS: Visibility[] = ['private', 'members', 'team']
+const VISIBILITY_OPTIONS: Visibility[] = ['unlisted', 'private', 'members', 'team']
 
 // "all" is the sentinel for the unfiltered option (Radix Select can't hold an empty value).
 const ALL = 'all'
@@ -670,6 +670,8 @@ function InvitesPanel({ data }: { data: InvitesData }) {
     try {
       await mutate(`Invited ${value}`, () => api.post('/api/admin/invites', { email: value }))
       setEmail('')
+    } catch (err) {
+      toast.error('Could not add invite', { description: err instanceof Error ? err.message : undefined })
     } finally {
       setBusy(false)
     }
@@ -680,6 +682,7 @@ function InvitesPanel({ data }: { data: InvitesData }) {
       <form onSubmit={add} className="flex flex-wrap items-center gap-2">
         <Input
           type="email"
+          disabled={busy}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="person@company.com"
@@ -808,11 +811,17 @@ export function Component() {
           ))}
         </TabsList>
 
-        {loaderData.tab === 'overview' && <StatsPanel data={loaderData.data} />}
-        {loaderData.tab === 'sites' && <SitesPanel data={loaderData.data} />}
-        {loaderData.tab === 'spaces' && <SpacesPanel spaces={loaderData.data} />}
-        {loaderData.tab === 'users' && <UsersPanel users={loaderData.data} />}
-        {loaderData.tab === 'invites' && <InvitesPanel data={loaderData.data} />}
+        <TabsContent value="overview">
+          {loaderData.tab === 'overview' && <StatsPanel data={loaderData.data} />}
+        </TabsContent>
+        <TabsContent value="sites">{loaderData.tab === 'sites' && <SitesPanel data={loaderData.data} />}</TabsContent>
+        <TabsContent value="spaces">
+          {loaderData.tab === 'spaces' && <SpacesPanel spaces={loaderData.data} />}
+        </TabsContent>
+        <TabsContent value="users">{loaderData.tab === 'users' && <UsersPanel users={loaderData.data} />}</TabsContent>
+        <TabsContent value="invites">
+          {loaderData.tab === 'invites' && <InvitesPanel data={loaderData.data} />}
+        </TabsContent>
       </Tabs>
     </div>
   )
