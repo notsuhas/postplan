@@ -3,13 +3,7 @@ import type { SpaceSummary } from '@/lib/types'
 import { DeployCard } from '@/components/DeployCard'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
-interface IUploadDialog {
-  spaces: SpaceSummary[]
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
-
-export function UploadDialog(props: IUploadDialog) {
+export function UploadDialog(props: { spaces: SpaceSummary[]; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { spaces, open, onOpenChange } = props
   const [busy, setBusy] = useState(false)
   const changeOpen = (next: boolean) => {

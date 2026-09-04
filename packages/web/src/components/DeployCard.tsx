@@ -51,11 +51,6 @@ interface IPendingReplace {
   files: DroppedFile[]
 }
 
-interface IDeployCard {
-  spaces: SpaceSummary[]
-  onBusyChange?: (busy: boolean) => void
-}
-
 const targetKey = (target: Pick<IUploadTarget, 'space' | 'slug'>): string => `${target.space}\0${target.slug}`
 
 // Guess a slug from what was dropped: the top folder name, or — for loose files —
@@ -70,7 +65,7 @@ function deriveSlug(files: DroppedFile[]): string {
 
 // Drop a folder → get a URL. Renders chrome-free (no outer card/heading) — the record-first
 // dashboard embeds it in the UploadDialog, which supplies its own title/description.
-export function DeployCard(props: IDeployCard) {
+export function DeployCard(props: { spaces: SpaceSummary[]; onBusyChange?: (busy: boolean) => void }) {
   const { spaces, onBusyChange } = props
   const revalidator = useRevalidator()
   const folderInput = useRef<HTMLInputElement>(null)

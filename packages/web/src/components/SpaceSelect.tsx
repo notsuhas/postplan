@@ -3,16 +3,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 // One space picker, shared by the Deploy card and the Move dialog so the option rendering
 // (mono slug + `· personal` tag) lives in exactly one place.
-interface ISpaceSelect {
+export function SpaceSelect(props: {
   id?: string
   value: string
   onChange: (slug: string) => void
   spaces: SpaceSummary[]
   placeholder?: string
   disabled?: boolean
-}
-
-export function SpaceSelect(props: ISpaceSelect) {
+}) {
   const { id, value, onChange, spaces, placeholder = 'Select a space', disabled = false } = props
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
