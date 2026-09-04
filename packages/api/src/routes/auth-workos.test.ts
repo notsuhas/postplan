@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { makeRouteApp } from '../test/route-fixtures'
 import type { AppEnv } from '../types'
 import { auth } from './auth'
 
@@ -28,5 +29,24 @@ describe('GET /workos guard (creds optional)', () => {
   test('GET /callback with unset creds → 404 (never constructs a WorkOS client)', async () => {
     const res = await auth.request('/callback?code=x&state=y', { method: 'GET' }, base)
     expect(res.status).toBe(404)
+  })
+})
+
+describe('POST /dev-login guard', () => {
+  test('accepts localhost and rejects lookalike hosts', async () => {
+    const { app, env } = makeRouteApp()
+    const local = await app.request(
+      '/api/auth/dev-login',
+      { method: 'POST' },
+      { ...env, APP_URL: 'http://localhost:5173', SUPERADMIN_EMAIL: 'dev@example.com' },
+    )
+    const lookalike = await app.request(
+      '/api/auth/dev-login',
+      { method: 'POST' },
+      { ...env, APP_URL: 'http://localhost.evil.example', SUPERADMIN_EMAIL: 'dev@example.com' },
+    )
+
+    expect(local.status).toBe(200)
+    expect(lookalike.status).toBe(404)
   })
 })

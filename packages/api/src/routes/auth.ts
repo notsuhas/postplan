@@ -169,10 +169,18 @@ auth.get('/me', requireAuth, async (c) => {
   return c.json({ ...user, hasUsedCli: used.length > 0 })
 })
 
-// DEV ONLY: skip the IdP round-trip for local browser testing. Hard-gated to a localhost
-// APP_URL — in prod APP_URL is https://…workers.dev, so this 404s and can never run.
+function isLocalAppUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' && url.hostname === 'localhost'
+  } catch {
+    return false
+  }
+}
+
+// DEV ONLY: skip the IdP round-trip for local browser testing.
 auth.post('/dev-login', async (c) => {
-  if (!c.env.APP_URL.startsWith('http://localhost')) return c.notFound()
+  if (!isLocalAppUrl(c.env.APP_URL)) return c.notFound()
   const email = c.env.SUPERADMIN_EMAIL.toLowerCase()
   const user = await findOrCreateUser(
     c.get('db'),

@@ -7,6 +7,7 @@ import { generateApiKey, hashApiKey } from '../lib/api-key'
 import { requireSameOrigin } from '../middleware/auth'
 import { admin } from '../routes/admin'
 import { apiKeys } from '../routes/api-keys'
+import { auth as authRoutes } from '../routes/auth'
 import { commentFeed } from '../routes/comment-feed'
 import { comments } from '../routes/comments'
 import { summary } from '../routes/summary'
@@ -49,6 +50,7 @@ export function makeRouteApp() {
   app.route('/api/comments', commentFeed)
   app.route('/api/slack', slackEvents)
   app.route('/api/api-keys', apiKeys)
+  app.route('/api/auth', authRoutes)
   app.route('/api/admin', admin)
   return { app, env, db, kv, r2 }
 }
