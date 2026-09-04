@@ -50,6 +50,9 @@ jobs:
       - name: Check dead code
         run: bun run dead-code
 
+      - name: Check architecture health
+        run: bun run architecture:check
+
       - name: Check shell scripts
         run: shellcheck scripts/*.sh install.sh
 

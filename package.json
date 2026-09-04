@@ -42,6 +42,7 @@
     "format": "biome check --write .",
     "format:check": "biome check .",
     "dead-code": "fallow dead-code --type-aware",
+    "architecture:check": "fallow health --score --min-score 85 --format compact --quiet",
     "cf-typegen": "bunx wrangler types -c wrangler.example.jsonc packages/api/worker-configuration.d.ts",
     "db:generate": "cd packages/api && bunx drizzle-kit generate",
     "db:migrate:local": "bunx wrangler d1 migrations apply postplan-db -c wrangler.jsonc --local --persist-to .wrangler-shared",
