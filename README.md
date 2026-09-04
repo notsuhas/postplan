@@ -25,15 +25,18 @@ Stack: Cloudflare Workers + Hono · React Router v7 · D1 · R2 · KV.
 
 ## Deploy
 
-First enable **R2** on your account ([dashboard](https://dash.cloudflare.com) → R2 → accept terms — still free), then:
+First enable **R2** on your account ([dashboard](https://dash.cloudflare.com) → R2 → accept terms — still free), then create the three Cloudflare resources:
 
 ```bash
 bun install
 bunx wrangler login
-scripts/setup.sh      # provisions D1/KV/R2, deploys both workers, sets secrets, migrates, prints URL + token
+bunx wrangler d1 create postplan-db
+bunx wrangler kv namespace create POSTPLAN_SESSIONS
+bunx wrangler r2 bucket create postplan-files
+cp deploy.example.env deploy.env
 ```
 
-`setup.sh` is idempotent. At the end it prints a **bootstrap token** — open the printed `/login`, paste it into **Complete setup**, and you become the first superadmin. No Google account needed.
+Fill `deploy.env` with the returned IDs, two separate HTTPS hostnames, your admin email, and secrets generated with `openssl rand -hex 32`. Then run `scripts/setup.sh`. It renders the ignored instance configs, migrates D1, deploys both workers, sets secrets, and verifies the app. Open `/login` and use `BOOTSTRAP_TOKEN` to claim the first admin.
 
 > Multiple Cloudflare accounts? `export CLOUDFLARE_ACCOUNT_ID=<id>` first. Manual provisioning, secrets, and optional Google SSO: see [DEPLOY.md](DEPLOY.md).
 
@@ -88,7 +91,7 @@ The `curl … /api/install | sh` line above already installs the skill for Claud
 | `move <space/slug> <new-space>` | moves a site (keeps files/comments/shares; URL changes) |
 | `upgrade` / `version` / `logout` | self-update · print version · revoke session |
 
-Defaults: `--space` = your personal space · `--name` = file/folder name slugified · `--visibility` = `team` (`private` · `members` also available). Point at another instance with `POSTPLAN_API_URL=https://… postplan <cmd>`.
+Defaults: `--space` = your personal space · `--name` = file/folder name slugified · `--visibility` = `team` (`unlisted` · `private` · `members` also available). Point at another instance with `POSTPLAN_API_URL=https://… postplan <cmd>`.
 
 The CLI keeps itself current (once-a-day background check, atomic in-place swap). Opt out with `POSTPLAN_NO_UPDATE=1`.
 
@@ -107,7 +110,7 @@ A key authenticates the control plane as you and can only ever narrow your own a
 ## Security model
 
 - **Uploaded HTML/JS is untrusted** — served from a separate content origin (`CONTENT_URL`), so app session cookies never reach it. This is why Postplan stands up two Workers, not one.
-- **Gated links** carry short-lived, single-use HMAC tokens. Every tier requires an authenticated user — there is no public/anonymous access.
+- **Gated links** carry short-lived, user-bound HMAC tokens. `private`, `members`, and `team` require authentication; an `unlisted` URL is an anonymous possession grant.
 - **Markdown** renders with raw HTML neutralized under a strict CSP, so injected `<script>` is inert.
 
 ## Shared backend — `postplan.db` (experimental, opt-in)

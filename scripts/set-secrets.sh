@@ -10,7 +10,10 @@
 set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 [[ -f deploy.env ]] || { echo "deploy.env missing"; exit 1; }
-set -a; . ./deploy.env; set +a
+set -a
+# shellcheck disable=SC1091
+. ./deploy.env
+set +a
 : "${SESSION_SECRET:?}" "${CONTENT_TOKEN_SECRET:?}"
 
 put() { printf '%s' "$2" | bunx wrangler secret put "$1" -c "$3" >/dev/null && echo "  $1 -> $(basename "$3")"; }

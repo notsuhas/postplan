@@ -1,105 +1,71 @@
-# Deploy (manual / advanced)
+# Deploy
 
-The fast path is `scripts/setup.sh` (see [README](README.md#deploy-in-one-command)). It provisions D1/KV/R2, generates secrets, sets a one-time `BOOTSTRAP_TOKEN`, migrates, deploys both workers, wires the live `workers.dev` URLs into config, and prints the first-run link + token. The manual equivalent is below.
+The short path is in [README.md](README.md#deploy). This page covers the instance files and optional integrations.
 
-## 1. Provision
+## Instance configuration
 
-```bash
-wrangler login
-
-wrangler d1 create postplan-db            # → database_id = "xxxx…"
-wrangler kv namespace create POSTPLAN_SESSIONS   # → id = "yyyy…"
-wrangler r2 bucket create postplan-files  # enable R2 in the dashboard first
-```
-
-Paste the IDs into **both** `packages/api/wrangler.jsonc` and `packages/api/wrangler.content.jsonc` (they ship with `YOUR_*` placeholders):
-
-```jsonc
-"d1_databases": [{ "database_id": "<database_id>" }],
-"kv_namespaces": [{ "id": "<kv id>" }],
-```
-
-**Delete the `account_id` line** (it ships as a `YOUR_ACCOUNT_ID` placeholder) so the account resolves from `wrangler login`, or set it to your real id.
-
-Set the `vars` block in both configs:
-
-| var | example |
-|---|---|
-| `APP_URL` | `https://postplan.your-subdomain.workers.dev` |
-| `CONTENT_URL` | `https://postplan-content.your-subdomain.workers.dev` |
-| `ALLOWED_HD` | `yourcompany.com` (Google Workspace domain) |
-| `SUPERADMIN_EMAIL` | `you@yourcompany.com` |
-
-Also update `_headers` `frame-src` and the content worker `frame-ancestors` to the real `CONTENT_URL`.
-
-Apply migrations to remote D1:
+`wrangler.example.jsonc`, `wrangler.content.example.jsonc`, and `packages/web/public/_headers.example` are tracked templates. Real instance values live in the ignored `deploy.env` file.
 
 ```bash
-cd packages/api && wrangler d1 migrations apply postplan-db --remote
+cp deploy.example.env deploy.env
 ```
 
-Enable D1 read replication (reads route to the nearest replica via the Sessions API; billing is unchanged — still rows_read/rows_written). It's a database-level setting with no wrangler command: use the dashboard (D1 → postplan-db → Settings) or the REST API with a `D1:Edit` token:
+Fill every required value. `APP_URL` and `CONTENT_URL` must be separate HTTPS origins. Create the three write-only secrets with `openssl rand -hex 32` and store them in `deploy.env` before running setup.
 
 ```bash
-curl -X PUT "https://api.cloudflare.com/client/v4/accounts/<account_id>/d1/database/<database_id>" \
-  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
-  -d '{"read_replication": {"mode": "auto"}}'
+scripts/setup.sh
 ```
 
-## 2. Secrets
+Setup renders ignored Wrangler configs, applies D1 migrations, builds the web app, deploys both workers, writes their secrets, and checks `/api/config`. It is safe to rerun with the same values.
 
-Both workers need `SESSION_SECRET` and `CONTENT_TOKEN_SECRET` (keep them distinct). The main worker also needs `BOOTSTRAP_TOKEN` for first-run admin setup.
+To render configs without deploying:
 
 ```bash
-cd packages/api
-# generate with: openssl rand -hex 32
-for w in "" "--config wrangler.content.jsonc"; do
-  echo "$SESSION_SECRET"       | wrangler secret put SESSION_SECRET       $w
-  echo "$CONTENT_TOKEN_SECRET" | wrangler secret put CONTENT_TOKEN_SECRET $w
-done
-echo "$(openssl rand -hex 32)" | wrangler secret put BOOTSTRAP_TOKEN
+scripts/apply-config.sh
 ```
 
-- `SESSION_SECRET` — HMAC key for signed cookies + KV session tokens.
-- `CONTENT_TOKEN_SECRET` — HMAC key for short-lived gated-content URL tokens.
-- `DATA_TOKEN_SECRET` (optional, main worker only) — HMAC key for `postplan.db` shared-backend data
-  tokens; keep distinct from `CONTENT_TOKEN_SECRET`. While unset, `/api/_data` and the token mint
-  return 404 — the feature is opt-in per deploy. Enable with:
-  `echo "$(openssl rand -hex 32)" | wrangler secret put DATA_TOKEN_SECRET`
-- `SLACK_BOT_TOKEN` (optional, main worker only) — Slack bot token (`xoxb-…`) that mirrors in-app
-  comment notifications as Slack DMs. **Kill-switch: while unset, no Slack DMs are ever sent and the
-  comment path does zero extra work** — removing the secret disables the feature instantly. Set with:
-  `wrangler secret put SLACK_BOT_TOKEN`. Requires a Slack app (install to your workspace) with bot
-  scopes **`chat:write` · `users:read` · `users:read.email`** — `users:read.email` resolves a Postplan
-  user's email to a Slack id (cached in KV ~30d; not-found ~1h), and `chat:write` DMs that id directly
-  (the user id doubles as the DM channel). The DM carries the actor, the comment reason (mention /
-  your-site / participant / share), the snippet, and a deep link back to the review thread. Slack DMs
-  are capped at **15 per comment event, mentions first** (bounds blast radius); the in-app bell fan-out
-  is uncapped, so an audience over 15 gets in-app notifications for everyone but Slack DMs for the top 15.
-
-## 3. Ship
+To update worker secrets without deploying:
 
 ```bash
-bun run deploy   # build web → deploy main worker (with assets) → deploy content worker
+scripts/set-secrets.sh
 ```
 
-## 4. First run
+## First admin
 
-Open `https://postplan.<your-subdomain>.workers.dev/login`, paste `BOOTSTRAP_TOKEN` into **Complete setup**, and submit. This claims `SUPERADMIN_EMAIL` as the first superadmin and signs you in. Once an admin exists the setup panel disappears and the token is inert.
+Open `$APP_URL/login` and submit the `BOOTSTRAP_TOKEN` from `deploy.env`. It can claim only `SUPERADMIN_EMAIL`, and becomes inert after the first admin exists.
 
-## Google OAuth (optional)
+## WorkOS login
 
-Postplan runs fine on bootstrap auth alone. To add Google Workspace SSO, create an OAuth client at console.cloud.google.com → Credentials (authorized redirect URI `https://postplan.<your-subdomain>.workers.dev/api/auth/callback`), then:
+Create a WorkOS environment whose redirect URI is `$APP_URL/api/auth/callback`. Put its client ID and API key in `deploy.env`, then run:
 
 ```bash
-cd packages/api
-wrangler secret put GOOGLE_CLIENT_ID
-wrangler secret put GOOGLE_CLIENT_SECRET
-bun run deploy
+scripts/wire-workos.sh
 ```
 
-The Google button appears automatically once both credentials are set. A later Google login on the same email backfills onto your bootstrap admin (role preserved). While unset, the Google routes return 404 and the button is hidden.
+The script writes both secrets to the main worker, redeploys it, and checks `/api/config`. Invited email addresses can then sign in through WorkOS. Superadmin addresses bypass the invite gate.
 
-## CI auto-deploy
+## Optional shared backend
 
-`.github/workflows/deploy.yml` deploys both workers + runs the D1 migrate on push to `main`. The only repo secret needed is `CLOUDFLARE_API_TOKEN` (scopes: Workers Scripts, D1, KV, R2). Worker secrets are set once via `wrangler secret put` and persist across deploys.
+`postplan.db` stays disabled until the main worker has a separate `DATA_TOKEN_SECRET`:
+
+```bash
+openssl rand -hex 32 | bunx wrangler secret put DATA_TOKEN_SECRET -c wrangler.jsonc
+```
+
+## Optional Slack notifications
+
+Set `SLACK_BOT_TOKEN` on the main worker. The Slack app needs `chat:write`, `users:read`, and `users:read.email`.
+
+```bash
+bunx wrangler secret put SLACK_BOT_TOKEN -c wrangler.jsonc
+```
+
+Removing the secret disables Slack delivery immediately.
+
+## D1 read replication
+
+Enable read replication in the Cloudflare dashboard under D1 database settings. The app already uses D1 Sessions and bookmark propagation.
+
+## CI deploys
+
+`.github/workflows/deploy.yml` deploys on pushes to `main`. Configure the Cloudflare token and the instance variables named by that workflow. Worker secrets persist across deploys and must be set separately.

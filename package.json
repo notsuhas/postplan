@@ -37,7 +37,7 @@
     "dev:web": "cd packages/web && bunx vite",
     "build:web": "cd packages/web && bunx vite build",
     "typecheck": "bun run --filter '*' typecheck",
-    "test": "bun run --filter '*' test",
+    "test": "bun test scripts && bun run --filter '*' test",
     "lint": "biome lint .",
     "format": "biome check --write .",
     "cf-typegen": "bunx wrangler types -c wrangler.example.jsonc packages/api/worker-configuration.d.ts",

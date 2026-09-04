@@ -15,13 +15,17 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # deploy.env is gitignored (this repo is public); deploy.example.env documents it.
 # Env vars already set win, so a one-off override still works.
 if [[ -f "$ROOT/deploy.env" ]]; then
-  set -a; . "$ROOT/deploy.env"; set +a
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT/deploy.env"
+  set +a
 fi
-cd "$ROOT/packages/api"
+cd "$ROOT"
 
 : "${WORKOS_API_KEY:?set WORKOS_API_KEY (from the WorkOS dashboard → API Keys)}"
 : "${WORKOS_CLIENT_ID:?set WORKOS_CLIENT_ID (same page)}"
 
+[[ -f wrangler.jsonc ]] || scripts/apply-config.sh
 APP_URL="$(grep -oE '"APP_URL": "[^"]+"' wrangler.jsonc | cut -d'"' -f4)"
 echo "==> instance: $APP_URL"
 echo "==> the redirect URI this instance will send WorkOS:"
@@ -30,10 +34,10 @@ echo "    It must be listed under Redirects in the WorkOS dashboard, or the"
 echo "    handshake fails with an invalid-redirect error."
 echo
 
-printf '%s' "$WORKOS_API_KEY"   | bunx wrangler secret put WORKOS_API_KEY   >/dev/null
-printf '%s' "$WORKOS_CLIENT_ID" | bunx wrangler secret put WORKOS_CLIENT_ID >/dev/null
+printf '%s' "$WORKOS_API_KEY"   | bunx wrangler secret put WORKOS_API_KEY -c wrangler.jsonc >/dev/null
+printf '%s' "$WORKOS_CLIENT_ID" | bunx wrangler secret put WORKOS_CLIENT_ID -c wrangler.jsonc >/dev/null
 echo "==> secrets set; redeploying so /api/config reports the new state"
-bunx wrangler deploy >/dev/null 2>&1
+bunx wrangler deploy -c wrangler.jsonc >/dev/null 2>&1
 
 echo "==> verifying"
 curl -fsS --max-time 25 "$APP_URL/api/config" -H "Origin: $APP_URL"

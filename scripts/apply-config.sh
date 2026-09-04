@@ -12,30 +12,48 @@ set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 
 [[ -f deploy.env ]] || { echo "deploy.env missing — copy deploy.example.env and fill it in."; exit 1; }
-set -a; . ./deploy.env; set +a
+set -a
+# shellcheck disable=SC1091
+. ./deploy.env
+set +a
 : "${APP_URL:?}" "${CONTENT_URL:?}" "${SUPERADMIN_EMAIL:?}" "${D1_DATABASE_ID:?}" "${KV_NAMESPACE_ID:?}"
-: "${WORKER_NAME:?}" "${CONTENT_WORKER_NAME:?}" "${D1_DATABASE_NAME:?}" "${R2_BUCKET:?}"
+: "${WORKER_NAME:=postplan}" "${CONTENT_WORKER_NAME:=postplan-content}" "${D1_DATABASE_NAME:=postplan-db}"
+: "${R2_BUCKET:=postplan-files}"
+[[ "$APP_URL" != "$CONTENT_URL" ]] || { echo "APP_URL and CONTENT_URL must use separate origins"; exit 1; }
 
 python3 - "$APP_URL" "$CONTENT_URL" "$SUPERADMIN_EMAIL" "${SUPERADMIN_EMAILS:-${ADMIN_EMAILS:-}}" "$D1_DATABASE_ID" "$KV_NAMESPACE_ID" \
   "$WORKER_NAME" "$CONTENT_WORKER_NAME" "$D1_DATABASE_NAME" "$R2_BUCKET" <<'PY'
-import re, sys
+import json, re, sys
+from urllib.parse import urlsplit
+
 app, content, sup, admins, d1, kv, worker, content_worker, d1_name, bucket = sys.argv[1:11]
-app_host, content_host = app.removeprefix('https://'), content.removeprefix('https://')
+
+def host(origin):
+    parsed = urlsplit(origin)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password:
+        raise SystemExit(f'invalid HTTPS origin: {origin}')
+    if parsed.path not in ('', '/') or parsed.query or parsed.fragment:
+        raise SystemExit(f'origin must not contain a path, query, or fragment: {origin}')
+    return parsed.netloc
+
+app_host, content_host = host(app), host(content)
+
+def replace_value(source, key, value, count=0):
+    pattern = rf'("{re.escape(key)}"\s*:\s*)"[^"]*"'
+    return re.sub(pattern, lambda match: match.group(1) + json.dumps(value), source, count=count)
 
 def render(example, real, host, name):
     s = open(example).read()
-    # Worker and resource names are per-instance: the account may already hold a worker under the
-    # template's brand name, and overwriting it would be silent and destructive.
-    s = re.sub(r'"name": "[^"]*"', f'"name": "{name}"', s, count=1)
-    s = re.sub(r'"database_name": "[^"]*"', f'"database_name": "{d1_name}"', s)
-    s = re.sub(r'"bucket_name": "[^"]*"', f'"bucket_name": "{bucket}"', s)
-    s = re.sub(r'"APP_URL": "[^"]*"',          f'"APP_URL": "{app}"', s)
-    s = re.sub(r'"CONTENT_URL": "[^"]*"',      f'"CONTENT_URL": "{content}"', s)
-    s = re.sub(r'"SUPERADMIN_EMAIL": "[^"]*"', f'"SUPERADMIN_EMAIL": "{sup}"', s)
-    s = re.sub(r'"SUPERADMIN_EMAILS": "[^"]*"', f'"SUPERADMIN_EMAILS": "{admins}"', s)
-    s = re.sub(r'"database_id": "[^"]*"',      f'"database_id": "{d1}"', s)
-    s = re.sub(r'("binding": "POSTPLAN_SESSIONS", "id": ")[^"]*"', rf'\g<1>{kv}"', s)
-    s = re.sub(r'"routes": \[\{ "pattern": "[^"]*"', f'"routes": [{{ "pattern": "{host}"', s)
+    s = replace_value(s, 'name', name, count=1)
+    s = replace_value(s, 'database_name', d1_name)
+    s = replace_value(s, 'bucket_name', bucket)
+    s = replace_value(s, 'APP_URL', app)
+    s = replace_value(s, 'CONTENT_URL', content)
+    s = replace_value(s, 'SUPERADMIN_EMAIL', sup)
+    s = replace_value(s, 'SUPERADMIN_EMAILS', admins)
+    s = replace_value(s, 'database_id', d1)
+    s = re.sub(r'("binding": "POSTPLAN_SESSIONS", "id": )"[^"]*"', lambda m: m.group(1) + json.dumps(kv), s)
+    s = re.sub(r'("routes": \[\{ "pattern": )"[^"]*"', lambda m: m.group(1) + json.dumps(host), s)
     open(real, 'w').write(s)
 
 render('wrangler.example.jsonc',         'wrangler.jsonc',         app_host,     worker)
