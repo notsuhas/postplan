@@ -157,6 +157,12 @@ beforeEach(() => {
   sockets.length = 0
 })
 
+test('uploaded artifacts are never delegated microphone permission', async () => {
+  const { container } = renderViewer('/sp/site')
+  await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+  expect(container.querySelector('iframe')?.getAttribute('allow')).toBeNull()
+})
+
 /** The socket the mounted viewer dialled — awaited, since the dial happens in a mount effect. */
 const dialledSocket = () =>
   waitFor(() => {
