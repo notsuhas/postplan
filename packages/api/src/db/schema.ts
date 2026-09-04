@@ -106,12 +106,6 @@ export const sites = sqliteTable(
     // to a fresh prefix; an object is referenced by exactly one file row, ever), so deleting the
     // source may only drop the link, never the content.
     forkedFrom: text('forkedFrom').references((): AnySQLiteColumn => sites.id, { onDelete: 'set null' }),
-    // Optional design theme (slug into the src/themes registry, e.g. 'plivo' | 'broadsheet'); null =
-    // unthemed. Applied at SERVE time as an injected stylesheet link — stored bytes are never
-    // rewritten, so `postplan read --pull` stays byte-identical. Plain text, no enum: the registry
-    // (a pure string map — safe for the content-worker bundle) is the single validation authority,
-    // so shipping a new theme is a CSS change, not a migration.
-    theme: text('theme'),
     createdAt: text('createdAt')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),

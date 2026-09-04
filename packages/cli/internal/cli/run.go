@@ -94,7 +94,7 @@ func printHelp() {
 	fmt.Println("postplan — deploy folders to Postplan")
 	fmt.Println()
 	fmt.Println("  postplan login")
-	fmt.Println("  postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team|private|members] [--theme <slug>|default]")
+	fmt.Println("  postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team|private|members]")
 	fmt.Println("  postplan list")
 	fmt.Println("  postplan delete <space/slug>")
 	fmt.Println("  postplan move <space/slug> <new-space>")

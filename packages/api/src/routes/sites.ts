@@ -18,7 +18,6 @@ import {
 import type { Visibility } from '../db/schema'
 import { files as filesTable, siteStars, sites as sitesTable, spaces, users } from '../db/schema'
 import { canReplace, checkAccess } from '../lib/access'
-import { isTheme } from '../themes/registry'
 import { batchAll, chunk, D1_MAX_IN, FEED_ID_CHUNK } from '../lib/d1'
 import { fireAndForget } from '../lib/events'
 import { resolveIndexPath } from '../lib/extract'
@@ -388,7 +387,6 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
       title: site.title,
       visibility: site.visibility,
       status: site.status,
-      theme: site.theme,
       isOwner: false,
       canReplace: false,
       starred: false,
@@ -416,7 +414,6 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
     title: site.title,
     visibility: site.visibility,
     status: site.status,
-    theme: site.theme,
     isOwner: user.id === site.ownerId,
     canReplace: replaceable,
     starred: starRows.length > 0,
@@ -570,9 +567,9 @@ sites.patch('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
 
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body !== 'object') return c.json({ error: 'invalid body' }, 400)
-  const { visibility, title, theme } = body as { visibility?: unknown; title?: unknown; theme?: unknown }
+  const { visibility, title } = body as { visibility?: unknown; title?: unknown }
 
-  const patch: { slug?: string; visibility?: Visibility; title?: string | null; theme?: string | null } = {}
+  const patch: { slug?: string; visibility?: Visibility; title?: string | null } = {}
   if (visibility !== undefined) {
     const vis = normalizeVisibility(visibility)
     if (!isVisibility(vis)) return c.json({ error: 'invalid visibility' }, 400)
@@ -582,14 +579,6 @@ sites.patch('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
   if (title !== undefined) {
     if (title !== null && typeof title !== 'string') return c.json({ error: 'invalid title' }, 400)
     patch.title = title
-  }
-  // Theme switch: presentation-only, so it deliberately does NOT bump contentVersion/updatedAt —
-  // the bytes are unchanged and the feed must not resurface a re-skinned site. Applied at serve
-  // time on the next load (the content worker folds the theme into the HTML etag, so a browser
-  // can't 304 into the old skin). null clears back to unthemed.
-  if (theme !== undefined) {
-    if (theme !== null && !isTheme(theme)) return c.json({ error: 'invalid theme' }, 400)
-    patch.theme = theme
   }
   if (Object.keys(patch).length > 0) {
     await db.update(sitesTable).set(patch).where(eq(sitesTable.id, site.id))

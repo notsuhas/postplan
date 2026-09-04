@@ -8,7 +8,6 @@
     "packages/api/src/**/*.test.ts",
     "packages/api/scripts/*.ts",
     "scripts/**/*.test.ts",
-    "packages/api/themes/*.css",
     "packages/api/drizzle.config.ts",
     "packages/web/src/main.tsx",
     "packages/web/src/**/*.test.ts",

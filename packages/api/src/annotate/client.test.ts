@@ -313,32 +313,6 @@ describe('client.ts — postplan:print prints in the frame realm (the parent can
   })
 })
 
-describe('client.ts — postplan:theme swaps the theme stylesheet inside the frame (viewer-local override)', () => {
-  const link = () => document.getElementById('postplan-theme') as HTMLLinkElement | null
-
-  test('a trusted href installs the link, a second swaps it in place, null removes it (no boot theme here)', () => {
-    send({ type: 'postplan:theme', href: '/_postplan/theme/kapow.css?v=abc12345' })
-    expect(link()?.getAttribute('href')).toBe('/_postplan/theme/kapow.css?v=abc12345')
-
-    send({ type: 'postplan:theme', href: '/_postplan/theme/matrix.css?v=abc12345' })
-    expect(link()?.getAttribute('href')).toBe('/_postplan/theme/matrix.css?v=abc12345')
-    expect(document.querySelectorAll('#postplan-theme')).toHaveLength(1)
-
-    // This page booted with NO server-injected theme, so null = remove entirely.
-    send({ type: 'postplan:theme', href: null })
-    expect(link()).toBeNull()
-  })
-
-  test('hrefs outside /_postplan/theme/ are rejected; foreign origins are ignored', () => {
-    send({ type: 'postplan:theme', href: 'https://evil.example.com/steal.css' })
-    expect(link()).toBeNull()
-    send({ type: 'postplan:theme', href: '/_postplan/theme/../../etc.css' })
-    expect(link()).toBeNull()
-    send({ type: 'postplan:theme', href: '/_postplan/theme/kapow.css' }, 'https://evil.example.com')
-    expect(link()).toBeNull()
-  })
-})
-
 describe('client.ts — clicking a mermaid diagram opens it in a modal <dialog> lightbox', () => {
   // The Fullscreen API is blocked in the viewer's content iframe (no allow="fullscreen"), so
   // enlarging goes through a native <dialog>. This is the one runnable check that the wiring —

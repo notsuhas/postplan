@@ -22,7 +22,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ForkDialog } from '@/components/ForkDialog'
 import { ShareDialog } from '@/components/ShareDialog'
 import { SummarySheet } from '@/components/SummarySheet'
-import { ThemeMenu, patchTheme } from '@/components/theme-select'
 import { VISIBILITY_META, VisibilityBadge, VisibilityMenu } from '@/components/visibility'
 import { BrandMark } from '@/components/states'
 
@@ -47,8 +46,6 @@ export function ViewerTopBar({
   onToggleSidebar,
   onSearch,
   onPrint,
-  viewTheme,
-  onViewTheme,
 }: {
   site: ViewerSite
   sitePath: string
@@ -60,10 +57,6 @@ export function ViewerTopBar({
   // Posts postplan:print into the content iframe (HTML sites only — absent hides the item). The
   // frame prints itself; the browser's print dialog is where the user picks "Save as PDF".
   onPrint?: () => void
-  // Viewer-LOCAL theme override (non-owners): current value + setter. Client-side only — the
-  // viewer posts postplan:theme into the frame; nothing is written server-side.
-  viewTheme?: string | null
-  onViewTheme?: (slug: string | null) => void
 }) {
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -98,26 +91,6 @@ export function ViewerTopBar({
       ) : (
         <VisibilityBadge value={site.visibility} className="shrink-0" />
       )}
-
-      {/* Design theme: the owner gets a live switcher (hidden on phones — visibility wins the
-          space); a re-skin needs a reload since the theme is injected server-side at serve time. */}
-      <span className="hidden shrink-0 sm:inline-flex">
-        {site.isOwner ? (
-          <ViewerTheme site={site} />
-        ) : onViewTheme ? (
-          // Non-owners re-skin only their OWN view: the choice never touches the server — the
-          // parent posts postplan:theme into the frame and remembers it in localStorage. Absent
-          // handler (audio sites: no document to theme) → no chip, like onPrint.
-          <ThemeMenu
-            trigger="chip"
-            value={viewTheme ?? null}
-            onChange={(t) => onViewTheme?.(t)}
-            menuLabel="View in theme — just for you"
-            defaultLabel="Site default"
-            defaultHint="as the owner shipped it"
-          />
-        ) : null}
-      </span>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <Button
@@ -238,23 +211,5 @@ function ViewerVisibility({ site }: { site: ViewerSite }) {
     <span className="shrink-0">
       <VisibilityMenu trigger="chip" value={visibility} onChange={change} />
     </span>
-  )
-}
-
-// Owner-only theme switcher. The theme is injected into the served HTML by the content worker, so
-// after a successful PATCH the page reloads — the iframe's annotate response is no-store and the
-// themed etag never matches across a switch, so the reload always shows the new skin. (No local
-// state: the reload repaints everything, and on failure the chip should keep showing the truth.)
-function ViewerTheme({ site }: { site: ViewerSite }) {
-  return (
-    <ThemeMenu
-      trigger="chip"
-      value={site.theme}
-      onChange={(t) =>
-        void patchTheme(site.spaceSlug, site.siteSlug, t).then((ok) => {
-          if (ok) window.location.reload()
-        })
-      }
-    />
   )
 }

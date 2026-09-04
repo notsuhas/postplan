@@ -14,8 +14,6 @@ import { verifyOgSig } from './lib/og-image'
 import { renderOgPng } from './lib/og-render'
 import { decideRange } from './lib/range'
 import { fetchAccessFacts, isSharedFromFacts, resolveSite } from './lib/site-access'
-import { THEME_CSS, THEMES_VERSION } from './themes/css'
-import { THEME_FONTS } from './themes/fonts'
 import { verifyToken } from './lib/token'
 import type { Bindings } from './types'
 
@@ -80,32 +78,6 @@ app.get('/_postplan/annotate.css', (c) =>
 app.get('/_postplan/db.js', (c) =>
   c.body(POSTPLAN_DB_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': IMMUTABLE }),
 )
-// Design-theme stylesheets (scripts/build-themes.ts). Same contract as annotate.css: content-
-// versioned query (?v=THEMES_VERSION) + IMMUTABLE. Served from THIS origin so the injected
-// <link> is same-origin from the framed page's perspective — no CORS, no CSP widening for HTML.
-app.get('/_postplan/theme/:file{[a-z0-9-]+\\.css}', (c) => {
-  const css = THEME_CSS[c.req.param('file').replace(/\.css$/, '')]
-  if (!css) return notFound(c)
-  return c.body(css, 200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': IMMUTABLE })
-})
-// Vendored theme fonts (issue #155): first-party WOFF2s so a themed page never calls out to
-// Google — no viewer IP/referer leak, works on egress-filtered networks, and markdownCsp stays
-// 'self'-only. Base64 in the bundle (like the OG wasm, content worker only), decoded once per
-// isolate and cached. Same immutable + ?v= contract as the CSS that references them.
-const fontBytes = new Map<string, ArrayBuffer>()
-app.get('/_postplan/theme/fonts/:file{[a-z0-9-]+\\.woff2}', (c) => {
-  const file = c.req.param('file')
-  const b64 = THEME_FONTS[file]
-  if (!b64) return notFound(c)
-  let bytes = fontBytes.get(file)
-  if (!bytes) {
-    // Uint8Array.from allocates an exact-size buffer, so handing over .buffer is safe.
-    bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)).buffer as ArrayBuffer
-    fontBytes.set(file, bytes)
-  }
-  return c.body(bytes, 200, { 'content-type': 'font/woff2', 'cache-control': IMMUTABLE })
-})
-
 // The Slack unfurl card's PNG (lib/og-image.ts). Slack fetches image_url server-side,
 // unauthenticated, and caches it — a PUBLIC GET whose only gate is the HMAC minted alongside
 // the card (signed on the MAIN worker with the shared CONTENT_TOKEN_SECRET, the same direction
@@ -235,9 +207,6 @@ async function serve(
   // The content origin this page is served from — the yardstick for "is this link external?".
   // A link to any OTHER origin is rewritten to open in a new tab (see transformServedHtml).
   const selfOrigin = new URL(c.req.url).origin
-  // The site's design theme, resolved to an injectable stylesheet href (null = unthemed). The
-  // theme column rides the access-facts batch, so this costs nothing extra per request.
-  const themeHref = themeHrefFor(siteRow.theme)
   // Usage analytics: count this as a viewer hit only for actual page loads (HTML + rendered
   // markdown), not every CSS/JS/image sub-resource — otherwise one navigation inflates to many.
   // userId is null for an anonymous `unlisted` read, and events.userId is nullable — those views
@@ -290,12 +259,12 @@ async function serve(
         )
       : renderMarkdownDoc(path, html)
     const res = c.html(doc, 200, {
-      'content-security-policy': markdownCsp(frameAncestors, nonce, themeHref !== null),
+      'content-security-policy': markdownCsp(frameAncestors, nonce),
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
       ...(nonce ? { 'cache-control': 'no-store' } : {}),
     })
-    return transformServedHtml(res, selfOrigin, themeHref)
+    return transformServedHtml(res, selfOrigin)
   }
 
   // Annotate mode: gated HTML + ?postplan_annotate=1 → buffer the body and inject the annotate
@@ -319,7 +288,7 @@ async function serve(
       'referrer-policy': 'no-referrer',
       'cache-control': 'no-store',
     })
-    return transformServedHtml(res, selfOrigin, themeHref)
+    return transformServedHtml(res, selfOrigin)
   }
 
   const headers = new Headers()
@@ -349,7 +318,6 @@ async function serve(
     mime,
     view,
     selfOrigin,
-    themeHref,
   })
 }
 
@@ -370,19 +338,9 @@ async function serveStoredObject(
     mime: string
     view: () => Promise<void>
     selfOrigin: string
-    themeHref: string | null
   },
 ): Promise<Response> {
-  const { storageKey, size, etag: rowEtag, headers, rangeable, isHtml, mime, view, selfOrigin, themeHref } = args
-
-  // Themed HTML differs from the stored bytes AND can change without a content replace (a PATCH
-  // theme switch re-skins the same object), so the raw object etag would let a browser 304 its
-  // way into a stale theme. Fold the theme identity (slug + themes version — both live in the
-  // href) into the validator for themed HTML only; every other response keeps the raw etag, and
-  // any theme transition (on/off/switch/CSS bump) changes the comparison → fresh 200.
-  const themeTag = isHtml && themeHref ? themeHref.replace(/[^a-z0-9]+/gi, '') : null
-  const withTheme = (etag: string): string =>
-    themeTag ? (etag.endsWith('"') ? `${etag.slice(0, -1)}+${themeTag}"` : `${etag}+${themeTag}`) : etag
+  const { storageKey, size, etag: rowEtag, headers, rangeable, isHtml, mime, view, selfOrigin } = args
 
   // Honor the conditional request: when the viewer already holds this exact ETag, answer 304 and
   // skip re-streaming the body. This MUST win over Range (RFC 7233 §3.1), so it runs before any
@@ -399,8 +357,8 @@ async function serveStoredObject(
       probedEtag = probe.httpEtag
       current = probe.httpEtag
     }
-    if (inm === withTheme(current)) {
-      headers.set('etag', withTheme(current))
+    if (inm === current) {
+      headers.set('etag', current)
       if (isHtml) await view() // parity with the 200 path: an HTML revalidation is still a page load
       return new Response(null, { status: 304, headers })
     }
@@ -475,12 +433,12 @@ async function serveStoredObject(
   // ran in serve() — the cache is never consulted before the access gate).
   const read = await readStoredObject(c, storageKey, mime)
   if (!read) return notFound(c)
-  headers.set('etag', withTheme(read.etag))
+  headers.set('etag', read.etag)
   if (isHtml) await view()
   const res = new Response(read.body, { headers })
-  // Uploaded HTML gets the streamed rewrite pass (external links → new tab, theme <link>). Other
+  // Uploaded HTML gets the streamed external-link rewrite pass. Other
   // file types (audio, images, CSS/JS, …) stream through verbatim — the rewriter only touches HTML.
-  return isHtml ? transformServedHtml(res, selfOrigin, themeHref) : res
+  return isHtml ? transformServedHtml(res, selfOrigin) : res
 }
 
 // Record a page-view event without blocking the response. fireAndForget hands the D1 write to
@@ -573,25 +531,13 @@ export function isExternalHref(href: string, base: string): boolean {
   return u.origin !== new URL(base).origin
 }
 
-/** Stylesheet href for a site's stored theme, or null when unthemed. A slug retired from the
- *  registry may still sit on an old row — fail OPEN to unthemed rather than injecting a 404 link. */
-export function themeHrefFor(theme: string | null): string | null {
-  return theme && THEME_CSS[theme] ? `/_postplan/theme/${theme}.css?v=${THEMES_VERSION}` : null
-}
-
 /** The streamed HTMLRewriter pass every served HTML document goes through — no full-body buffering.
- *  Two rewrites:
- *  1. Links to OTHER origins open in a new tab (`target="_blank"` + `rel="noopener noreferrer"`);
+ *  Links to OTHER origins open in a new tab (`target="_blank"` + `rel="noopener noreferrer"`);
  *     same-site/relative links keep in-viewer navigation. Paired with the viewer iframe's
  *     `allow-popups allow-popups-to-escape-sandbox` sandbox so the new tab actually opens and isn't
  *     itself sandboxed. Only ever applied to HTML the site owns — NOT the directory-listing shell,
- *     whose `target="_top"` app links must stay as-is.
- *  2. When the site carries a theme, its stylesheet <link> is appended at the END of <head>, so it
- *     wins cascade-order ties against the page's own element rules while class/inline styling still
- *     takes precedence (classless themes are defaults, not overrides). Stored bytes are NEVER
- *     mutated — `?raw=1` bypasses this entirely. A headless document gets the link appended at the
- *     document end instead (CSS applies regardless of position; the doctype stays first). */
-export function transformServedHtml(res: Response, base: string, themeHref: string | null = null): Response {
+ *     whose `target="_top"` app links must stay as-is. */
+export function transformServedHtml(res: Response, base: string): Response {
   const rewriter = new HTMLRewriter().on('a[href]', {
     element(el) {
       const href = el.getAttribute('href')
@@ -601,24 +547,6 @@ export function transformServedHtml(res: Response, base: string, themeHref: stri
       }
     },
   })
-  if (themeHref) {
-    // themeHref is registry-derived (slug is [a-z0-9-]+, version is a hex hash) — no escaping needed.
-    // The id makes the link addressable by the annotate client's postplan:theme handler, so a
-    // viewer-local override can swap or restore it without any server round trip.
-    const link = `<link id="postplan-theme" rel="stylesheet" href="${themeHref}">`
-    let injected = false
-    rewriter.on('head', {
-      element(el) {
-        el.append(link, { html: true }) // append = right before </head>
-        injected = true
-      },
-    })
-    rewriter.onDocument({
-      end(end) {
-        if (!injected) end.append(link, { html: true })
-      },
-    })
-  }
   return rewriter.transform(res)
 }
 
@@ -644,10 +572,8 @@ export { escapeHtml, markdown } from './lib/markdown'
 // In annotate mode a `nonce` is supplied: script-src then admits EXACTLY the two injected tags
 // (never 'unsafe-inline' — an unnonced script in the document still can't run), and style-src
 // additionally allows 'self' so /_postplan/annotate.css loads alongside the inlined shell styles.
-// A THEMED site widens style-src to 'self' — the injected /_postplan/theme/*.css link and its
-// vendored first-party fonts (issue #155) need nothing beyond the page's own origin.
-function markdownCsp(frameAncestors: string, nonce: string | null = null, themed = false): string {
-  const styleSelf = nonce !== null || themed
+function markdownCsp(frameAncestors: string, nonce: string | null = null): string {
+  const styleSelf = nonce !== null
   return [
     "default-src 'none'",
     "img-src 'self' data:",

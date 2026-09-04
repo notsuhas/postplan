@@ -58,7 +58,6 @@ jobs:
           bun run build:db
           bun run build:install
           bun run build:whatsnew
-          bun run build:themes
 
       - name: Apply D1 migrations
         env:

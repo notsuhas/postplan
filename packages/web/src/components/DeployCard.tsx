@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 import { CopyButton } from '@/components/CopyButton'
 import { SpaceSelect } from '@/components/SpaceSelect'
 import { Spinner } from '@/components/states'
-import { ThemeMenu } from '@/components/theme-select'
 import { VisibilityMenu } from '@/components/visibility'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -58,7 +57,6 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
   const [space, setSpace] = useState(() => defaultSpaceSlug(spaces))
   const [slug, setSlug] = useState('')
   const [visibility, setVisibility] = useState<Visibility>('team')
-  const [theme, setTheme] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [upload, setUpload] = useState<UploadState>({ phase: 'idle' })
   // Controlled replace-confirm: holds the files awaiting an overwrite decision.
@@ -94,7 +92,6 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
     try {
       const res = await uploadFiles(`/api/upload/${space}/${slug}`, files, {
         visibility,
-        theme,
         replace,
         onProgress: (pct) => setUpload({ phase: 'uploading', pct, count: files.length }),
       })
@@ -146,7 +143,7 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
 
   const content = (
     <>
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto_auto]">
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
         <div className="space-y-1.5">
           <Label htmlFor="deploy-space">Space</Label>
           <SpaceSelect
@@ -180,13 +177,6 @@ export function DeployCard({ spaces }: { spaces: SpaceSummary[] }) {
           <Label>Visibility</Label>
           <div>
             <VisibilityMenu value={visibility} onChange={setVisibility} disabled={busy} />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>Theme</Label>
-          <div>
-            <ThemeMenu value={theme} onChange={setTheme} disabled={busy} />
           </div>
         </div>
       </div>

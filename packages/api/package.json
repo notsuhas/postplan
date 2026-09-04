@@ -7,11 +7,10 @@
     "test": "bun test",
     "build:annotate": "bun scripts/build-annotate.ts",
     "build:db": "bun scripts/build-db.ts",
-    "build:themes": "bun scripts/build-themes.ts",
     "build:install": "bun scripts/build-install.ts",
     "build:whatsnew": "bun scripts/build-whatsnew.ts",
     "deploy": "wrangler deploy",
-    "deploy:content": "bun run build:annotate && bun run build:db && bun run build:themes && wrangler deploy --config wrangler.content.jsonc"
+    "deploy:content": "bun run build:annotate && bun run build:db && wrangler deploy --config wrangler.content.jsonc"
   },
   "dependencies": {
     "@workos-inc/node": "^10.13.0",

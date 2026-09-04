@@ -290,51 +290,20 @@ window.addEventListener('message', (e: MessageEvent) => {
     quote?: string
     selector?: string
     context?: TextContext
-    href?: string | null
   }
   if (d?.type === 'postplan:paint' && Array.isArray(d.anchors)) paint(d.anchors)
   else if (d?.type === 'postplan:focus') focus({ quote: d.quote, selector: d.selector, context: d.context })
   else if (d?.type === 'postplan:pending') setPending(typeof d.selector === 'string' ? d.selector : null)
   // Print/Save-as-PDF: the viewer iframe is cross-origin, so the parent can't call
   // iframe.contentWindow.print() itself (SecurityError) — it asks, and the page prints in its own
-  // realm with the browser's native dialog (the user picks "Save as PDF" there). Full fidelity:
-  // the page's own renderer does the layout, including the injected theme stylesheet.
+  // realm with the browser's native dialog (the user picks "Save as PDF" there).
   else if (d?.type === 'postplan:print') window.print()
-  // Viewer-local theme override: swap (or restore) the theme stylesheet INSIDE the frame — the
-  // parent is cross-origin and cannot touch this DOM. Purely cosmetic and per-viewer: no server
-  // write, applies instantly, and the parent persists the choice in ITS localStorage. The href is
-  // pattern-validated so a compromised parent message can at worst load one of our own theme
-  // sheets; null restores the site's server-injected theme (or none).
-  else if (d?.type === 'postplan:theme') applyViewTheme(typeof d.href === 'string' ? d.href : null)
   // The parent's "did I miss your ready?" probe (#27): the boot postplan:ready below fires exactly
   // once, so on a warm-cache load where this frame finishes before the parent's listener attaches
   // it is lost with nothing to re-fire it. Re-announcing on ping closes that race from this side;
   // the parent's arbiter treats a duplicate ready as a no-op, so answering a redundant ping is free.
   else if (d?.type === 'postplan:ping') toParent({ type: 'postplan:ready', filePath: boot.filePath })
 })
-
-// The site's server-injected theme href, captured at boot so a viewer override can be undone
-// back to the true default (content.ts stamps the link with id="postplan-theme").
-const serverThemeHref =
-  (document.getElementById('postplan-theme') as HTMLLinkElement | null)?.getAttribute('href') ?? null
-
-function applyViewTheme(href: string | null): void {
-  const target = href ?? serverThemeHref
-  let link = document.getElementById('postplan-theme') as HTMLLinkElement | null
-  if (target === null) {
-    link?.remove()
-    return
-  }
-  // Only our own theme sheets, ever — the href travels through postMessage, so validate shape.
-  if (!/^\/_postplan\/theme\/[a-z0-9-]+\.css(\?v=[a-z0-9]+)?$/.test(target)) return
-  if (!link) {
-    link = document.createElement('link')
-    link.id = 'postplan-theme'
-    link.rel = 'stylesheet'
-    ;(document.head ?? document.documentElement).appendChild(link)
-  }
-  if (link.getAttribute('href') !== target) link.setAttribute('href', target)
-}
 
 // --- mermaid lightbox: click a rendered diagram to enlarge it -----------------------------
 // A mermaid diagram lays out at the width of its container — small on a dense page — and mermaid 11

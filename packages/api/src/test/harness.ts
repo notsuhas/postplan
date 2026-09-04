@@ -256,8 +256,6 @@ export async function seedSite(
       : o.createdAt !== undefined
         ? { updatedAt: o.createdAt }
         : {}),
-    // Design theme (null = unthemed, the schema default) — themed-serve specs opt in explicitly.
-    ...(o.theme !== undefined && { theme: o.theme }),
   })
   return id
 }

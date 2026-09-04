@@ -1582,13 +1582,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "theme": {
-          "name": "theme",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "createdAt": {
           "name": "createdAt",
           "type": "text",

@@ -216,7 +216,6 @@ CREATE TABLE `sites` (
 	`contentVersion` integer DEFAULT 0 NOT NULL,
 	`lastReplacedBy` text,
 	`forkedFrom` text,
-	`theme` text,
 	`createdAt` text NOT NULL,
 	`updatedAt` text NOT NULL,
 	FOREIGN KEY (`spaceId`) REFERENCES `spaces`(`id`) ON UPDATE no action ON DELETE cascade,
