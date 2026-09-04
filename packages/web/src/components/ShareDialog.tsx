@@ -71,6 +71,8 @@ export function ShareDialog(props: IShareDialog) {
   const setOpen = (o: boolean) => (controlled ? onOpenChange?.(o) : setInternalOpen(o))
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [users, setUsers] = useState<UserLite[]>([])
   const [groups, setGroups] = useState<SpaceSummary[]>([])
   // Per-user grant: id → role. A user in the map is shared-with (default 'viewer'); absent = not
@@ -80,6 +82,12 @@ export function ShareDialog(props: IShareDialog) {
 
   const loadOnMount = useCallback(() => {
     setBusy(true)
+    setLoaded(false)
+    setLoadError(null)
+    setUsers([])
+    setGroups([])
+    setSelUsers(new Map())
+    setSelGroups(new Set())
     Promise.all([
       api.get<UserLite[]>('/api/users'),
       api.get<SpaceSummary[]>('/api/spaces/mine'),
@@ -93,10 +101,9 @@ export function ShareDialog(props: IShareDialog) {
           new Map(shares.users?.map((u) => [u.id, u.role]) ?? shares.userIds.map((id) => [id, 'viewer' as ShareRole])),
         )
         setSelGroups(new Set(shares.groupIds))
+        setLoaded(true)
       })
-      .catch((err) =>
-        toast.error('Could not load sharing', { description: err instanceof Error ? err.message : undefined }),
-      )
+      .catch((err) => setLoadError(err instanceof Error ? err.message : 'Could not load sharing'))
       .finally(() => setBusy(false))
   }, [spaceSlug, siteSlug])
 
@@ -116,7 +123,7 @@ export function ShareDialog(props: IShareDialog) {
   const count = selUsers.size + selGroups.size
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => !saving && setOpen(next)}>
       {!controlled && (
         <DialogTrigger asChild>
           <Button variant="outline" size="sm">
@@ -137,6 +144,14 @@ export function ShareDialog(props: IShareDialog) {
         {busy ? (
           <div className="flex items-center justify-center py-10 text-muted-foreground">
             <Spinner className="size-5" />
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm">
+            <p className="font-medium text-destructive">Could not load sharing</p>
+            <p className="mt-1 text-muted-foreground">{loadError}</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={loadOnMount}>
+              Retry
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -196,7 +211,7 @@ export function ShareDialog(props: IShareDialog) {
           <span className="self-center text-xs text-muted-foreground">
             {count === 0 ? 'Not shared with anyone' : `Shared with ${count}`}
           </span>
-          <Button onClick={save} disabled={busy || saving}>
+          <Button onClick={save} disabled={!loaded || busy || saving}>
             {saving && <Spinner />}
             Save
           </Button>
