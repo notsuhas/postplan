@@ -21,7 +21,7 @@ import type { AppEnv } from '../types'
 // Auth: Slack sends no cookie and no Origin, so requireSameOrigin passes it through (it only guards
 // COOKIE-authed unsafe methods) — the HMAC signature is the whole gate, and an unsigned request
 // never reaches any D1 read. Both Slack secrets must be set or the route is inert (404), matching
-// how Google OAuth and the data plane go dark when unconfigured.
+// how WorkOS login and the data plane go dark when unconfigured.
 
 export const slackEvents = new Hono<AppEnv>()
 

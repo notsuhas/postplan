@@ -20,7 +20,7 @@ This drops the `postplan` binary on your PATH (pre-pointed at that instance) and
 The CLI talks to `POSTPLAN_API_URL` (default `http://localhost:8787`). It's read on **every** command. For a self-hosted deploy:
 
 ```bash
-export POSTPLAN_API_URL=https://postplan.your-subdomain.workers.dev
+export POSTPLAN_API_URL=https://postplan.example.com
 ```
 
 Put it in your shell profile to make it permanent. Token + URL are saved to `~/.postplan/config.json`.
@@ -30,7 +30,7 @@ Put it in your shell profile to make it permanent. Token + URL are saved to `~/.
 | command | what it does |
 |---|---|
 | `postplan login` | device-code flow: prints a URL + code, opens a browser, polls until you approve, saves the token |
-| `postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team\|private\|members]` | uploads a file or a folder |
+| `postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team\|private\|members\|unlisted]` | uploads a file or a folder |
 | `postplan list` | lists your sites — `space/slug  visibility  url` |
 | `postplan delete <space/slug>` | confirms (y/N), then deletes |
 | `postplan move <space/slug> <new-space>` | moves a site to another space you belong to (keeps its files, comments, shares) |

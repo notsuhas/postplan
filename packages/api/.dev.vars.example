@@ -1,11 +1,11 @@
 # Copy to `packages/api/.dev.vars` (gitignored). `wrangler dev` reads it from THIS
 # directory for BOTH workers. In prod, set via `wrangler secret put <NAME>` (+ vars).
 
-# Google OAuth (console.cloud.google.com → Credentials). Dev redirect URI:
+# WorkOS AuthKit. Configure this redirect URI in the WorkOS dashboard:
 #   http://localhost:8787/api/auth/callback
-# OPTIONAL: leave empty to run bootstrap-only (no Google) until you wire OAuth later.
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
+# OPTIONAL: leave both empty to run bootstrap-only until you wire WorkOS later.
+WORKOS_CLIENT_ID=""
+WORKOS_API_KEY=""
 
 # One-shot token gating first-superadmin bootstrap (POST /api/auth/bootstrap).
 # Leave empty to disable bootstrap. Generate: openssl rand -hex 32
@@ -32,6 +32,6 @@ DATA_TOKEN_SECRET=""
 APP_URL="http://localhost:8787"
 CONTENT_URL="http://localhost:8788"
 
-# First superadmin (granted on first login) + allowed Google Workspace domain.
+# First superadmin plus optional additional superadmins, comma-separated.
 SUPERADMIN_EMAIL="you@example.com"
-ALLOWED_HD="example.com"
+SUPERADMIN_EMAILS=""

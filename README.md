@@ -38,11 +38,11 @@ cp deploy.example.env deploy.env
 
 Fill `deploy.env` with the returned IDs, two separate HTTPS hostnames, your admin email, and secrets generated with `openssl rand -hex 32`. Then run `scripts/setup.sh`. It renders the ignored instance configs, migrates D1, deploys both workers, sets secrets, and verifies the app. Open `/login` and use `BOOTSTRAP_TOKEN` to claim the first admin.
 
-> Multiple Cloudflare accounts? `export CLOUDFLARE_ACCOUNT_ID=<id>` first. Manual provisioning, secrets, and optional Google SSO: see [DEPLOY.md](DEPLOY.md).
+> Multiple Cloudflare accounts? `export CLOUDFLARE_ACCOUNT_ID=<id>` first. Manual provisioning, secrets, and optional WorkOS login: see [DEPLOY.md](DEPLOY.md).
 
 ## The app
 
-Pick a space, drop a folder, and your sites are live behind private/members/team visibility:
+Pick a space, drop a folder, and publish it as private, members-only, team-visible, or unlisted:
 
 <p align="center">
   <img src="https://github.com/plivo-labs/glance/releases/download/assets-readme/dashboard.png" alt="Postplan dashboard — deploy panel and your sites" width="900">
@@ -63,7 +63,7 @@ Audio sites carry a mic badge across the dashboard, and `postplan comments` pref
 ## CLI
 
 ```bash
-curl -fsSL https://postplan.your-subdomain.workers.dev/api/install | sh   # installs to ~/.local/bin/postplan
+curl -fsSL https://postplan.example.com/api/install | sh   # use your APP_URL
 postplan login          # device-code flow, opens browser
 postplan deploy <path>  # file or folder → publishes to your personal space
 ```

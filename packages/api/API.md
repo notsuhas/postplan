@@ -3,7 +3,7 @@
 The HTTP control plane. Every endpoint below is callable with an **API key** (`glk_…`) minted from
 `/settings/keys`.
 
-Base URL is your instance origin (`https://postplan.<your-subdomain>.workers.dev` by default).
+Base URL is the `APP_URL` configured for your instance (for example, `https://postplan.example.com`).
 All request and response bodies are JSON unless noted; the one exception is
 [deploy](#deploy-files), which is `multipart/form-data`.
 

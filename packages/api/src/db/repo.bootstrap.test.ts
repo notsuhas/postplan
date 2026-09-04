@@ -124,28 +124,27 @@ describe('indexes (0007 migration reaches the harness)', () => {
   })
 })
 
-describe('backfill-google-onto-bootstrap-user (characterization)', () => {
-  test('Google login on a bootstrap user (googleId null, same email) backfills id, keeps superadmin', async () => {
+describe('backfill identity onto bootstrap user', () => {
+  test('IdP login on a bootstrap user backfills the subject and keeps superadmin', async () => {
     const db = makeDb()
-    const env = { SUPERADMIN_EMAIL: 'owner@example.com', ALLOWED_HD: 'example.com' } as AppEnv['Bindings']
+    const env = { SUPERADMIN_EMAIL: 'owner@example.com' } as AppEnv['Bindings']
 
     const bootstrapped = await bootstrapSuperadminByEmail(db, 'owner@example.com', null)
     expect(bootstrapped.role).toBe('superadmin')
 
     const claims = {
-      sub: 'google-sub-123',
+      sub: 'idp-sub-123',
       email: 'owner@example.com',
       email_verified: true,
       name: 'Owner G',
-      hd: 'example.com',
     }
     const after = await findOrCreateUser(db, env, claims, 'owner@example.com')
 
     expect(after.id).toBe(bootstrapped.id) // same row, matched by email
-    expect(after.role).toBe('superadmin') // role preserved — Google login does not demote
+    expect(after.role).toBe('superadmin')
 
     const rows = await db.select().from(users).where(eq(users.id, bootstrapped.id))
-    expect(rows[0]?.googleId).toBe('google-sub-123') // backfilled
+    expect(rows[0]?.googleId).toBe('idp-sub-123')
     expect(await db.select().from(users)).toHaveLength(1) // no duplicate user
   })
 })

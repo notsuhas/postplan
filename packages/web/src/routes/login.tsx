@@ -12,7 +12,8 @@ import '@/tailwind.css'
 const REPO_URL = 'https://github.com/notsuhas/postplan'
 
 const ERRORS: Record<string, string> = {
-  denied: 'Wrong door — Postplan is restricted to approved Google Workspace accounts.',
+  denied: 'Google did not return a verified email address.',
+  not_invited: 'Your email address has not been invited to this Postplan instance.',
   oauth: "Google sign-in didn't go through. Try again.",
   state: 'Sign-in session expired before it finished. Start over.',
   exchange: "Couldn't finish the handshake with Google. Try again.",
@@ -28,8 +29,8 @@ const BOOTSTRAP_ERRORS: Record<number, string> = {
 
 const FEATURES = [
   {
-    label: 'SSO for your domain',
-    detail: 'Sign in with your work Google account — no new account, no shared password.',
+    label: 'Invite-only sign-in',
+    detail: 'Sign in with an invited Google account — no new password to manage.',
   },
   {
     label: 'Drag-drop or CLI',
@@ -62,7 +63,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return redirect(next ?? '/dashboard') // already signed in — honor the return URL
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
-      // Logged out: ask the server which login options to offer (Google vs. first-run setup).
+      // Logged out: ask the server which login options to offer.
       // Degrade gracefully — a config blip must never take down the login page itself.
       try {
         return await api.get<PublicConfig>('/api/config')
@@ -254,7 +255,7 @@ export function Component() {
 
               <p className="mt-4 text-center text-xs text-muted-foreground">
                 {googleEnabled
-                  ? 'Approved Google Workspace accounts only · sessions expire after 30 days'
+                  ? 'Invited accounts only · sessions expire after 30 days'
                   : 'Sessions expire after 30 days'}
               </p>
             </div>

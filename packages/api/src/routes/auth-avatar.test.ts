@@ -5,13 +5,13 @@ import { makeDb } from '../test/harness'
 import type { AppEnv } from '../types'
 import { findOrCreateUser } from './auth'
 
-// findOrCreateUser and the `picture` claim. Login is the ONLY moment Google hands us a photo, so
+// findOrCreateUser and the `picture` claim. Login is the only moment the IdP hands us a photo, so
 // it is also the only backfill available: a user who signed up before this column existed gets one
 // on their next sign-in, and everyone keeps initials until then.
 
-const env = { SUPERADMIN_EMAIL: 'boss@example.com', ALLOWED_HD: 'example.com' } as AppEnv['Bindings']
+const env = { SUPERADMIN_EMAIL: 'boss@example.com' } as AppEnv['Bindings']
 const claims = (picture?: string) =>
-  ({ sub: 'g-1', email: 'a@example.com', email_verified: true, name: 'A', picture, hd: 'example.com' }) as never
+  ({ sub: 'idp-1', email: 'a@example.com', email_verified: true, name: 'A', picture }) as never
 
 const storedAvatar = async (db: ReturnType<typeof makeDb>, id: string) =>
   (await db.select().from(users).where(eq(users.id, id)))[0]?.avatarUrl
