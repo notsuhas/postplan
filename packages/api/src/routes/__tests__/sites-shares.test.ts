@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import { listNotifications } from '../../db/notifications'
+import { parseShareGrants } from '../../lib/share-grants'
 import { resolveShareRole } from '../../db/repo'
 import { requireSameOrigin } from '../../middleware/auth'
 import { makeDb, makeKv, seedMember, seedSite, seedSpace, seedUser } from '../../test/harness'
 import type { AppEnv } from '../../types'
-import { parseShareGrants, sites } from '../sites'
+import { sites } from '../sites'
 
 // PUT/GET /shares uses one role-aware shape. Groups stay view-only.
 

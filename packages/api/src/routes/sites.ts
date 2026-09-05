@@ -3,7 +3,6 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { type Context, Hono } from 'hono'
 import { createNotifications, usersEmailsByIds } from '../db/notifications'
 import {
-  type ShareUser,
   foldMemberSpaceIds,
   foldSharedSiteRoles,
   isSpaceMember,
@@ -21,6 +20,7 @@ import { canDiscover, canReplace, checkAccess } from '../lib/access'
 import { batchAll, chunk, D1_MAX_IN, FEED_ID_CHUNK } from '../lib/d1'
 import { fireAndForget } from '../lib/events'
 import { resolveIndexPath } from '../lib/extract'
+import { parseShareGrants } from '../lib/share-grants'
 import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
 import { readSessionOrBearer } from '../lib/session'
 import { fetchAccessFacts, isSharedFromFacts, resolveSite, resolveSiteForAccess } from '../lib/site-access'
@@ -428,26 +428,6 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
     ...(replaceable ? { files: siteFiles.map((f) => f.path), contentVersion: site.contentVersion } : {}),
   })
 })
-
-// Normalize the role-aware user grants and view-only group ids.
-export function parseShareGrants(body: unknown): { users: ShareUser[]; groupIds: string[] } | { error: string } {
-  if (typeof body !== 'object' || body === null) return { error: 'invalid request' }
-  const b = body as Record<string, unknown>
-  if (!Array.isArray(b.users) || (b.groupIds !== undefined && !Array.isArray(b.groupIds))) {
-    return { error: 'invalid request' }
-  }
-  const roles = new Map<string, 'viewer' | 'editor'>()
-  for (const u of b.users as { id?: unknown; role?: unknown }[]) {
-    if (typeof u?.id !== 'string' || (u.role !== 'viewer' && u.role !== 'editor')) {
-      return { error: 'invalid user grant' }
-    }
-    roles.set(u.id, u.role)
-  }
-  const rawGroups = (b.groupIds ?? []) as unknown[]
-  if (rawGroups.some((id) => typeof id !== 'string')) return { error: 'invalid group grant' }
-  const groupIds = [...new Set(rawGroups as string[])]
-  return { users: [...roles].map(([userId, role]) => ({ userId, role })), groupIds }
-}
 
 /** Raise `type='share'` notifications (+ the Slack DM mirror) for users NEWLY granted a direct
  *  share — never group grants, never re-grants, never the actor. Mirrors notifyForComment: the
