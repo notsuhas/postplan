@@ -16,13 +16,13 @@ import { recordVisit } from '@/lib/recents'
 import type { Me } from '@/lib/types'
 import { deepLinkReady, railFromSearch, type RevealRequest } from '@/lib/viewerCommands'
 import { loadViewer, PREFETCH_FAILED, type PrefetchResult, type ViewerLoaderData } from '@/lib/viewerLoader'
-import { AudioView } from '@/components/AudioView'
-import { Spinner } from '@/components/states'
-import { CommandPalette } from '@/components/CommandPalette'
-import { ViewerTopBar } from '@/components/ViewerTopBar'
+import { AudioView } from '@/components/viewer/AudioView'
+import { Spinner } from '@/components/ui/states'
+import { CommandPalette } from '@/components/layout/CommandPalette'
+import { ViewerTopBar } from '@/components/viewer/ViewerTopBar'
 import { CommentPopover } from '@/components/review/CommentPopover'
 import { ReviewRail, type TypingPing } from '@/components/review/ReviewRail'
-import { ViewerSidebar } from '@/components/ViewerSidebar'
+import { ViewerSidebar } from '@/components/viewer/ViewerSidebar'
 
 // S11: the loader resolves on SITE META alone; the comments prefetch for the predicted entry file
 // is fired unawaited and rides along as a pending promise — the iframe never waits on comments.

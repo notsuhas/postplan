@@ -10,10 +10,10 @@ import {
 } from 'react-router'
 import { ChevronDown, Download, Mic, Plus, Rocket, Star, Terminal, Upload, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import { CopyButton } from '@/components/CopyButton'
-import { GettingStarted } from '@/components/GettingStarted'
+import { CopyButton } from '@/components/ui/CopyButton'
+import { GettingStarted } from '@/components/onboarding/GettingStarted'
 import { RecordDialog } from '@/components/record/RecordDialog'
-import { UploadDialog } from '@/components/UploadDialog'
+import { UploadDialog } from '@/components/publishing/UploadDialog'
 import {
   actionsColumn,
   CopyOpenActions,
@@ -24,11 +24,11 @@ import {
   updatedColumn,
   urlColumn,
   visibilityBadgeColumn,
-} from '@/components/siteColumns'
-import { SitesTable } from '@/components/SitesTable'
-import { SortableTable, type Column } from '@/components/SortableTable'
-import { UserAvatar } from '@/components/UserAvatar'
-import { EmptyState, Spinner } from '@/components/states'
+} from '@/components/sites/siteColumns'
+import { SitesTable } from '@/components/sites/SitesTable'
+import { SortableTable, type Column } from '@/components/ui/SortableTable'
+import { UserAvatar } from '@/components/layout/UserAvatar'
+import { EmptyState, Spinner } from '@/components/ui/states'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'

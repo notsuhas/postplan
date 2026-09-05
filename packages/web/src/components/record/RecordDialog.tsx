@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { AudioPlayer } from '@/components/audio/AudioPlayer'
 import { LiveWaveform } from '@/components/record/LiveWaveform'
 import { VoiceButton } from '@/components/record/VoiceButton'
-import { Spinner } from '@/components/states'
+import { Spinner } from '@/components/ui/states'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

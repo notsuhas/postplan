@@ -3,7 +3,7 @@ import { type LoaderFunctionArgs, redirect, useLoaderData, useSearchParams } fro
 import { api, ApiError } from '../lib/api'
 import { safeNext } from '../lib/nav'
 import type { Me, PublicConfig } from '../lib/types'
-import { CopyButton } from '@/components/CopyButton'
+import { CopyButton } from '@/components/ui/CopyButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import '@/tailwind.css'

@@ -1,5 +1,5 @@
 import { Link, type RouteObject, redirect, useLocation, useRouteError } from 'react-router'
-import { AppShell } from './components/AppShell'
+import { AppShell } from './components/layout/AppShell'
 import { Button } from './components/ui/button'
 import { api, ApiError } from './lib/api'
 import { loginHref, skipSearchOnlyRevalidation } from './lib/nav'

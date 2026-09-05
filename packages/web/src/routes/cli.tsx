@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Spinner } from '@/components/states'
+import { Spinner } from '@/components/ui/states'
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const code = new URL(request.url).searchParams.get('code') ?? ''
