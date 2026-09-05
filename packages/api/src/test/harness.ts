@@ -174,21 +174,30 @@ export function makeDb(recorder?: Recorder): HarnessDb {
   const db = drizzle(sqlite) as unknown as HarnessDb & {
     batch(stmts: Promise<unknown>[]): Promise<unknown[]>
   }
+  let batchTail: Promise<void> = Promise.resolve()
   // D1 exposes atomic `.batch`; bun-sqlite does not. Run sequentially (sync driver) so
   // FK-ordered inserts (spaces before space_members) still land in order. Drizzle queries
   // are lazy thenables — they execute when awaited HERE, so the inBatch flag attributes
   // their driver-level statements to the batch (verified in harness.test.ts).
-  db.batch = async (stmts) => {
-    counters.batches++
-    recorder?.record('d1:batch')
-    inBatch = true
-    try {
-      const out: unknown[] = []
-      for (const s of stmts) out.push(await s)
-      return out
-    } finally {
-      inBatch = false
+  db.batch = (stmts) => {
+    const run = async () => {
+      counters.batches++
+      recorder?.record('d1:batch')
+      inBatch = true
+      try {
+        const out: unknown[] = []
+        for (const s of stmts) out.push(await s)
+        return out
+      } finally {
+        inBatch = false
+      }
     }
+    const result = batchTail.then(run, run)
+    batchTail = result.then(
+      () => undefined,
+      () => undefined,
+    )
+    return result
   }
   db.counters = counters
   db.resetCounters = () => {

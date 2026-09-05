@@ -253,7 +253,7 @@ async function writeObjects(bucket: R2Bucket, plan: UploadPlanItem[]): Promise<v
 
 async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Response | null> {
   const db = c.get('db')
-  const { target, plan, spaceId, user, visibility, hasVisibility, title, derivedTitle, description } = input
+  const { target, plan, spaceId, user, visibility, title, derivedTitle, description } = input
   const newRows = plan.map(({ row }) => row)
   const insertRows = newRows.map((row) => db.insert(files).values(row))
   const newKeys = newRows.map(({ storageKey }) => storageKey)
@@ -272,26 +272,9 @@ async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Re
         }),
         ...insertRows,
       ])
-    } else if (target.actingAsEditor) {
-      const conflict = await replaceAsEditor(c, input)
-      if (conflict) return conflict
     } else {
-      await db.batch([
-        db.delete(files).where(eq(files.siteId, target.siteId)),
-        ...insertRows,
-        db
-          .update(sites)
-          .set({
-            contentVersion: sql`${sites.contentVersion} + 1`,
-            lastReplacedBy: user.id,
-            updatedAt: new Date().toISOString(),
-            slug: target.storedSlug,
-            ...(hasVisibility && isVisibility(visibility) ? { visibility } : {}),
-            ...(derivedTitle !== null ? { title: sql`coalesce(${sites.title}, ${derivedTitle})` } : {}),
-            description,
-          })
-          .where(eq(sites.id, target.siteId)),
-      ])
+      const conflict = await replaceExisting(c, input)
+      if (conflict) return conflict
     }
   } catch (error) {
     await deleteKeys(c.env.POSTPLAN_FILES, newKeys)
@@ -300,18 +283,40 @@ async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Re
   return null
 }
 
-async function replaceAsEditor(c: UploadContext, input: PersistUpload): Promise<Response | null> {
+async function replaceExisting(c: UploadContext, input: PersistUpload): Promise<Response | null> {
   const db = c.get('db')
-  const { target, user, expectedVersion, description } = input
-  const claimed = await db
-    .update(sites)
-    .set({
-      contentVersion: sql`${sites.contentVersion} + 1`,
-      lastReplacedBy: user.id,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(and(eq(sites.id, target.siteId), eq(sites.contentVersion, expectedVersion as number)))
-    .returning({ id: sites.id })
+  const { target, user, expectedVersion, description, hasVisibility, visibility, derivedTitle } = input
+  const version = target.actingAsEditor ? (expectedVersion as number) : (target.existingVersion as number)
+  const matchesVersion = () =>
+    sql`exists (select 1 from ${sites} where ${sites.id} = ${target.siteId} and ${sites.contentVersion} = ${version})`
+  const createdAt = new Date().toISOString()
+  const conditionalInserts = input.plan.map(({ row }) =>
+    db
+      .insert(files)
+      .select(
+        sql`select ${row.id}, ${row.siteId}, ${row.path}, ${row.storageKey}, ${row.mimeType}, ${row.size}, ${row.etag}, null, ${createdAt} where ${matchesVersion()}`,
+      ),
+  )
+  const results = await db.batch([
+    db.delete(files).where(and(eq(files.siteId, target.siteId), matchesVersion())),
+    ...conditionalInserts,
+    db
+      .update(sites)
+      .set({
+        contentVersion: sql`${sites.contentVersion} + 1`,
+        lastReplacedBy: user.id,
+        updatedAt: createdAt,
+        slug: target.storedSlug,
+        ...(!target.actingAsEditor && hasVisibility && isVisibility(visibility) ? { visibility } : {}),
+        ...(!target.actingAsEditor && derivedTitle !== null
+          ? { title: sql`coalesce(${sites.title}, ${derivedTitle})` }
+          : {}),
+        description,
+      })
+      .where(and(eq(sites.id, target.siteId), eq(sites.contentVersion, version)))
+      .returning({ id: sites.id }),
+  ])
+  const claimed = results[results.length - 1] as { id: string }[]
   if (claimed.length === 0) {
     await deleteKeys(
       c.env.POSTPLAN_FILES,
@@ -319,11 +324,6 @@ async function replaceAsEditor(c: UploadContext, input: PersistUpload): Promise<
     )
     return c.json({ error: 'version conflict', conflict: true }, 409)
   }
-  await db.batch([
-    db.delete(files).where(eq(files.siteId, target.siteId)),
-    ...input.plan.map(({ row }) => db.insert(files).values(row)),
-    db.update(sites).set({ description }).where(eq(sites.id, target.siteId)),
-  ])
   return null
 }
 
