@@ -1,6 +1,7 @@
 {
   "name": "postplan",
   "private": true,
+  "packageManager": "bun@1.4.0",
   "type": "module",
   "description": "An open-source alternative to Claude Artifacts for every coding agent — self-hosted on Cloudflare.",
   "author": "Plivo Inc.",
