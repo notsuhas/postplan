@@ -103,6 +103,10 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
   }
+  body[data-scroll-locked] {
+    /* biome-ignore lint/complexity/noImportantStyles: Radix writes this compensation inline. */
+    margin-right: 0 !important;
+  }
 }
 
 /* ---------------------------------------------------------------------------
