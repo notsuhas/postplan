@@ -9,10 +9,6 @@
 
 An open-source alternative to Claude Artifacts — except you host it, you own it, and any agent can drive it. No more screenshotting your agent's output and pasting it back into the chat.
 
-<p align="center">
-  <img src="https://github.com/plivo-labs/glance/releases/download/assets-readme/glance-demo.gif" alt="Postplan demo: an agent deploys a folder to a URL, you leave review comments in the browser, and the agent reads the comments and fixes it" width="900">
-</p>
-
 ```
   agent builds  →  postplan deploy → URL
        ↑                              ↓
@@ -45,7 +41,7 @@ Fill `deploy.env` with the returned IDs, two separate HTTPS hostnames, admin ema
 Pick a space, drop a folder, and publish it as private, members-only, team-visible, or unlisted:
 
 <p align="center">
-  <img src="https://github.com/plivo-labs/glance/releases/download/assets-readme/dashboard.png" alt="Postplan dashboard — deploy panel and your sites" width="900">
+  <img src="docs/assets/postplan-dashboard.png" alt="Postplan dashboard with deploy instructions, sites, and access controls" width="900">
 </p>
 
 Superadmins get usage at a postplan — users, sites, storage, page views, comments, and CLI activity.
