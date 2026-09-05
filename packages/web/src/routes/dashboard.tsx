@@ -10,10 +10,10 @@ import {
 } from 'react-router'
 import { ChevronDown, Download, Mic, Plus, Rocket, Star, Terminal, Upload, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import { CopyButton } from '@/components/CopyButton'
-import { DeployCard } from '@/components/DeployCard'
-import { GettingStarted } from '@/components/GettingStarted'
+import { CopyButton } from '@/components/ui/CopyButton'
+import { GettingStarted } from '@/components/onboarding/GettingStarted'
 import { RecordDialog } from '@/components/record/RecordDialog'
+import { UploadDialog } from '@/components/publishing/UploadDialog'
 import {
   actionsColumn,
   CopyOpenActions,
@@ -24,11 +24,11 @@ import {
   updatedColumn,
   urlColumn,
   visibilityBadgeColumn,
-} from '@/components/siteColumns'
-import { SitesTable } from '@/components/SitesTable'
-import { SortableTable, type Column } from '@/components/SortableTable'
-import { UserAvatar } from '@/components/UserAvatar'
-import { EmptyState, Spinner } from '@/components/states'
+} from '@/components/sites/siteColumns'
+import { SitesTable } from '@/components/sites/SitesTable'
+import { SortableTable, type Column } from '@/components/ui/SortableTable'
+import { UserAvatar } from '@/components/layout/UserAvatar'
+import { EmptyState, Spinner } from '@/components/ui/states'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -169,6 +169,7 @@ function useFeedSlot<T>(promise: Promise<T>): FeedSlot<T> {
 }
 
 export function Component() {
+  const root = useRouteLoaderData('root') as RootData | undefined
   const loaded = useLoaderData() as {
     sites: Promise<SiteSummary[]>
     starred: Promise<SiteSummary[]>
@@ -194,17 +195,15 @@ export function Component() {
     () =>
       deriveFeedState(
         { sites, starred, shared, spaces, team, comments },
-        { requestedTab: tabFromParam(searchParams.get('tab')) },
+        { requestedTab: tabFromParam(searchParams.get('tab')), showTeam: root?.user?.isOrgMember !== false },
       ),
-    [sites, starred, shared, spaces, team, comments, searchParams],
+    [sites, starred, shared, spaces, team, comments, searchParams, root?.user?.isOrgMember],
   )
   const setTab = useSetTabParam(state.staleTab)
 
   // Any feed 401'd — the session lapsed. Bounce to login, preserving where we were.
   if (state.unauthorized) {
-    return (
-      <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />
-    )
+    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />
   }
 
   return (
@@ -373,9 +372,7 @@ function TabPanelSkeleton() {
 }
 
 function TabCount({ n }: { n: number }) {
-  return (
-    <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{n}</span>
-  )
+  return <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{n}</span>
 }
 
 // ─── Team activity ───────────────────────────────────────────────────────────
@@ -438,10 +435,7 @@ function CommentsFeed({ comments }: { comments: CommentFeedItem[] }) {
         const editedSuffix = item.kind !== 'mention' && !!item.editedAt
         return (
           <li key={`${item.kind}:${item.id}`}>
-            <Link
-              to={href}
-              className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-accent"
-            >
+            <Link to={href} className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-accent">
               <span className="mt-0.5 w-16 shrink-0 rounded bg-muted px-1.5 py-0.5 text-center font-mono text-[10px] text-muted-foreground">
                 {item.kind}
               </span>
@@ -523,8 +517,8 @@ function AgentSetup() {
           <h2 className="font-medium">Give this to your agent</h2>
         </div>
         <p className="text-muted-foreground text-sm">
-          Paste it into Claude, Codex, or Cursor — it installs the CLI and the glance skill, so your
-          agent can ship sites and read review comments straight from your terminal.
+          Paste it into Claude, Codex, or Cursor — it installs the CLI and the postplan skill, so your agent can ship
+          sites and read review comments straight from your terminal.
         </p>
       </div>
       <div className="flex items-center gap-2 rounded-md border bg-background/60 p-2">
@@ -607,36 +601,14 @@ function InstallDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Install the glance CLI</DialogTitle>
+          <DialogTitle>Install the postplan CLI</DialogTitle>
           <DialogDescription>Deploy from your terminal — and use it as an agent skill.</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
           <code className="min-w-0 flex-1 truncate font-mono text-sm">{installCmd}</code>
           <CopyButton text={installCmd} label="Copy" copiedMessage="Install command copied" />
         </div>
-        <p className="text-muted-foreground text-xs">Installs to ~/.local/bin/glance.</p>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function UploadDialog({
-  spaces,
-  open,
-  onOpenChange,
-}: {
-  spaces: SpaceSummary[]
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Upload files</DialogTitle>
-          <DialogDescription>Pick a destination, then drop your files.</DialogDescription>
-        </DialogHeader>
-        <DeployCard spaces={spaces} />
+        <p className="text-muted-foreground text-xs">Installs to ~/.local/bin/postplan.</p>
       </DialogContent>
     </Dialog>
   )
@@ -742,12 +714,7 @@ function NewSpaceDialog() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="space-name">Name</Label>
-            <Input
-              id="space-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Platform Docs"
-            />
+            <Input id="space-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Platform Docs" />
           </div>
         </div>
         <DialogFooter>

@@ -56,8 +56,7 @@ const MAX_FIELD = 2000 // chars per text field, bounds a single message
 // most that, so anything longer is noise the server would trim anyway.
 export const MAX_CONTEXT = 64
 
-const str = (v: unknown, max = MAX_FIELD): string | null =>
-  typeof v === 'string' && v.length <= max ? v : null
+const str = (v: unknown, max = MAX_FIELD): string | null => (typeof v === 'string' && v.length <= max ? v : null)
 
 // Like `str`, but CLAMPS an over-cap string to the cap rather than rejecting it — used for the
 // free-text selection quote so a long highlight still opens the composer (anchored on the head of
@@ -96,7 +95,7 @@ export function parseIntent(event: MessageEvent, expected: ExpectedSource): Inte
   if (!data || typeof data !== 'object') return null
 
   switch ((data as { type?: unknown }).type) {
-    case 'glance:select': {
+    case 'postplan:select': {
       const d = data as { quote?: unknown; context?: unknown; rect?: unknown; blockText?: unknown }
       const quote = clamp(d.quote)
       if (!quote) return null
@@ -104,24 +103,24 @@ export function parseIntent(event: MessageEvent, expected: ExpectedSource): Inte
       return { type: 'select', quote, context: context(d.context), rect: rect(d.rect), blockText }
     }
     // Element ("pinpoint") comment creation is dropped (slice C2a) — this parent no longer sends
-    // glance:pending/composes on it. A STALE cached bundle (an old client.ts still running in
-    // someone's tab) may still post `glance:pinpoint`; the correct outcome is to ignore it here,
+    // postplan:pending/composes on it. A STALE cached bundle (an old client.ts still running in
+    // someone's tab) may still post `postplan:pinpoint`; the correct outcome is to ignore it here,
     // same as any other unrecognised type, not to crash on it.
-    case 'glance:select-clear':
+    case 'postplan:select-clear':
       return { type: 'clear' }
-    case 'glance:click-away':
+    case 'postplan:click-away':
       return { type: 'clickAway' }
-    case 'glance:escape':
+    case 'postplan:escape':
       return { type: 'escape' }
-    case 'glance:comment-key':
+    case 'postplan:comment-key':
       return { type: 'commentKey' }
-    case 'glance:ask-key':
+    case 'postplan:ask-key':
       return { type: 'askKey' }
-    case 'glance:anchor-click': {
+    case 'postplan:anchor-click': {
       const id = str((data as { id?: unknown }).id)
       return id ? { type: 'anchorClick', id } : null
     }
-    case 'glance:ready': {
+    case 'postplan:ready': {
       const filePath = str((data as { filePath?: unknown }).filePath)
       return filePath ? { type: 'ready', filePath } : null
     }

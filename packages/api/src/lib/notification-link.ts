@@ -6,8 +6,7 @@
 
 /** Encode each path segment so `?`/`#` in a filename can't truncate the pathname into query/
  *  fragment territory. Mirror of web paths.ts. */
-export const encodePathSegments = (filePath: string): string =>
-  filePath.split('/').map(encodeURIComponent).join('/')
+export const encodePathSegments = (filePath: string): string => filePath.split('/').map(encodeURIComponent).join('/')
 
 /** Absolute viewer link for a notification: `${APP_URL}/<siteLabel>/<encoded path>?thread=&review=1`.
  *  `review=1` is always present; `thread=` only when set; a missing site degrades to the app root. */

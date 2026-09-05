@@ -17,7 +17,15 @@ export function railFromSearch(params: URLSearchParams): boolean {
  *  but the audio view renders no iframe, so `loaded` never fires and gating on it left `?thread=`
  *  silently dead on an audio page. Audio is ready as soon as its own thread has arrived; either
  *  kind still refuses to reveal a thread that hasn't. */
-export function deepLinkReady({ isAudio, loaded, hasThread }: { isAudio: boolean; loaded: boolean; hasThread: boolean }): boolean {
+export function deepLinkReady({
+  isAudio,
+  loaded,
+  hasThread,
+}: {
+  isAudio: boolean
+  loaded: boolean
+  hasThread: boolean
+}): boolean {
   return hasThread && (isAudio || loaded)
 }
 
@@ -30,7 +38,11 @@ export function deepLinkReady({ isAudio, loaded, hasThread }: { isAudio: boolean
  *  no-op, preserving the property the old ref was protecting. */
 export type RevealRequest = { id: string; nonce: number }
 
-export function shouldReveal(request: RevealRequest | null, lastHandledNonce: number | null, hasTarget: boolean): boolean {
+export function shouldReveal(
+  request: RevealRequest | null,
+  lastHandledNonce: number | null,
+  hasTarget: boolean,
+): boolean {
   if (!request || !hasTarget) return false
   return request.nonce !== lastHandledNonce
 }

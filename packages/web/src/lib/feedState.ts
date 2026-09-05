@@ -24,17 +24,14 @@ export interface FeedSlots {
   comments: FeedSlot<CommentFeedItem[]>
 }
 
-export const TAB_IDS = ['sites', 'starred', 'shared', 'spaces', 'team', 'comments'] as const
+const TAB_IDS = ['sites', 'starred', 'shared', 'spaces', 'team', 'comments'] as const
 export type TabId = (typeof TAB_IDS)[number]
 
 /** Parse a ?tab= URL value: a known tab id passes through, anything else means 'sites'. */
 export const tabFromParam = (value: string | null): TabId =>
   TAB_IDS.includes(value as TabId) ? (value as TabId) : 'sites'
 
-export type TabContent<T> =
-  | { kind: 'loading' }
-  | { kind: 'rows'; rows: T }
-  | { kind: 'error'; message: string }
+export type TabContent<T> = { kind: 'loading' } | { kind: 'rows'; rows: T } | { kind: 'error'; message: string }
 
 // Discriminated on `id` so the component can switch and get the right row type per tab.
 // Shared and Spaces exist only when their feed resolved with rows, so they carry `rows`
@@ -80,9 +77,8 @@ const contentOf = <T>(slot: FeedSlot<T>): TabContent<T> => {
   }
 }
 
-export function deriveFeedState(slots: FeedSlots, view: { requestedTab: TabId }): FeedState {
-  const groupSpaces =
-    slots.spaces.status === 'resolved' ? slots.spaces.data.filter((s) => s.type === 'group') : null
+export function deriveFeedState(slots: FeedSlots, view: { requestedTab: TabId; showTeam?: boolean }): FeedState {
+  const groupSpaces = slots.spaces.status === 'resolved' ? slots.spaces.data.filter((s) => s.type === 'group') : null
 
   // Sites, Team and Comments always exist (a failed feed degrades to a contained error INSIDE its
   // tab). Shared and Spaces exist only once their feeds resolve with rows — no tab for an empty or
@@ -112,7 +108,9 @@ export function deriveFeedState(slots: FeedSlots, view: { requestedTab: TabId })
     ...(groupSpaces !== null && groupSpaces.length > 0
       ? [{ id: 'spaces', label: 'Your spaces', count: groupSpaces.length, rows: groupSpaces } as const]
       : []),
-    { id: 'team', label: 'Team activity', count: null, content: contentOf(slots.team) },
+    ...(view.showTeam === false
+      ? []
+      : ([{ id: 'team', label: 'Team activity', count: null, content: contentOf(slots.team) }] as const)),
     { id: 'comments', label: 'Comments', count: null, content: contentOf(slots.comments) },
   ]
 

@@ -27,4 +27,6 @@ export const RELEASES: Release[] = ${JSON.stringify(releases, null, 2)}
 export const NEWEST_RELEASE_DATE: string | null = ${JSON.stringify(newestDate)}
 `
 writeFileSync(join(here, '..', 'src', 'whats-new', 'catalog.ts'), out)
-console.log(`whats-new: ${files.length} note(s) → ${releases.length} release(s), newest ${newestDate} → src/whats-new/catalog.ts`)
+console.log(
+  `whats-new: ${files.length} note(s) → ${releases.length} release(s), newest ${newestDate} → src/whats-new/catalog.ts`,
+)

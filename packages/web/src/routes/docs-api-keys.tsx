@@ -8,7 +8,7 @@ import { Link } from 'react-router'
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs">
+    <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <code>{children}</code>
     </pre>
   )
@@ -21,7 +21,7 @@ function Code({ children }: { children: string }) {
 // [method, path, what it does, whether a key credential may call it]
 function EndpointTable({ rows }: { rows: [string, string, string, string][] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full text-xs">
         <tbody>
           {rows.map(([method, path, purpose, keyAllowed]) => (
@@ -69,30 +69,30 @@ export function Component() {
               /settings/keys
             </Link>
             , click <strong className="text-foreground">New key</strong>. Give it a name, an expiry (1, 7, 30, 90, 180,
-            or 365 days — the only durations Glance will ever mint), and site access: either a set of sites you pick, or
-            every site you own. There's also an optional checkbox to let the key manage sites (deploy, create, fork) —
-            off by default.
+            or 365 days — the only durations Postplan will ever mint), and site access: either a set of sites you pick,
+            or every site you own. There's also an optional checkbox to let the key manage sites (deploy, create, fork)
+            — off by default.
           </p>
           <p>
-            The secret is shown <strong className="text-foreground">exactly once</strong>, right after creation. Glance
-            stores only its hash — if you lose it, revoke it and mint a new one.
+            The secret is shown <strong className="text-foreground">exactly once</strong>, right after creation.
+            Postplan stores only its hash — if you lose it, revoke it and mint a new one.
           </p>
         </Section>
 
         <Section title="Run it on a server">
           <p>
             This is what keys are for: a cron job, a CI step, or any script that runs where nobody can sit and complete
-            a login prompt. Export the key as <Code>GLANCE_TOKEN</Code> and the CLI skips <Code>glance login</Code>{' '}
+            a login prompt. Export the key as <Code>POSTPLAN_TOKEN</Code> and the CLI skips <Code>postplan login</Code>{' '}
             entirely:
           </p>
           <CodeBlock>
-            {`curl -fsSL ${origin}/api/install | sh\nexport GLANCE_TOKEN=glk_...\nglance deploy ./my-site`}
+            {`curl -fsSL ${origin}/api/install | sh\nexport POSTPLAN_TOKEN=glk_...\npostplan deploy ./my-site`}
           </CodeBlock>
           <p>
-            The CLI reads its target instance from <Code>~/.glance/config.json</Code>, not from the key, so the install
-            step above matters on a fresh box. <Code>GLANCE_TOKEN</Code> is only honoured by commands that call the API
-            — <Code>glance logout</Code> ignores it deliberately, so it always acts on your real session, not a key you
-            happen to have exported.
+            The CLI reads its target instance from <Code>~/.postplan/config.json</Code>, not from the key, so the
+            install step above matters on a fresh box. <Code>POSTPLAN_TOKEN</Code> is only honoured by commands that
+            call the API — <Code>postplan logout</Code> ignores it deliberately, so it always acts on your real session,
+            not a key you happen to have exported.
           </p>
         </Section>
 
@@ -117,11 +117,11 @@ export function Component() {
             The CLI is a convenience — a key is a bearer token against the same HTTP API. Send it as an{' '}
             <Code>Authorization</Code> header:
           </p>
-          <CodeBlock>{`curl -H "Authorization: Bearer $GLANCE_TOKEN" \\\n  ${origin}/api/sites/mine`}</CodeBlock>
+          <CodeBlock>{`curl -H "Authorization: Bearer $POSTPLAN_TOKEN" \\\n  ${origin}/api/sites/mine`}</CodeBlock>
           <p>Deploying is a multipart upload, one form field per file:</p>
           <CodeBlock>
             {`curl -X POST "${origin}/api/upload/<space>/<site>" \\
-  -H "Authorization: Bearer $GLANCE_TOKEN" \\
+  -H "Authorization: Bearer $POSTPLAN_TOKEN" \\
   -F "files=@dist/index.html;filename=index.html" \\
   -F "visibility=team"`}
           </CodeBlock>
@@ -134,7 +134,7 @@ export function Component() {
 
         <Section title="Read and write a page's data">
           <p>
-            Every site has a document store (<Code>glance.db</Code>) — the same one a live dashboard or a form on the
+            Every site has a document store (<Code>postplan.db</Code>) — the same one a live dashboard or a form on the
             page reads from. A script can fill it, which is how a page updates itself between deploys: the cron job
             writes the new numbers, the open page re-renders.
           </p>
@@ -144,7 +144,7 @@ export function Component() {
           </p>
           <CodeBlock>
             {`TOKEN=$(curl -fsS -X POST \\
-  -H "Authorization: Bearer $GLANCE_TOKEN" \\
+  -H "Authorization: Bearer $POSTPLAN_TOKEN" \\
   "${origin}/api/data-token/<space>/<site>" | jq -r .token)`}
           </CodeBlock>
           <p>

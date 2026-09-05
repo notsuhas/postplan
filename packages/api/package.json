@@ -1,5 +1,5 @@
 {
-  "name": "@glance/api",
+  "name": "@postplan/api",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,23 +7,22 @@
     "test": "bun test",
     "build:annotate": "bun scripts/build-annotate.ts",
     "build:db": "bun scripts/build-db.ts",
-    "build:themes": "bun scripts/build-themes.ts",
     "build:install": "bun scripts/build-install.ts",
     "build:whatsnew": "bun scripts/build-whatsnew.ts",
     "deploy": "wrangler deploy",
-    "deploy:content": "bun run build:annotate && bun run build:db && bun run build:themes && wrangler deploy --config wrangler.content.jsonc"
+    "deploy:content": "bun run build:annotate && bun run build:db && wrangler deploy --config wrangler.content.jsonc"
   },
   "dependencies": {
-    "arctic": "^3.7.0",
+    "@workos-inc/node": "^10.13.0",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.0",
-    "marked": "^18.0.5",
+    "hono": "^4.13.5",
+    "marked": "^18.0.11",
     "workers-og": "^0.0.27"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.10",
-    "happy-dom": "^20.10.6",
+    "happy-dom": "^20.14.0",
     "typescript": "^7.0.2",
-    "wrangler": "^4.100.0"
+    "wrangler": "^4.129.0"
   }
 }

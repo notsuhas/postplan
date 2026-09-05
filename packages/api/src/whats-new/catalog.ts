@@ -4,20 +4,12 @@ import type { Release } from './bake'
 
 export const RELEASES: Release[] = [
   {
-    "slug": "design-themes",
-    "title": "Design themes",
-    "image": "design-themes.jpg",
-    "date": "2026-08-19T12:00:00.000Z",
-    "featured": true,
-    "bodyHtml": "<p>Give any page a designed look without touching its HTML. Pick a <strong>theme</strong> when you deploy, or switch it live from the viewer — Glance injects the stylesheet at serve time, so your stored files never change and <strong>Default</strong> always means your page&#39;s own design.</p>\n<ul>\n<li><strong>Four themes to start</strong> — Plivo (the brand), Broadsheet (newspaper editorial), Kapow (comic book), Matrix (green phosphor terminal)</li>\n<li><strong>Switch without a redeploy</strong> — owners get a theme chip in the viewer top bar and a Theme menu on each dashboard row</li>\n<li><strong>From the CLI</strong>: <code>glance deploy report.html --theme plivo</code> — and agents can browse <code>/api/themes</code> for each theme&#39;s full design brief before generating a page</li>\n<li>Plain, semantic HTML transforms completely; pages that carry their own styling keep their look</li>\n</ul>\n"
-  },
-  {
     "slug": "api-keys",
     "title": "API keys for scripts and CI",
     "image": "api-keys.png",
     "date": "2026-08-01T12:00:00.000Z",
     "featured": true,
-    "bodyHtml": "<p>A script can now do the things you do in Glance — deploy a build, publish a report, push a dashboard — without borrowing your login. <strong>Settings → API Keys</strong> mints one.</p>\n<ul>\n<li><strong>Copy the secret once.</strong> It&#39;s shown at mint time and never again; Glance only keeps a hash of it</li>\n<li><strong>Export it as <code>GLANCE_TOKEN</code></strong> and the CLI runs without <code>glance login</code>. The same key is a bearer token against the HTTP API, so <code>curl</code> works too</li>\n<li><strong>Grant only what it needs</strong> — all your sites or a chosen few, read or write. A key&#39;s access can never be wider than your own</li>\n<li><strong>It can create and deploy, never delete</strong> — and it can&#39;t mint or revoke keys, whatever you grant it</li>\n<li><strong>Revoke instantly</strong> from the same screen. Revoked keys stay in the list, marked, so you can see what was retired and when</li>\n</ul>\n<p>You choose how long a key lives when you mint it, and you can hold ten active at a time. <strong>How keys work</strong> on the keys screen has the full rules.</p>\n"
+    "bodyHtml": "<p>A script can now do the things you do in Postplan — deploy a build, publish a report, push a dashboard — without borrowing your login. <strong>Settings → API Keys</strong> mints one.</p>\n<ul>\n<li><strong>Copy the secret once.</strong> It&#39;s shown at mint time and never again; Postplan only keeps a hash of it</li>\n<li><strong>Export it as <code>POSTPLAN_TOKEN</code></strong> and the CLI runs without <code>postplan login</code>. The same key is a bearer token against the HTTP API, so <code>curl</code> works too</li>\n<li><strong>Grant only what it needs</strong> — all your sites or a chosen few, read or write. A key&#39;s access can never be wider than your own</li>\n<li><strong>It can create and deploy, never delete</strong> — and it can&#39;t mint or revoke keys, whatever you grant it</li>\n<li><strong>Revoke instantly</strong> from the same screen. Revoked keys stay in the list, marked, so you can see what was retired and when</li>\n</ul>\n<p>You choose how long a key lives when you mint it, and you can hold ten active at a time. <strong>How keys work</strong> on the keys screen has the full rules.</p>\n"
   },
   {
     "slug": "realtime-comments",
@@ -65,7 +57,7 @@ export const RELEASES: Release[] = [
     "image": "live-data.png",
     "date": "2026-07-29T09:00:00.000Z",
     "featured": false,
-    "bodyHtml": "<p>A page you deploy can now <strong>store data and update itself</strong> — no backend to run, nothing to host. Ask for a form, a poll, a board or a dashboard, and it gets a real data store: <code>glance.db</code>.</p>\n<ul>\n<li><strong>Anyone who can open the site can add to it</strong>, attributed to them — so forms and surveys just work</li>\n<li><strong>Changes are pushed, not polled.</strong> Every open page updates the moment something lands, with no refresh button</li>\n<li><strong>Your scripts can write too</strong> — a cron job or CI step posts to the site and every dashboard watching it reacts</li>\n<li>By default you only see what <strong>you</strong> added; a <code>shared-…</code> collection is one everybody watching sees together</li>\n<li>The site <strong>owner</strong> can edit or remove any entry, so a public board stays moderatable</li>\n</ul>\n<p>Leave a page open overnight and it catches up on whatever it missed — no stale tab, no reload.</p>\n"
+    "bodyHtml": "<p>A page you deploy can now <strong>store data and update itself</strong> — no backend to run, nothing to host. Ask for a form, a poll, a board or a dashboard, and it gets a real data store: <code>postplan.db</code>.</p>\n<ul>\n<li><strong>Anyone who can open the site can add to it</strong>, attributed to them — so forms and surveys just work</li>\n<li><strong>Changes are pushed, not polled.</strong> Every open page updates the moment something lands, with no refresh button</li>\n<li><strong>Your scripts can write too</strong> — a cron job or CI step posts to the site and every dashboard watching it reacts</li>\n<li>By default you only see what <strong>you</strong> added; a <code>shared-…</code> collection is one everybody watching sees together</li>\n<li>The site <strong>owner</strong> can edit or remove any entry, so a public board stays moderatable</li>\n</ul>\n<p>Leave a page open overnight and it catches up on whatever it missed — no stale tab, no reload.</p>\n"
   },
   {
     "slug": "tldr-summaries",
@@ -105,8 +97,8 @@ export const RELEASES: Release[] = [
     "image": "external-links-new-tab.png",
     "date": "2026-06-20T09:00:00.000Z",
     "featured": false,
-    "bodyHtml": "<p>Links in a shared site that point somewhere <strong>off Glance</strong> now open in a <strong>new tab</strong>, so a click never yanks a reviewer out of the page they were reading.</p>\n<p>Internal links and in-page anchors keep navigating in place, exactly as before — only genuinely external destinations get the new tab.</p>\n"
+    "bodyHtml": "<p>Links in a shared site that point somewhere <strong>off Postplan</strong> now open in a <strong>new tab</strong>, so a click never yanks a reviewer out of the page they were reading.</p>\n<p>Internal links and in-page anchors keep navigating in place, exactly as before — only genuinely external destinations get the new tab.</p>\n"
   }
 ]
 
-export const NEWEST_RELEASE_DATE: string | null = "2026-08-19T12:00:00.000Z"
+export const NEWEST_RELEASE_DATE: string | null = "2026-08-01T12:00:00.000Z"

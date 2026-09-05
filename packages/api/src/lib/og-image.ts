@@ -1,9 +1,9 @@
 // Signed brand-card image URL for the Slack unfurl (the "og image"): HMAC over
 // `og:<space>/<site>` (lib/hmac.ts primitives — never re-implemented), minted into the card's
-// image_url by the unfurl builder and verified by the CONTENT worker's /_glance/og route. Slack
+// image_url by the unfurl builder and verified by the CONTENT worker's /_postplan/og route. Slack
 // fetches image_url SERVER-SIDE and UNAUTHENTICATED, so the route must be public — the signature
 // is what keeps a public image path from becoming the site-enumeration oracle the unfurl endpoint
-// deliberately avoids (Glance has no anonymous tier). Deliberately STABLE (no expiry): Slack
+// deliberately avoids (Postplan has no anonymous tier). Deliberately STABLE (no expiry): Slack
 // re-fetches after its cache lapses, and a dead URL breaks the card forever; unguessable-but-
 // stable is the right trade here.
 //
@@ -28,7 +28,7 @@ export async function verifyOgSig(secret: string, spaceSlug: string, siteSlug: s
 }
 
 /** The absolute, signed image_url the unfurl card carries — on the CONTENT origin, under the
- *  reserved `_glance` prefix (never a space slug, see content.ts's asset routes). `v` is a
+ *  reserved `_postplan` prefix (never a space slug, see content.ts's asset routes). `v` is a
  *  cache-buster for Slack, which caches by full URL and the sig is deliberately stable: bump it
  *  whenever the rendered card changes visually (v3: entity-decode fix, back to 1200×630), else
  *  channels keep showing the cached old design. The route ignores it. */
@@ -38,7 +38,7 @@ export async function signedOgImageUrl(
   spaceSlug: string,
   siteSlug: string,
 ): Promise<string> {
-  return `${contentUrl}/_glance/og/${spaceSlug}/${siteSlug}.png?sig=${await signOgSig(secret, spaceSlug, siteSlug)}&v=3`
+  return `${contentUrl}/_postplan/og/${spaceSlug}/${siteSlug}.png?sig=${await signOgSig(secret, spaceSlug, siteSlug)}&v=3`
 }
 
 /** What the card renders. Kept to what the picture needs — the route resolves it, the renderer
@@ -66,7 +66,7 @@ export function ogCardHtml(card: OgCard): string {
   return `<div style="display:flex;flex-direction:column;justify-content:space-between;width:100vw;height:100vh;background:#15181e;padding:72px;font-family:'IBM Plex Sans'">
   <div style="display:flex;align-items:center">
     <img src="${BRAND_MARK_DATA_URI}" width="96" height="96" />
-    <span style="margin-left:28px;font-size:44px;font-weight:600;color:#faf6ec">Glance</span>
+    <span style="margin-left:28px;font-size:44px;font-weight:600;color:#faf6ec">Postplan</span>
   </div>
   <div style="display:flex;flex-direction:column">
     <span style="display:block;line-clamp:3;font-size:64px;font-weight:600;color:#faf6ec;line-height:1.2">${esc(card.title)}</span>

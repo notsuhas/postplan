@@ -1,51 +1,72 @@
+import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { and, eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
-import type { NewFileRow } from '../db/schema'
+import type { Context } from 'hono'
+import type { NewFileRow, Site } from '../db/schema'
 import { files, sites, spaceMembers, spaces, siteUserShares } from '../db/schema'
-import { batchAll } from '../lib/d1'
 import { canReplace } from '../lib/access'
+import { batchAll } from '../lib/d1'
 import { fireAndForget } from '../lib/events'
 import { capTitle, extractHtmlMeta, NO_META, pickEntry } from '../lib/extract'
-import { isValidSlug } from '../lib/slug'
+import { isValidSlug, slugForVisibility } from '../lib/slug'
 import { deleteKeys, MAX_FILE_BYTES, sanitizePath } from '../lib/storage'
-import { isVisibility, normalizeVisibility } from '../lib/visibility'
-import { isTheme, normalizeTheme } from '../themes/registry'
+import { isVisibility } from '../lib/visibility'
 import { requireAuth, requireControlGrant } from '../middleware/auth'
-import type { AppEnv } from '../types'
-
-// Phase 4: multipart create-or-replace upload. Mounted at /api/upload.
-// Accepts a browser cookie OR a CLI Bearer token (both resolved by requireAuth).
+import type { AppEnv, SessionUser } from '../types'
 
 const enc = new TextEncoder()
+const MAX_FILE_COUNT = 200
+const MAX_TOTAL_BYTES = 100 * 1024 * 1024
+const MAX_STORAGE_KEY_BYTES = 1024
+const UPLOAD_CONCURRENCY = 10
 
-// Hard caps applied BEFORE any R2 write. Each file is one R2 put (a subrequest); an unbounded
-// request could exhaust the Workers subrequest budget mid-loop, and the mid-loop cleanup below
-// can't reclaim objects when the failure IS exhaustion — so bound the request so it never gets
-// there. R2 also rejects object keys over 1024 bytes; catch that up front too, else the reject
-// lands only after sibling objects are already committed and orphaned.
-const MAX_FILE_COUNT = 200 // one put per file; sized well under the subrequest budget (D1 + deletes need headroom)
-const MAX_TOTAL_BYTES = 100 * 1024 * 1024 // headroom under the 128MB isolate; multipart overhead pushes Content-Length slightly past file bytes, fine for a reject-over threshold
-const MAX_STORAGE_KEY_BYTES = 1024 // R2's hard object-key limit
-const UPLOAD_CONCURRENCY = 10 // bounded parallelism for the R2 put loop
+type UploadContext = Context<AppEnv>
+type UploadItem = { path: string; file: File }
+type UploadPlanItem = { file: File; row: NewFileRow }
+type ExistingSite = Pick<Site, 'id' | 'ownerId' | 'contentVersion' | 'status' | 'visibility'>
+type UploadFacts = {
+  spaceId: string | null
+  existing: ExistingSite | undefined
+  isMember: boolean
+  shareRole: 'viewer' | 'editor' | null
+  oldKeys: string[]
+}
+type ParsedUpload = {
+  hasVisibility: boolean
+  visibility: unknown
+  title: string | null
+  expectedVersion: number | null
+  items: UploadItem[]
+}
+type UploadTarget = {
+  siteId: string
+  storedSlug: string
+  isCreate: boolean
+  actingAsEditor: boolean
+  oldKeys: string[]
+  existingVersion: number | null
+}
+type PersistUpload = {
+  target: UploadTarget
+  plan: UploadPlanItem[]
+  spaceId: string
+  user: SessionUser
+  visibility: unknown
+  hasVisibility: boolean
+  title: string | null
+  derivedTitle: string | null
+  description: string | null
+  expectedVersion: number | null
+}
 
-export const upload = new Hono<AppEnv>()
+async function enforceRateLimit(c: UploadContext): Promise<Response | null> {
+  if (!c.env.UPLOAD_LIMITER) return null
+  const ip = c.req.header('CF-Connecting-IP') ?? 'local'
+  const { success } = await c.env.UPLOAD_LIMITER.limit({ key: ip })
+  return success ? null : c.json({ error: 'rate limited' }, 429)
+}
 
-// POST /api/upload/:spaceSlug/:siteSlug — upload a folder of files, creating or replacing the site.
-upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c) => {
-  // Defensive per-IP rate limit (binding is optional / absent in local dev).
-  if (c.env.UPLOAD_LIMITER) {
-    const ip = c.req.header('CF-Connecting-IP') ?? 'local'
-    const { success } = await c.env.UPLOAD_LIMITER.limit({ key: ip })
-    if (!success) return c.json({ error: 'rate limited' }, 429)
-  }
-
-  const user = c.get('user')
-  const db = c.get('db')
-  const { spaceSlug, siteSlug } = c.req.param()
-
-  // Total-size cap, checked from the header BEFORE formData() — which buffers the ENTIRE multipart
-  // body in worker memory. The per-file cap below runs only after that buffering, so 200×20MB could
-  // otherwise materialize ~4GB against the 128MB isolate. This header check is the real memory guard.
+async function parseUpload(c: UploadContext): Promise<ParsedUpload | Response> {
   const contentLength = Number(c.req.header('content-length'))
   if (Number.isFinite(contentLength) && contentLength > MAX_TOTAL_BYTES) {
     return c.json({ error: 'upload exceeds 100MB total' }, 413)
@@ -53,81 +74,64 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
 
   const form = await c.req.formData()
   const rawVisibility = form.get('visibility')
-  // Whether the caller explicitly sent a visibility field. CREATE defaults it to 'team'; REPLACE
-  // only touches sites.visibility when it was explicitly provided (else replace keeps the existing
-  // tier), so the two cases must stay distinguishable — `|| 'team'` alone can't tell them apart.
-  const hasVisibility = typeof rawVisibility === 'string' && rawVisibility !== ''
-  const visibility = normalizeVisibility(rawVisibility || 'team')
-  // Optional design theme, mirroring visibility's create/replace split: CREATE applies it (absent →
-  // default); REPLACE only touches sites.theme when the field was explicitly sent, so an agent's
-  // plain redeploy never strips a theme picked in the UI. 'default'/'none'/'' explicitly CLEARS it
-  // (default = the page's own design, exactly as uploaded). Validated against the registry so a
-  // typo 400s here instead of silently serving unthemed.
-  const rawTheme = form.get('theme')
-  const hasTheme = typeof rawTheme === 'string'
-  const theme = normalizeTheme(rawTheme)
-  if (theme !== null && !isTheme(theme)) return c.json({ error: 'unknown theme', theme }, 400)
-  // Optional display title. CREATE: an explicit form title wins; absent one, the entry HTML's
-  // <title> is derived below. REPLACE never renames a titled site — a re-upload/record must not
-  // silently rename it — but a still-null title may be filled from the new content
-  // (owner only). Trimmed + capped; empty → null.
   const rawTitle = form.get('title')
-  const title = typeof rawTitle === 'string' ? capTitle(rawTitle.trim()) || null : null
-  // Optimistic-concurrency token for a REPLACE: the contentVersion the caller last pulled. REQUIRED
-  // for an editor replace (CAS below), advisory/ignored for an owner. Parsed to a non-negative int or
-  // null (absent/blank/non-numeric).
   const rawExpected = form.get('expectedVersion')
-  const expectedVersion =
-    typeof rawExpected === 'string' && rawExpected.trim() !== '' && Number.isInteger(Number(rawExpected))
-      ? Number(rawExpected)
-      : null
-  const uploaded = form.getAll('files').filter((f): f is File => f instanceof File)
+  const items: UploadItem[] = []
 
-  // Build (path, file) pairs, dropping empty paths; validate per-file size before storing.
-  const items: { path: string; file: File }[] = []
-  for (const file of uploaded) {
+  for (const file of form.getAll('files').filter((value): value is File => value instanceof File)) {
     if (file.size > MAX_FILE_BYTES) return c.json({ error: 'file exceeds 20MB' }, 413)
     const path = sanitizePath(file.name)
-    if (!path) continue
-    items.push({ path, file })
+    if (path) items.push({ path, file })
   }
+
+  const validationError = validateItems(c, items)
+  if (validationError) return validationError
+  const visibility = rawVisibility || 'team'
+  if (!isVisibility(visibility)) return c.json({ error: 'invalid visibility' }, 400)
+
+  return {
+    hasVisibility: typeof rawVisibility === 'string' && rawVisibility !== '',
+    visibility,
+    title: typeof rawTitle === 'string' ? capTitle(rawTitle.trim()) || null : null,
+    expectedVersion:
+      typeof rawExpected === 'string' && rawExpected.trim() !== '' && Number.isInteger(Number(rawExpected))
+        ? Number(rawExpected)
+        : null,
+    items,
+  }
+}
+
+function validateItems(c: UploadContext, items: UploadItem[]): Response | null {
   if (items.length === 0) return c.json({ error: 'no files' }, 400)
-  // Backstop for a chunked/absent Content-Length: by this point formData() already buffered the
-  // body, so the header check above is the real memory guard — this only keeps the R2/D1 write
-  // path bounded when the header never came.
   if (items.reduce((sum, { file }) => sum + file.size, 0) > MAX_TOTAL_BYTES) {
     return c.json({ error: 'upload exceeds 100MB total' }, 413)
   }
-  // Cap the file COUNT before any R2 write — the mid-loop cleanup can't recover from subrequest
-  // exhaustion, so this bound is what actually prevents that orphan case.
   if (items.length > MAX_FILE_COUNT) return c.json({ error: 'too many files', max: MAX_FILE_COUNT }, 400)
 
-  // Reject duplicate paths BEFORE any R2 write. Two multipart names can sanitize to the same
-  // path (`a/b.html` + `a\b.html`); serving picks one via .limit(1) and the unique(siteId,path)
-  // constraint would otherwise 500 the request *after* objects were already committed to R2.
   const seenPaths = new Set<string>()
   for (const { path } of items) {
     if (seenPaths.has(path)) return c.json({ error: 'duplicate path', path }, 400)
     seenPaths.add(path)
   }
+  return null
+}
 
-  // Every pre-write read in ONE db.batch — all four are independently slug/user-keyed, so the
-  // space row, the existing site (if any), the caller's membership, the direct share role, and
-  // the existing file keys resolve in a single round trip. Precedence over the results below is
-  // unchanged: space 404 → create-membership/replace-capability 403 → editor guards → 409.
+async function readUploadFacts(
+  db: DrizzleD1Database,
+  spaceSlug: string,
+  siteSlug: string,
+  userId: string,
+): Promise<UploadFacts> {
   const slugKey = () => and(eq(spaces.slug, spaceSlug), eq(sites.slug, siteSlug))
   const [spaceRows, existingRows, memberRows, shareRoleRows, existingFileRows] = await batchAll(db, [
     db.select({ id: spaces.id }).from(spaces).where(eq(spaces.slug, spaceSlug)).limit(1),
-    // The existing site (if any) is resolved BEFORE authorizing — CREATE and REPLACE have
-    // DIFFERENT gates: creating needs space membership; replacing is open to the owner or a
-    // direct EDITOR grantee (who is typically NOT a space member, so the old membership-first
-    // gate 403'd them). contentVersion + status feed the editor CAS + archived guard.
     db
       .select({
         id: sites.id,
         ownerId: sites.ownerId,
         contentVersion: sites.contentVersion,
         status: sites.status,
+        visibility: sites.visibility,
       })
       .from(sites)
       .innerJoin(spaces, eq(sites.spaceId, spaces.id))
@@ -137,14 +141,14 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
       .select({ userId: spaceMembers.userId })
       .from(spaceMembers)
       .innerJoin(spaces, eq(spaceMembers.spaceId, spaces.id))
-      .where(and(eq(spaces.slug, spaceSlug), eq(spaceMembers.userId, user.id)))
+      .where(and(eq(spaces.slug, spaceSlug), eq(spaceMembers.userId, userId)))
       .limit(1),
     db
       .select({ role: siteUserShares.role })
       .from(siteUserShares)
       .innerJoin(sites, eq(siteUserShares.siteId, sites.id))
       .innerJoin(spaces, eq(sites.spaceId, spaces.id))
-      .where(and(slugKey(), eq(siteUserShares.userId, user.id)))
+      .where(and(slugKey(), eq(siteUserShares.userId, userId)))
       .limit(1),
     db
       .select({ storageKey: files.storageKey })
@@ -154,51 +158,63 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
       .where(slugKey()),
   ])
 
-  const space = spaceRows[0]
-  if (!space) return c.json({ error: 'space not found' }, 404)
-  const existing = existingRows[0]
+  return {
+    spaceId: spaceRows[0]?.id ?? null,
+    existing: existingRows[0],
+    isMember: memberRows.length > 0,
+    shareRole: shareRoleRows[0]?.role ?? null,
+    oldKeys: existingFileRows.map(({ storageKey }) => storageKey),
+  }
+}
 
-  const replace = c.req.query('replace') === 'true'
-  const isCreate = !existing
-  let siteId: string
-  let oldKeys: string[] = []
-  // True when the actor is exercising an EDITOR grant (not the owner). Editors are content-only:
-  // no visibility change, no archived-site edit, and every replace is version-CAS'd.
-  let actingAsEditor = false
-
-  if (!existing) {
-    // CREATE: space members only — neither an editor grant nor the superadmin role confers a
-    // create right (an admin publishing into someone else's space isn't a custodial power).
-    if (memberRows.length === 0) return c.json({ error: 'forbidden' }, 403)
+function resolveTarget(
+  c: UploadContext,
+  facts: UploadFacts,
+  user: SessionUser,
+  siteSlug: string,
+  visibility: unknown,
+  hasVisibility: boolean,
+  expectedVersion: number | null,
+): UploadTarget | Response {
+  if (!facts.spaceId) return c.json({ error: 'space not found' }, 404)
+  if (!facts.existing) {
+    if (!facts.isMember) return c.json({ error: 'forbidden' }, 403)
     if (!isValidSlug(siteSlug)) return c.json({ error: 'invalid siteSlug' }, 400)
-    siteId = crypto.randomUUID()
-  } else {
-    // REPLACE: owner or a direct editor share (canReplace — the single capability predicate shared
-    // with /exists + the manifest gate). An editor grant is only consulted for a non-owner, so
-    // passing the gate while not the owner ⇒ acting as the editor.
-    const isOwner = existing.ownerId === user.id
-    const shareRole = isOwner ? null : (shareRoleRows[0]?.role ?? null)
-    if (!canReplace(user, existing, shareRole)) return c.json({ error: 'forbidden' }, 403)
-    actingAsEditor = !isOwner
-
-    if (actingAsEditor) {
-      if (existing.status === 'archived') return c.json({ error: 'site archived' }, 403)
-      // The CAS below reads expectedVersion; require it up front so a versionless editor redeploy
-      // can't silently clobber a newer one.
-      if (expectedVersion === null) return c.json({ error: 'expectedVersion required' }, 400)
+    return {
+      siteId: crypto.randomUUID(),
+      storedSlug: slugForVisibility(siteSlug, visibility),
+      isCreate: true,
+      actingAsEditor: false,
+      oldKeys: [],
+      existingVersion: null,
     }
-
-    siteId = existing.id
-    // Conflict unless the caller explicitly opted into replacing.
-    if (existingFileRows.length > 0 && !replace) {
-      return c.json({ error: 'site exists', conflict: true }, 409)
-    }
-    oldKeys = existingFileRows.map((r) => r.storageKey)
   }
 
-  // Plan every object under a fresh prefix. Build the rows first so the R2 keys are known BEFORE
-  // any write — an over-long key is rejected up front (R2 caps keys at 1024 bytes) rather than
-  // after sibling objects are already committed and orphaned.
+  const isOwner = facts.existing.ownerId === user.id
+  if (!canReplace(user, facts.existing, isOwner ? null : facts.shareRole)) {
+    return c.json({ error: 'forbidden' }, 403)
+  }
+  const actingAsEditor = !isOwner
+  if (actingAsEditor && facts.existing.status === 'archived') return c.json({ error: 'site archived' }, 403)
+  if (actingAsEditor && expectedVersion === null) return c.json({ error: 'expectedVersion required' }, 400)
+  if (facts.oldKeys.length > 0 && c.req.query('replace') !== 'true') {
+    return c.json({ error: 'site exists', conflict: true }, 409)
+  }
+
+  return {
+    siteId: facts.existing.id,
+    storedSlug:
+      isOwner && hasVisibility && visibility === 'unlisted' && facts.existing.visibility !== 'unlisted'
+        ? slugForVisibility(siteSlug, visibility)
+        : siteSlug,
+    isCreate: false,
+    actingAsEditor,
+    oldKeys: facts.oldKeys,
+    existingVersion: facts.existing.contentVersion,
+  }
+}
+
+function buildPlan(c: UploadContext, items: UploadItem[], siteId: string): UploadPlanItem[] | Response {
   const prefix = crypto.randomUUID()
   const plan = items.map(({ path, file }) => ({
     file,
@@ -209,151 +225,162 @@ upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
       storageKey: `${prefix}/${path}`,
       mimeType: file.type || null,
       size: file.size,
-      etag: null as string | null, // filled from the R2 put result below, before the D1 insert
+      etag: null,
     } satisfies NewFileRow,
   }))
-  for (const { row } of plan) {
-    if (enc.encode(row.storageKey).byteLength > MAX_STORAGE_KEY_BYTES) {
-      return c.json({ error: 'storage key too long', path: row.path }, 400)
-    }
-  }
+  const invalid = plan.find(({ row }) => enc.encode(row.storageKey).byteLength > MAX_STORAGE_KEY_BYTES)
+  return invalid ? c.json({ error: 'storage key too long', path: invalid.row.path }, 400) : plan
+}
 
-  // Derive a display title from the entry HTML's <title> when nothing names the site yet: an
-  // explicit form title wins on CREATE, and editors never touch title (content-only role). The
-  // null-title check here is ONLY work-avoidance — the replace UPDATE enforces fill-only-null
-  // atomically via COALESCE, so a title set concurrently (PATCH, racing replace) between this
-  // read and that write is never clobbered. Runs after request validation, before any R2 write.
-  // Derive title + description from the entry HTML in ONE streamed pass. Started here but awaited
-  // AFTER the R2 puts, so the parse overlaps the uploads instead of delaying them — nothing needs the
-  // result until the D1 write. The description is derived unconditionally: unlike the title (identity
-  // — a re-upload must never rename a site) it describes the CURRENT bytes, so every write below sets
-  // it outright, clearing it to null when the new entry carries no description meta.
-  const entry = pickEntry(items.map(({ path, file }) => ({ path, file, mimeType: file.type || null })))
-  const metaPromise = entry ? extractHtmlMeta(entry, entry.file) : Promise.resolve(NO_META)
-
-  // Write the objects with bounded concurrency so latency doesn't scale linearly with file count.
-  // Track every key we attempt: if ANY put throws mid-flight, delete the ones already written so
-  // nothing orphans in R2 (there are no rows yet). Deleting a never-written key is a harmless no-op.
+async function writeObjects(bucket: R2Bucket, plan: UploadPlanItem[]): Promise<void> {
   const attempted: string[] = []
   try {
-    for (let i = 0; i < plan.length; i += UPLOAD_CONCURRENCY) {
+    for (let index = 0; index < plan.length; index += UPLOAD_CONCURRENCY) {
       await Promise.all(
-        plan.slice(i, i + UPLOAD_CONCURRENCY).map(async ({ file, row }) => {
+        plan.slice(index, index + UPLOAD_CONCURRENCY).map(async ({ file, row }) => {
           attempted.push(row.storageKey)
           const contentType = file.type || 'application/octet-stream'
-          const put = await c.env.GLANCE_FILES.put(row.storageKey, file.stream(), { httpMetadata: { contentType } })
-          // Denormalize R2's etag onto the row (keys are immutable, so it's fixed for the row's
-          // life) — the content worker answers 304/416 conditionals from D1 with zero R2 ops.
+          const put = await bucket.put(row.storageKey, file.stream(), { httpMetadata: { contentType } })
           row.etag = put?.httpEtag ?? null
         }),
       )
     }
-  } catch (err) {
-    await deleteKeys(c.env.GLANCE_FILES, attempted)
-    throw err
+  } catch (error) {
+    await deleteKeys(bucket, attempted)
+    throw error
   }
+}
 
-  // Both writes below enforce the real rules themselves — the insert via `title ?? derivedTitle`, the
-  // owner replace via SQL COALESCE (atomic against a concurrent PATCH rename) — so the only thing to
-  // decide here is that an EDITOR never touches the title at all (content-only role).
-  const meta = await metaPromise
-  const derivedTitle = actingAsEditor ? null : meta.title
-  const { description } = meta
-
-  const newRows = plan.map((p) => p.row)
-  const insertRows = newRows.map((r) => db.insert(files).values(r))
-  const newKeys = newRows.map((r) => r.storageKey)
-  // The revision this upload publishes: CREATE starts at 0; every REPLACE bumps by one (advisory for
-  // the owner, CAS-enforced for an editor).
-  const newVersion = existing ? existing.contentVersion + 1 : 0
+async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Response | null> {
+  const db = c.get('db')
+  const { target, plan, spaceId, user, visibility, title, derivedTitle, description } = input
+  const newRows = plan.map(({ row }) => row)
+  const insertRows = newRows.map((row) => db.insert(files).values(row))
+  const newKeys = newRows.map(({ storageKey }) => storageKey)
 
   try {
-    if (isCreate) {
-      // CREATE: insert the site row + its file rows in one batch (guaranteed non-empty: items >= 1).
+    if (target.isCreate) {
       await db.batch([
         db.insert(sites).values({
-          id: siteId,
-          spaceId: space.id,
-          slug: siteSlug,
+          id: target.siteId,
+          spaceId,
+          slug: target.storedSlug,
           title: title ?? derivedTitle,
           description,
           visibility: isVisibility(visibility) ? visibility : 'team',
-          theme,
           ownerId: user.id,
         }),
         ...insertRows,
       ])
-    } else if (actingAsEditor) {
-      // EDITOR REPLACE — CAS: atomically claim the revision via a conditional bump. A stale
-      // expectedVersion changes 0 rows (returning() is empty), so we 409 with the files left
-      // completely untouched (nothing swapped; the just-written R2 objects reclaimed). No TOCTOU
-      // read-compare-write, and no visibility change — an editor edits content only. On success the
-      // version is already bumped + lastReplacedBy recorded, so the swap batch only moves file rows.
-      // (The bump and swap are two statements: if the swap throws after a winning CAS, the version is
-      // ahead of the content until the next replace re-syncs it — a rare, self-healing window, and the
-      // price of leaving files untouched on a stale 409, which a single atomic batch cannot express.)
-      const claimed = await db
-        .update(sites)
-        .set({
-          contentVersion: sql`${sites.contentVersion} + 1`,
-          lastReplacedBy: user.id,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(and(eq(sites.id, siteId), eq(sites.contentVersion, expectedVersion as number)))
-        .returning({ id: sites.id })
-      if (claimed.length === 0) {
-        await deleteKeys(c.env.GLANCE_FILES, newKeys)
-        return c.json({ error: 'version conflict', conflict: true }, 409)
-      }
-      // The blurb ships in the SWAP batch, not the claim above: it describes the bytes, so it must
-      // commit with them — a claim-time write would advertise the new description while the site
-      // still served the old content if the swap then threw. (Editors never touch the title.)
-      await db.batch([
-        db.delete(files).where(eq(files.siteId, siteId)),
-        ...insertRows,
-        db.update(sites).set({ description }).where(eq(sites.id, siteId)),
-      ])
     } else {
-      // OWNER / SUPERADMIN REPLACE: atomically swap file rows, bump the version advisorily + record
-      // lastReplacedBy, and apply visibility only when the caller explicitly sent one (absent → keep
-      // the existing tier — replace's long-standing default). One D1 batch so the serving worker
-      // never sees a half-updated site.
-      await db.batch([
-        db.delete(files).where(eq(files.siteId, siteId)),
-        ...insertRows,
-        db
-          .update(sites)
-          .set({
-            contentVersion: sql`${sites.contentVersion} + 1`,
-            lastReplacedBy: user.id,
-            updatedAt: new Date().toISOString(),
-            ...(hasVisibility && isVisibility(visibility) ? { visibility } : {}),
-            // Explicit-only, like visibility: an owner redeploy without --theme keeps the current one.
-            ...(hasTheme ? { theme } : {}),
-            ...(derivedTitle !== null ? { title: sql`coalesce(${sites.title}, ${derivedTitle})` } : {}),
-            // Unconditional (not COALESCE'd): a redeploy whose entry dropped its description meta
-            // must clear the stale blurb rather than keep unfurling the previous content's.
-            description,
-          })
-          .where(eq(sites.id, siteId)),
-      ])
+      const conflict = await replaceExisting(c, input)
+      if (conflict) return conflict
     }
-  } catch (err) {
-    // D1 write failed (e.g. a concurrent create racing the unique slug) — purge the objects
-    // we just uploaded so they don't orphan in R2, then surface the failure.
-    await deleteKeys(c.env.GLANCE_FILES, newKeys)
-    throw err
+  } catch (error) {
+    await deleteKeys(c.env.POSTPLAN_FILES, newKeys)
+    throw error
   }
+  return null
+}
 
-  // Old objects are safe to purge only after the row swap committed. Hand it to waitUntil so a
-  // transient R2 delete failure can't 500 an already-committed replace — the swap is done;
-  // reclaiming the old objects is best-effort background cleanup.
-  if (!isCreate && oldKeys.length > 0) await fireAndForget(c, deleteKeys(c.env.GLANCE_FILES, oldKeys))
+async function replaceExisting(c: UploadContext, input: PersistUpload): Promise<Response | null> {
+  const db = c.get('db')
+  const { target, user, expectedVersion, description, hasVisibility, visibility, derivedTitle } = input
+  const version = target.actingAsEditor ? (expectedVersion as number) : (target.existingVersion as number)
+  const matchesVersion = () =>
+    sql`exists (select 1 from ${sites} where ${sites.id} = ${target.siteId} and ${sites.contentVersion} = ${version})`
+  const createdAt = new Date().toISOString()
+  const conditionalInserts = input.plan.map(({ row }) =>
+    db
+      .insert(files)
+      .select(
+        sql`select ${row.id}, ${row.siteId}, ${row.path}, ${row.storageKey}, ${row.mimeType}, ${row.size}, ${row.etag}, null, ${createdAt} where ${matchesVersion()}`,
+      ),
+  )
+  const results = await db.batch([
+    db.delete(files).where(and(eq(files.siteId, target.siteId), matchesVersion())),
+    ...conditionalInserts,
+    db
+      .update(sites)
+      .set({
+        contentVersion: sql`${sites.contentVersion} + 1`,
+        lastReplacedBy: user.id,
+        updatedAt: createdAt,
+        slug: target.storedSlug,
+        ...(!target.actingAsEditor && hasVisibility && isVisibility(visibility) ? { visibility } : {}),
+        ...(!target.actingAsEditor && derivedTitle !== null
+          ? { title: sql`coalesce(${sites.title}, ${derivedTitle})` }
+          : {}),
+        description,
+      })
+      .where(and(eq(sites.id, target.siteId), eq(sites.contentVersion, version)))
+      .returning({ id: sites.id }),
+  ])
+  const claimed = results[results.length - 1] as { id: string }[]
+  if (claimed.length === 0) {
+    await deleteKeys(
+      c.env.POSTPLAN_FILES,
+      input.plan.map(({ row }) => row.storageKey),
+    )
+    return c.json({ error: 'version conflict', conflict: true }, 409)
+  }
+  return null
+}
 
-  return c.json({
-    url: `${c.env.APP_URL}/${spaceSlug}/${siteSlug}`,
+async function handleUpload(c: UploadContext): Promise<Response> {
+  const rateLimitError = await enforceRateLimit(c)
+  if (rateLimitError) return rateLimitError
+
+  const parsed = await parseUpload(c)
+  if (parsed instanceof Response) return parsed
+
+  const user = c.get('user')
+  const db = c.get('db')
+  const { spaceSlug, siteSlug } = c.req.param()
+  const facts = await readUploadFacts(db, spaceSlug, siteSlug, user.id)
+  const target = resolveTarget(
+    c,
+    facts,
+    user,
     siteSlug,
-    fileCount: newRows.length,
-    contentVersion: newVersion,
+    parsed.visibility,
+    parsed.hasVisibility,
+    parsed.expectedVersion,
+  )
+  if (target instanceof Response) return target
+
+  const plan = buildPlan(c, parsed.items, target.siteId)
+  if (plan instanceof Response) return plan
+  const entry = pickEntry(parsed.items.map(({ path, file }) => ({ path, file, mimeType: file.type || null })))
+  const metaPromise = entry ? extractHtmlMeta(entry, entry.file) : Promise.resolve(NO_META)
+  await writeObjects(c.env.POSTPLAN_FILES, plan)
+
+  const meta = await metaPromise
+  const persistError = await persistUpload(c, {
+    target,
+    plan,
+    spaceId: facts.spaceId as string,
+    user,
+    visibility: parsed.visibility,
+    hasVisibility: parsed.hasVisibility,
+    title: parsed.title,
+    derivedTitle: target.actingAsEditor ? null : meta.title,
+    description: meta.description,
+    expectedVersion: parsed.expectedVersion,
   })
-})
+  if (persistError) return persistError
+
+  if (!target.isCreate && target.oldKeys.length > 0) {
+    await fireAndForget(c, deleteKeys(c.env.POSTPLAN_FILES, target.oldKeys))
+  }
+  return c.json({
+    url: `${c.env.APP_URL}/${spaceSlug}/${target.storedSlug}`,
+    siteSlug: target.storedSlug,
+    fileCount: plan.length,
+    contentVersion: target.existingVersion === null ? 0 : target.existingVersion + 1,
+  })
+}
+
+export const upload = new Hono<AppEnv>()
+
+upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, handleUpload)

@@ -7,9 +7,12 @@ import { generateApiKey, hashApiKey } from '../lib/api-key'
 import { requireSameOrigin } from '../middleware/auth'
 import { admin } from '../routes/admin'
 import { apiKeys } from '../routes/api-keys'
+import { ask } from '../routes/ask'
 import { commentFeed } from '../routes/comment-feed'
 import { comments } from '../routes/comments'
+import { notifications } from '../routes/notifications'
 import { summary } from '../routes/summary'
+import { whatsNew } from '../routes/whats-new'
 import { sites } from '../routes/sites'
 import { slackEvents } from '../routes/slack-events'
 import { spaces } from '../routes/spaces'
@@ -18,7 +21,7 @@ import type { AppEnv } from '../types'
 import type { ApiKeyGrants } from '../lib/api-key'
 import { makeDb, makeKv, makeR2, seedApiKey, seedUser } from './harness'
 
-export const APP_URL = 'https://glance.example.com'
+export const APP_URL = 'https://postplan.example.com'
 
 /** App + env + mocks, production-shaped. Destructure what the test needs. */
 export function makeRouteApp() {
@@ -30,10 +33,12 @@ export function makeRouteApp() {
     SESSION_SECRET: 's',
     CONTENT_URL: 'https://content.example.com',
     CONTENT_TOKEN_SECRET: 'content-secret',
-    GLANCE_SESSIONS: kv,
-    GLANCE_FILES: r2,
+    ORG_EMAIL_DOMAINS: 'example.com',
+    POSTPLAN_SESSIONS: kv,
+    POSTPLAN_FILES: r2,
   } as unknown as AppEnv['Bindings']
   const app = new Hono<AppEnv>()
+  app.onError((_error, c) => c.json({ error: 'internal error' }, 500))
   app.use('/api/*', requireSameOrigin)
   app.use('/api/*', async (c, next) => {
     c.set('db', db)
@@ -46,9 +51,12 @@ export function makeRouteApp() {
   // Same order as index.ts: sites first, then comments on the same mount (3-segment paths).
   app.route('/api/sites', comments)
   app.route('/api/sites', summary)
+  app.route('/api/sites', ask)
   app.route('/api/comments', commentFeed)
   app.route('/api/slack', slackEvents)
+  app.route('/api/notifications', notifications)
   app.route('/api/api-keys', apiKeys)
+  app.route('/api/whats-new', whatsNew)
   app.route('/api/admin', admin)
   return { app, env, db, kv, r2 }
 }
@@ -75,12 +83,13 @@ export async function mintUser(
   db: RouteApp['db'],
   kv: RouteApp['kv'],
   id: string,
-  opts: { role?: 'member' | 'superadmin'; email?: string } = {},
+  opts: { role?: 'member' | 'superadmin'; email?: string; isOrgMember?: boolean } = {},
 ): Promise<string> {
   const role = opts.role ?? 'member'
   const email = opts.email ?? `${id}@example.com`
-  await seedUser(db, { id, email, role })
-  await kv.put(`cli:tok-${id}`, JSON.stringify({ id, email, name: null, role }))
+  const isOrgMember = opts.isOrgMember ?? true
+  await seedUser(db, { id, email, role, isOrgMember })
+  await kv.put(`cli:tok-${id}`, JSON.stringify({ id, email, name: null, role, isOrgMember }))
   // The per-user index entry `createCliToken` writes alongside the token. Without it the fixture
   // looks authenticated but is invisible to `revokeUserCliTokens`, which enumerates this prefix —
   // so the offboarding kill-switch could not be tested at all, and a regression that stopped
@@ -98,16 +107,12 @@ export const authKey = (token: string) => ({
 })
 
 /** Request headers authenticating as `mintUser(id)`'s CLI token. */
-export const auth = (id: string) => authKey(`tok-${id}`)
+export const authHeaders = (id: string) => authKey(`tok-${id}`)
 
 /** Seed a live `glk_`-prefixed API key for an EXISTING user (mint their session/CLI identity
  *  first via `mintUser`), returning the plaintext secret to send as a Bearer token. Defaults to
  *  FULL_GRANTS; pass `grants` to mint a narrower key (e.g. `control: false`). */
-export async function mintKey(
-  db: RouteApp['db'],
-  userId: string,
-  grants?: ApiKeyGrants,
-): Promise<string> {
+export async function mintKey(db: RouteApp['db'], userId: string, grants?: ApiKeyGrants): Promise<string> {
   const secret = generateApiKey()
   await seedApiKey(db, { userId, hash: await hashApiKey(secret), ...(grants && { grants }) })
   return secret

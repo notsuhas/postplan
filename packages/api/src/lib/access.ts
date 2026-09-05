@@ -10,13 +10,16 @@ const ALLOW: AccessResult = { ok: true }
  * the API and the content worker. `isMember` (space membership for `members` sites)
  * is resolved by the caller via DB lookup so this stays pure and unit-testable.
  *
+ *   unlisted→ anyone holding the URL (no login); the unguessable slug IS the credential
  *   private → owner only
  *   members → space member (or owner)
  *   team    → any authenticated user in the allowed domain
  *   shared  → any user/group explicitly granted access (additive, any tier)
  *   archived→ 410 for everyone
  *
- * There is no public/anonymous tier: every tier requires an authenticated user.
+ * `unlisted` is the ONLY anonymous tier. It is never listed on any surface (dashboard, search,
+ * feed, sitemap) — reaching it requires the exact URL, whose slug carries a random suffix for
+ * precisely this reason (see lib/slug). Every other tier still requires an authenticated user.
  *
  * ROLE IS DELIBERATELY NOT CONSULTED. A superadmin reads a site only by the same tiers as
  * anyone else: their custodial powers (see every site's metadata, archive/restore, delete) are
@@ -26,17 +29,23 @@ const ALLOW: AccessResult = { ok: true }
  */
 export function checkAccess(
   site: Pick<Site, 'visibility' | 'status' | 'ownerId'>,
-  user: Pick<SessionUser, 'id' | 'role'> | null,
+  user: Pick<SessionUser, 'id' | 'role' | 'isOrgMember'> | null,
   isMember: boolean,
   isShared = false,
 ): AccessResult {
   if (site.status === 'archived') return { ok: false, status: 410 }
+  if (user?.id === site.ownerId) return ALLOW
   // Explicit per-user / per-group grant — additive on top of the visibility tier.
   if (isShared && user) return ALLOW
 
   switch (site.visibility) {
+    // No user needed: possession of the URL is the grant. Deliberately above the `user` checks so
+    // an anonymous reader is allowed, not 401'd.
+    case 'unlisted':
+      return ALLOW
     case 'team':
-      return user ? ALLOW : { ok: false, status: 401 }
+      if (!user) return { ok: false, status: 401 }
+      return user.isOrgMember ? ALLOW : { ok: false, status: 403 }
     case 'members':
       if (!user) return { ok: false, status: 401 }
       return isMember || site.ownerId === user.id ? ALLOW : { ok: false, status: 403 }
@@ -46,6 +55,18 @@ export function checkAccess(
     default:
       return { ok: false, status: 403 }
   }
+}
+
+export function canDiscover(
+  site: Pick<Site, 'visibility' | 'status' | 'ownerId'>,
+  user: Pick<SessionUser, 'id' | 'role' | 'isOrgMember'>,
+  isMember: boolean,
+  isShared = false,
+): boolean {
+  if (site.status === 'archived') return false
+  if (site.ownerId === user.id || isShared) return true
+  if (site.visibility === 'unlisted') return false
+  return checkAccess(site, user, isMember, false).ok
 }
 
 /**

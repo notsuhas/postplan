@@ -1,9 +1,8 @@
-import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { type Context, Hono } from 'hono'
 import { createNotifications, usersEmailsByIds } from '../db/notifications'
 import {
-  type ShareUser,
   foldMemberSpaceIds,
   foldSharedSiteRoles,
   isSpaceMember,
@@ -16,20 +15,20 @@ import {
   sharedSiteRoles,
 } from '../db/repo'
 import type { Visibility } from '../db/schema'
-import { files as filesTable, siteStars, sites as sitesTable, spaces, users } from '../db/schema'
-import { canReplace, checkAccess } from '../lib/access'
-import { isTheme } from '../themes/registry'
+import { files as filesTable, siteStars, sites as sitesTable, spaceMembers, spaces, users } from '../db/schema'
+import { canDiscover, canReplace, checkAccess } from '../lib/access'
 import { batchAll, chunk, D1_MAX_IN, FEED_ID_CHUNK } from '../lib/d1'
 import { fireAndForget } from '../lib/events'
 import { resolveIndexPath } from '../lib/extract'
+import { parseShareGrants } from '../lib/share-grants'
 import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
 import { readSessionOrBearer } from '../lib/session'
 import { fetchAccessFacts, isSharedFromFacts, resolveSite, resolveSiteForAccess } from '../lib/site-access'
 import { deliverSlack, type SlackRecipient, slackDepsFromEnv, slackEnabled } from '../lib/slack'
-import { isValidSlug } from '../lib/slug'
+import { isValidSlug, slugForVisibility, withUnlistedSuffix } from '../lib/slug'
 import { copyObjects, deleteKeys, deleteSiteObjects } from '../lib/storage'
 import { signToken } from '../lib/token'
-import { isVisibility, normalizeVisibility } from '../lib/visibility'
+import { isVisibility } from '../lib/visibility'
 import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv, SessionUser } from '../types'
 
@@ -47,7 +46,6 @@ export const sites = new Hono<AppEnv>()
 // Over-fetch a little past the result cap so the in-memory checkAccess pass can drop a few
 // non-openable candidates and still fill the cap.
 const SEARCH_SCAN_CAP = 200
-
 
 // Escape LIKE metacharacters (`%`, `_`, and the `\` escape char itself) so a user's literal
 // `%`/`_` can't act as wildcards. Pair the bound value with `ESCAPE '\'` in the query.
@@ -103,7 +101,9 @@ export async function searchSites(
   // the admin panel (metadata only), never this openable-sites search.
   const active = eq(sitesTable.status, 'active')
   const reaches = [
-    or(eq(sitesTable.ownerId, user.id), eq(sitesTable.visibility, 'team')),
+    user.isOrgMember
+      ? or(eq(sitesTable.ownerId, user.id), eq(sitesTable.visibility, 'team'))
+      : eq(sitesTable.ownerId, user.id),
     ...chunk([...memberSpaces], D1_MAX_IN).map((ids) => inArray(sitesTable.spaceId, ids)),
     ...chunk([...shared], D1_MAX_IN).map((ids) => inArray(sitesTable.id, ids)),
   ]
@@ -140,7 +140,7 @@ export async function searchSites(
   for (const rows of batches) for (const r of rows) byId.set(r.id, r)
   return [...byId.values()]
     .sort(byCreatedAtDesc)
-    .filter((r) => checkAccess(r, user, memberSpaces.has(r.spaceId), shared.has(r.id)).ok)
+    .filter((r) => canDiscover(r, user, memberSpaces.has(r.spaceId), shared.has(r.id)))
     .slice(0, limit)
 }
 
@@ -161,17 +161,14 @@ sites.post('/', requireAuth, requireControlGrant, async (c) => {
     return c.json({ error: 'spaceSlug and siteSlug are required' }, 400)
   }
   if (!isValidSlug(siteSlug)) return c.json({ error: 'invalid siteSlug' }, 400)
-  const vis = normalizeVisibility(visibility)
-  if (visibility !== undefined && !isVisibility(vis)) {
+  if (visibility !== undefined && !isVisibility(visibility)) {
     return c.json({ error: 'invalid visibility' }, 400)
   }
   if (title !== undefined && title !== null && typeof title !== 'string') {
     return c.json({ error: 'invalid title' }, 400)
   }
 
-  const space = (
-    await db.select({ id: spaces.id }).from(spaces).where(eq(spaces.slug, spaceSlug)).limit(1)
-  )[0]
+  const space = (await db.select({ id: spaces.id }).from(spaces).where(eq(spaces.slug, spaceSlug)).limit(1))[0]
   if (!space) return c.json({ error: 'space not found' }, 404)
   if (!(await isSpaceMember(db, space.id, user.id))) return c.json({ error: 'forbidden' }, 403)
 
@@ -185,13 +182,16 @@ sites.post('/', requireAuth, requireControlGrant, async (c) => {
   if (existing) return c.json({ error: 'site already exists', conflict: true }, 409)
 
   const id = crypto.randomUUID()
+  // An unlisted site is protected only by its URL being unguessable, so the stored slug carries
+  // entropy the caller did not supply. The response below returns the real slug and url.
+  const storedSlug = slugForVisibility(siteSlug, visibility)
   try {
     await db.insert(sitesTable).values({
       id,
       spaceId: space.id,
-      slug: siteSlug,
+      slug: storedSlug,
       title: typeof title === 'string' ? title : null,
-      visibility: isVisibility(vis) ? vis : 'team',
+      visibility: isVisibility(visibility) ? visibility : 'team',
       ownerId: user.id,
     })
   } catch (err) {
@@ -201,7 +201,9 @@ sites.post('/', requireAuth, requireControlGrant, async (c) => {
     throw err
   }
 
-  return c.json({ id, spaceSlug, siteSlug, url: `${c.env.APP_URL}/${spaceSlug}/${siteSlug}` }, 201)
+  // storedSlug, not siteSlug: an unlisted create adds entropy, and returning the requested name
+  // would hand back a URL that 404s.
+  return c.json({ id, spaceSlug, siteSlug: storedSlug, url: `${c.env.APP_URL}/${spaceSlug}/${storedSlug}` }, 201)
 })
 
 // GET /api/sites/mine — sites owned by the caller, newest first. The pure-audio badge rides the
@@ -216,9 +218,7 @@ sites.get('/mine', requireAuth, async (c) => {
     .where(eq(sitesTable.ownerId, user.id))
     .orderBy(desc(sitesTable.createdAt))
 
-  return c.json(
-    rows.map((r) => toFeedRow(r, c.env.APP_URL)),
-  )
+  return c.json(rows.map((r) => toFeedRow(r, c.env.APP_URL)))
 })
 
 // GET /api/sites/shared — sites shared with the caller (directly or via a group), newest first.
@@ -263,9 +263,10 @@ sites.get('/shared', requireAuth, async (c) => {
 // GET /api/sites/team — team-wide upload feed: every team site across all spaces, ordered by last
 // content activity (updatedAt = create or most-recent replace) so a re-deployed site resurfaces and
 // the feed stays live. Visible to any signed-in member (the team tier is already visible team-wide).
-// Capped — this is an at-a-glance activity feed, not a full log.
+// Capped — this is an at-a-postplan activity feed, not a full log.
 sites.get('/team', requireAuth, async (c) => {
   const user = c.get('user')
+  if (!user.isOrgMember) return c.json([])
   const db = c.get('db')
   const rows = await db
     .select({
@@ -343,9 +344,9 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
   // FCP hotpath: KV session first (cheap, and the facts batch is keyed on the user id), then
   // EVERYTHING D1 — site row, membership, share reach (S7: direct role + group reach; `role`/
   // canReplace stay bound to the DIRECT role only), and the file manifest — in ONE slug-keyed
-  // db.batch. Cookie (browser viewer) OR CLI Bearer token (`glance read`) — both mint the same
+  // db.batch. Cookie (browser viewer) OR CLI Bearer token (`postplan read`) — both mint the same
   // gated URL.
-  const user = await readSessionOrBearer(c)
+  const presentedUser = await readSessionOrBearer(c)
   const filesStmt = db
     .select({ path: filesTable.path })
     .from(filesTable)
@@ -365,23 +366,40 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
       .limit(1)
   // The manifest and the star ride the batch only for an AUTHED caller — an anonymous probe 401s
   // below and must not burn up-to-200 manifest row reads per request on this cookie-less endpoint.
-  const { facts, extras } = await (user
-    ? fetchAccessFacts(db, spaceSlug, siteSlug, user.id, filesStmt, starStmt(user.id))
+  const { facts, extras } = await (presentedUser
+    ? fetchAccessFacts(db, spaceSlug, siteSlug, presentedUser.id, filesStmt, starStmt(presentedUser.id))
     : fetchAccessFacts(db, spaceSlug, siteSlug, null))
   const site = facts.site
   // Existence (404) is still decided before any auth-dependent branch, so a missing site never
   // leaks — the site row rides the same batch.
   if (!site) return c.json({ error: 'not found' }, 404)
 
+  const user = facts.user
   const [siteFiles = [], starRows = []] = extras
   const role = facts.directRole
   const access = checkAccess(site, user, facts.isMember, isSharedFromFacts(facts))
   if (!access.ok) return c.json({ error: 'forbidden' }, access.status)
 
-  // Every tier requires an authenticated viewer (checkAccess 401s otherwise), so `user` is
-  // non-null here. The token is bound to `user.id` + scope; the content worker re-runs
-  // checkAccess at serve time so a revoked share / tightened tier stops serving immediately.
-  if (!user) return c.json({ error: 'forbidden' }, 401)
+  // Unlisted is the only anonymous tier. Its unguessable slug is the grant, so it uses the
+  // content worker's untokened path and exposes no manifest, star, role, or edit capability.
+  if (!user) {
+    return c.json({
+      id: site.id,
+      spaceSlug,
+      siteSlug,
+      title: site.title,
+      visibility: site.visibility,
+      status: site.status,
+      authenticated: false,
+      isOwner: false,
+      canReplace: false,
+      starred: false,
+      contentUrl: `${c.env.CONTENT_URL}/${spaceSlug}/${siteSlug}/`,
+      indexPath: '',
+    })
+  }
+
+  // Authenticated content URLs are user-bound; the content worker re-runs access at serve time.
   const contentUrl = `${c.env.CONTENT_URL}/_t/${await signToken(
     c.env.CONTENT_TOKEN_SECRET,
     user.id,
@@ -400,7 +418,7 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
     title: site.title,
     visibility: site.visibility,
     status: site.status,
-    theme: site.theme,
+    authenticated: true,
     isOwner: user.id === site.ownerId,
     canReplace: replaceable,
     starred: starRows.length > 0,
@@ -410,30 +428,6 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
     ...(replaceable ? { files: siteFiles.map((f) => f.path), contentVersion: site.contentVersion } : {}),
   })
 })
-
-// Normalize a PUT /shares body into role-aware user grants + view-only group ids. Pure (no DB), so
-// it's unit-testable and keeps every cast out of the request path. Accepts the new `users:[{id,role}]`
-// shape and the legacy `userIds:[id]` list (defaulted to viewer; `users` wins on a collision). Groups
-// arrive as `groupIds:[id]` or `groups:[{id}]` and are ALWAYS view-only — an editor role on a group is
-// a client error (there is no role column on site_group_shares), surfaced as `{ error }`.
-export function parseShareGrants(body: unknown): { users: ShareUser[]; groupIds: string[] } | { error: string } {
-  const b = (body ?? {}) as Record<string, unknown>
-  const asIds = (v: unknown) =>
-    Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string'))] : []
-  const groupObjs = Array.isArray(b.groups) ? (b.groups as { id?: unknown; role?: unknown }[]) : []
-  if (groupObjs.some((g) => g?.role === 'editor')) return { error: 'groups cannot be granted editor' }
-
-  const roles = new Map<string, 'viewer' | 'editor'>()
-  if (Array.isArray(b.users)) {
-    for (const u of b.users as { id?: unknown; role?: unknown }[]) {
-      if (typeof u?.id === 'string') roles.set(u.id, u.role === 'editor' ? 'editor' : 'viewer')
-    }
-  }
-  for (const id of asIds(b.userIds)) if (!roles.has(id)) roles.set(id, 'viewer')
-
-  const groupIds = [...new Set([...asIds(b.groupIds), ...asIds(groupObjs.map((g) => g?.id))])]
-  return { users: [...roles].map(([userId, role]) => ({ userId, role })), groupIds }
-}
 
 /** Raise `type='share'` notifications (+ the Slack DM mirror) for users NEWLY granted a direct
  *  share — never group grants, never re-grants, never the actor. Mirrors notifyForComment: the
@@ -487,10 +481,7 @@ sites.get('/:spaceSlug/:siteSlug/shares', requireAuth, async (c) => {
   if (!site) return c.json({ error: 'not found' }, 404)
   if (site.ownerId !== user.id) return c.json({ error: 'forbidden' }, 403)
   const shares = await listSiteShares(db, site.id)
-  // Boundary shape: expose users as {id, role} (mirrors the PUT input); keep flat userIds/groupIds
-  // for the legacy web dialog.
   return c.json({
-    userIds: shares.userIds,
     groupIds: shares.groupIds,
     users: shares.users.map((u) => ({ id: u.userId, role: u.role })),
   })
@@ -513,7 +504,14 @@ sites.put('/:spaceSlug/:siteSlug/shares', requireAuth, requireControlGrant, asyn
   // insert on an FK violation.
   const wantUsers = grants.users.map((u) => u.userId)
   const present = wantUsers.length
-    ? new Set((await db.select({ id: users.id }).from(users).where(inArray(users.id, wantUsers))).map((r) => r.id))
+    ? new Set(
+        (
+          await db
+            .select({ id: users.id })
+            .from(users)
+            .where(and(inArray(users.id, wantUsers), isNull(users.disabledAt)))
+        ).map((r) => r.id),
+      )
     : new Set<string>()
   const validUsers = grants.users.filter((u) => present.has(u.userId))
   const validGroups = grants.groupIds.length
@@ -521,13 +519,14 @@ sites.put('/:spaceSlug/:siteSlug/shares', requireAuth, requireControlGrant, asyn
         await db
           .select({ id: spaces.id })
           .from(spaces)
-          .where(and(inArray(spaces.id, grants.groupIds), eq(spaces.type, 'group')))
+          .innerJoin(spaceMembers, eq(spaceMembers.spaceId, spaces.id))
+          .where(and(inArray(spaces.id, grants.groupIds), eq(spaces.type, 'group'), eq(spaceMembers.userId, user.id)))
       ).map((r) => r.id)
     : []
 
   // Diff BEFORE the replace so only newly granted users are notified (a re-PUT of the same set,
   // a role change, or a group grant raises nothing).
-  const prior = new Set((await listSiteShares(db, site.id)).userIds)
+  const prior = new Set((await listSiteShares(db, site.id)).users.map((share) => share.userId))
   await replaceSiteShares(db, site.id, validUsers, validGroups)
   await notifyForShare(
     c,
@@ -536,7 +535,6 @@ sites.put('/:spaceSlug/:siteSlug/shares', requireAuth, requireControlGrant, asyn
   )
   return c.json({
     ok: true,
-    userIds: validUsers.map((u) => u.userId),
     groupIds: validGroups,
     users: validUsers.map((u) => ({ id: u.userId, role: u.role })),
   })
@@ -554,31 +552,24 @@ sites.patch('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c)
 
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body !== 'object') return c.json({ error: 'invalid body' }, 400)
-  const { visibility, title, theme } = body as { visibility?: unknown; title?: unknown; theme?: unknown }
+  const { visibility, title } = body as { visibility?: unknown; title?: unknown }
 
-  const patch: { visibility?: Visibility; title?: string | null; theme?: string | null } = {}
+  const patch: { slug?: string; visibility?: Visibility; title?: string | null } = {}
   if (visibility !== undefined) {
-    const vis = normalizeVisibility(visibility)
-    if (!isVisibility(vis)) return c.json({ error: 'invalid visibility' }, 400)
-    patch.visibility = vis
+    if (!isVisibility(visibility)) return c.json({ error: 'invalid visibility' }, 400)
+    patch.visibility = visibility
+    if (visibility === 'unlisted' && site.visibility !== 'unlisted') patch.slug = withUnlistedSuffix(site.slug)
   }
   if (title !== undefined) {
     if (title !== null && typeof title !== 'string') return c.json({ error: 'invalid title' }, 400)
     patch.title = title
   }
-  // Theme switch: presentation-only, so it deliberately does NOT bump contentVersion/updatedAt —
-  // the bytes are unchanged and the feed must not resurface a re-skinned site. Applied at serve
-  // time on the next load (the content worker folds the theme into the HTML etag, so a browser
-  // can't 304 into the old skin). null clears back to unthemed.
-  if (theme !== undefined) {
-    if (theme !== null && !isTheme(theme)) return c.json({ error: 'invalid theme' }, 400)
-    patch.theme = theme
-  }
   if (Object.keys(patch).length > 0) {
     await db.update(sitesTable).set(patch).where(eq(sitesTable.id, site.id))
   }
 
-  return c.json({ ok: true })
+  const nextSlug = patch.slug ?? site.slug
+  return c.json({ ok: true, siteSlug: nextSlug, url: `${c.env.APP_URL}/${spaceSlug}/${nextSlug}` })
 })
 
 // POST /api/sites/:spaceSlug/:siteSlug/move — the owner moves a site to another space they belong
@@ -596,7 +587,10 @@ sites.post('/:spaceSlug/:siteSlug/move', requireAuth, requireControlGrant, async
   }
 
   const body = await c.req.json().catch(() => null)
-  const target = (body as { space?: unknown } | null)?.space
+  const { space: target, confirmAudienceChange } = (body as {
+    space?: unknown
+    confirmAudienceChange?: unknown
+  } | null) ?? { space: undefined, confirmAudienceChange: undefined }
   if (typeof target !== 'string' || !target) return c.json({ error: 'space is required' }, 400)
 
   const dest = (
@@ -617,9 +611,24 @@ sites.post('/:spaceSlug/:siteSlug/move', requireAuth, requireControlGrant, async
       .limit(1)
   )[0]
   if (clash) return c.json({ error: 'a site with this slug already exists in that space', conflict: true }, 409)
+  if (site.visibility === 'members' && confirmAudienceChange !== true) {
+    return c.json({ error: 'moving this site changes which space members can access it', audienceChange: true }, 409)
+  }
 
-  await db.update(sitesTable).set({ spaceId: dest.id }).where(eq(sitesTable.id, site.id))
-  return c.json({ ok: true, spaceSlug: dest.slug, siteSlug: site.slug, url: `${c.env.APP_URL}/${dest.slug}/${site.slug}` })
+  const moved = await db
+    .update(sitesTable)
+    .set({ spaceId: dest.id })
+    .where(
+      and(eq(sitesTable.id, site.id), eq(sitesTable.spaceId, site.spaceId), eq(sitesTable.visibility, site.visibility)),
+    )
+    .returning({ id: sitesTable.id })
+  if (moved.length === 0) return c.json({ error: 'site changed — reload and try again' }, 409)
+  return c.json({
+    ok: true,
+    spaceSlug: dest.slug,
+    siteSlug: site.slug,
+    url: `${c.env.APP_URL}/${dest.slug}/${site.slug}`,
+  })
 })
 
 // A forked slug: `doc` → `doc-copy`, then `doc-copy-2`, `-3`… on collision. Bounded so a pathological
@@ -664,12 +673,10 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
   if (wantSlug !== undefined && typeof wantSlug !== 'string') return c.json({ error: 'invalid slug' }, 400)
   if (typeof wantSlug === 'string' && !isValidSlug(wantSlug)) return c.json({ error: 'invalid slug' }, 400)
 
-  // Same normalize-then-validate as PATCH, so legacy wire tiers are mapped rather than rejected.
   let wantVisibility: Visibility | undefined
   if (body?.visibility !== undefined) {
-    const vis = normalizeVisibility(body.visibility)
-    if (!isVisibility(vis)) return c.json({ error: 'invalid visibility' }, 400)
-    wantVisibility = vis
+    if (!isVisibility(body.visibility)) return c.json({ error: 'invalid visibility' }, 400)
+    wantVisibility = body.visibility
   }
 
   // Destination: an explicitly named space, else the caller's personal space. A user with neither
@@ -695,7 +702,14 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
     return c.json({ error: 'forbidden' }, 403)
   }
 
-  const slug = typeof wantSlug === 'string' ? wantSlug : await freeForkSlug(db, dest.id, site.slug)
+  const visibility = wantVisibility ?? site.visibility
+  let slug: string | null
+  if (visibility === 'unlisted') {
+    const base = typeof wantSlug === 'string' ? wantSlug : `${site.slug.replace(/-[0-9a-f]{32}$/, '')}-copy`
+    slug = slugForVisibility(base, visibility)
+  } else {
+    slug = typeof wantSlug === 'string' ? wantSlug : await freeForkSlug(db, dest.id, site.slug)
+  }
   if (!slug) return c.json({ error: 'could not derive a free slug — name the fork explicitly' }, 409)
 
   const sourceFiles = await db
@@ -710,7 +724,7 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
 
   // Copy the bytes BEFORE any D1 write: a failed/missing object aborts with nothing committed and
   // every copied key reclaimed, so a fork can never exist pointing at absent bytes.
-  const copied = await copyObjects(c.env.GLANCE_FILES, sourceFiles, crypto.randomUUID())
+  const copied = await copyObjects(c.env.POSTPLAN_FILES, sourceFiles, crypto.randomUUID())
   const newKeys = copied.map((f) => f.storageKey)
 
   const id = crypto.randomUUID()
@@ -727,7 +741,7 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
         description: site.description,
         // The forker picks the tier (the fork dialog defaults its picker to the source's). Omit it
         // and the source's tier is inherited: a fork of a private site is never silently widened.
-        visibility: wantVisibility ?? site.visibility,
+        visibility,
         ownerId: user.id,
         forkedFrom: site.id,
       }),
@@ -735,7 +749,7 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
     ])
   } catch (err) {
     // Don't orphan the objects we just wrote (e.g. a concurrent fork won the (spaceId, slug) unique).
-    await deleteKeys(c.env.GLANCE_FILES, newKeys)
+    await deleteKeys(c.env.POSTPLAN_FILES, newKeys)
     if (isUniqueConstraintError(err)) {
       return c.json({ error: 'a site with this slug already exists in that space', conflict: true }, 409)
     }
@@ -752,7 +766,7 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
   })
 })
 
-// DELETE /api/sites/:spaceSlug/:siteSlug — hard delete (owner or superadmin). Purges R2 first.
+// DELETE /api/sites/:spaceSlug/:siteSlug — hard delete (owner or superadmin).
 // The superadmin arm is the ONE power an admin holds over a site it cannot read: it may remove
 // someone else's page (and archive/restore it via the admin panel) but never open, replace, retier,
 // share, move, or moderate it. Every one of those is owner-only — see lib/access.ts.
@@ -769,7 +783,10 @@ sites.delete('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c
     return c.json({ error: 'forbidden' }, 403)
   }
 
-  await deleteSiteObjects(db, c.env.GLANCE_FILES, site.id)
+  // Make the site unreadable before R2 cleanup. If cleanup fails, the archived row is retryable
+  // and no live URL points at a partially deleted object set.
+  await db.update(sitesTable).set({ status: 'archived' }).where(eq(sitesTable.id, site.id))
+  await deleteSiteObjects(db, c.env.POSTPLAN_FILES, site.id)
   await db.delete(sitesTable).where(eq(sitesTable.id, site.id)) // FK cascade removes files rows
 
   return c.json({ ok: true })

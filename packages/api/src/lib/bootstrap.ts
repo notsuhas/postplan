@@ -26,7 +26,7 @@ export async function secretEquals(a: string, b: string): Promise<boolean> {
 
 export interface SuperadminStatus {
   hasSuperadmin: boolean
-  /** Whether the existing superadmin (if any) is exactly SUPERADMIN_EMAIL. */
+  /** Whether the existing superadmin is the first configured superadmin email. */
   superadminIsConfiguredEmail: boolean
 }
 
@@ -73,7 +73,7 @@ export interface PublicConfigInput {
 }
 
 /** Public first-run config. Bootstrap is offered only while a token is set and no
- *  superadmin exists yet; `googleEnabled` is passed through from `isGoogleEnabled`. */
+ *  superadmin exists yet; `googleEnabled` is passed through from `isWorkosEnabled` (WorkOS-brokered Google). */
 export function buildPublicConfig(input: PublicConfigInput): { googleEnabled: boolean; bootstrapAvailable: boolean } {
   return {
     googleEnabled: input.googleEnabled,

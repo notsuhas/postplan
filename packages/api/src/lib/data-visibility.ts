@@ -1,6 +1,6 @@
 import { type DataClaims, hasCap } from './data-token'
 
-// The ONE per-document read policy for `glance.db`. It lives here — not inside the SQL builder in
+// The ONE per-document read policy for `postplan.db`. It lives here — not inside the SQL builder in
 // routes/data.ts — because a realtime push is a SECOND read path: whoever decides which sockets
 // receive an event must ask the SAME question the SELECT asks, or a fan-out becomes an IDOR.
 // Everything else (the drizzle creator wall, any push filter) DERIVES from these two functions.

@@ -1,6 +1,6 @@
 // S-D test harness: a real in-memory SQLite (bun:sqlite) wired through drizzle so the
 // repo/route helpers run their actual query builders, plus a KV mock matching the
-// GLANCE_SESSIONS surface. Cast to the D1 types the app expects — query semantics are
+// POSTPLAN_SESSIONS surface. Cast to the D1 types the app expects — query semantics are
 // identical; only the driver differs (D1's `.batch` is shimmed sequentially).
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -145,10 +145,8 @@ export function makeDb(recorder?: Recorder): HarnessDb {
   // with the same name collapse into ONE key, silently shifting every later field (e.g. selecting
   // spaces.slug AND sites.slug emits two columns named "slug"). LOOSE queries are immune (the d1
   // driver runs them through `stmt.raw()`, positional); bun:sqlite maps positionally in both
-  // modes, so without a guard the harness can never catch the class. Cheap detection: drizzle's
-  // bun driver reads field selects through `stmt.values()` (positional width = true column count),
-  // while bun's `columnNames` collapses duplicate names — a width mismatch on a batched statement
-  // is exactly a result-name collision.
+  // modes, so without a guard the harness can never catch the class. Bun exposes the projected
+  // names directly; duplicate names on a batched result are exactly the unsafe D1 shape.
   const EXEC_METHODS = ['run', 'all', 'get', 'values'] as const
   const origPrepare = sqlite.prepare.bind(sqlite)
   const wrapStmt = (stmt: ReturnType<typeof origPrepare>, sql: string) => {
@@ -159,9 +157,10 @@ export function makeDb(recorder?: Recorder): HarnessDb {
         const out = orig(...args)
         if (inBatch && m === 'values') {
           const row = (out as unknown[][])[0]
-          if (row && row.length !== stmt.columnNames.length)
+          const distinctNames = new Set(stmt.columnNames)
+          if (row && distinctNames.size !== row.length)
             throw new Error(
-              `D1 batch result-name collision: statement returns ${row.length} columns but only ${stmt.columnNames.length} distinct names — real D1 batch maps rows by name and collapses duplicates, shifting every later field; alias one (.as()). SQL: ${sql.slice(0, 200)}`,
+              `D1 batch result-name collision: statement returns ${row.length} columns but only ${distinctNames.size} distinct names — real D1 batch maps rows by name and collapses duplicates, shifting every later field; alias one (.as()). SQL: ${sql.slice(0, 200)}`,
             )
         }
         return out
@@ -175,21 +174,30 @@ export function makeDb(recorder?: Recorder): HarnessDb {
   const db = drizzle(sqlite) as unknown as HarnessDb & {
     batch(stmts: Promise<unknown>[]): Promise<unknown[]>
   }
+  let batchTail: Promise<void> = Promise.resolve()
   // D1 exposes atomic `.batch`; bun-sqlite does not. Run sequentially (sync driver) so
   // FK-ordered inserts (spaces before space_members) still land in order. Drizzle queries
   // are lazy thenables — they execute when awaited HERE, so the inBatch flag attributes
   // their driver-level statements to the batch (verified in harness.test.ts).
-  db.batch = async (stmts) => {
-    counters.batches++
-    recorder?.record('d1:batch')
-    inBatch = true
-    try {
-      const out: unknown[] = []
-      for (const s of stmts) out.push(await s)
-      return out
-    } finally {
-      inBatch = false
+  db.batch = (stmts) => {
+    const run = async () => {
+      counters.batches++
+      recorder?.record('d1:batch')
+      inBatch = true
+      try {
+        const out: unknown[] = []
+        for (const s of stmts) out.push(await s)
+        return out
+      } finally {
+        inBatch = false
+      }
     }
+    const result = batchTail.then(run, run)
+    batchTail = result.then(
+      () => undefined,
+      () => undefined,
+    )
+    return result
   }
   db.counters = counters
   db.resetCounters = () => {
@@ -209,9 +217,14 @@ const nextId = (prefix: string) => `${prefix}-${++seedSeq}`
 /** Insert a user; returns its id. Defaults: member role, derived email. */
 export async function seedUser(db: DrizzleD1Database, o: Partial<NewUser> = {}): Promise<string> {
   const id = o.id ?? nextId('u')
-  await db
-    .insert(users)
-    .values({ id, email: o.email ?? `${id}@example.com`, name: o.name ?? null, role: o.role ?? 'member', avatarUrl: o.avatarUrl ?? null })
+  await db.insert(users).values({
+    id,
+    email: o.email ?? `${id}@example.com`,
+    name: o.name ?? null,
+    role: o.role ?? 'member',
+    isOrgMember: o.isOrgMember ?? true,
+    avatarUrl: o.avatarUrl ?? null,
+  })
   return id
 }
 
@@ -248,9 +261,11 @@ export async function seedSite(
     ...(o.createdAt !== undefined && { createdAt: o.createdAt }),
     // A fresh site's updatedAt == createdAt (no replace yet); default it so createdAt-pinned ordering
     // specs stay deterministic under the updatedAt sort. Override explicitly to simulate a replace.
-    ...(o.updatedAt !== undefined ? { updatedAt: o.updatedAt } : o.createdAt !== undefined ? { updatedAt: o.createdAt } : {}),
-    // Design theme (null = unthemed, the schema default) — themed-serve specs opt in explicitly.
-    ...(o.theme !== undefined && { theme: o.theme }),
+    ...(o.updatedAt !== undefined
+      ? { updatedAt: o.updatedAt }
+      : o.createdAt !== undefined
+        ? { updatedAt: o.createdAt }
+        : {}),
   })
   return id
 }
@@ -417,7 +432,7 @@ export async function seedApiKey(db: DrizzleD1Database, o: { userId: string } & 
   return id
 }
 
-/** In-memory stand-in for the GLANCE_SESSIONS KV namespace (get/put/delete/list + ttl peek).
+/** In-memory stand-in for the POSTPLAN_SESSIONS KV namespace (get/put/delete/list + ttl peek).
  *  `list` returns every matching key in one page (list_complete: true, no cursor) — enough to
  *  drive `revokeUserCliTokens`'s prefix enumeration; it never needs to exercise pagination. */
 export function makeKv() {
@@ -527,7 +542,7 @@ function etagConditionsHold(onlyIf: R2Conditional, currentEtag: string): boolean
   return true
 }
 
-/** In-memory stand-in for the GLANCE_FILES R2 bucket with a TRUE BYTE model: bodies are
+/** In-memory stand-in for the POSTPLAN_FILES R2 bucket with a TRUE BYTE model: bodies are
  *  stored as Uint8Array (string puts UTF-8-encoded), ranges slice bytes, `size` is always
  *  the full BYTE length, and `httpEtag` ROTATES on every put of the same key (quoted,
  *  version-suffixed — real R2 etags change when content changes; rotating unconditionally
@@ -748,7 +763,6 @@ export function makeDurableObjectState(name?: string) {
     },
   }
 }
-export type FakeDurableObjectState = ReturnType<typeof makeDurableObjectState>
 
 class FakeWebSocketPair {
   0: FakeWebSocket

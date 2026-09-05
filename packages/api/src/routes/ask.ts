@@ -1,10 +1,11 @@
 import { and, eq } from 'drizzle-orm'
 import { type Context, Hono } from 'hono'
 import { siteSummaries, sites, spaces } from '../db/schema'
+import { aiFailureBody, classifyAiFailure } from '../lib/ai-error'
 import type { ResolvedSite } from '../lib/site-access'
 import { fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
 import { summarizeDeps } from '../lib/summarize'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 export const ask = new Hono<AppEnv>()
@@ -67,7 +68,7 @@ async function gated(c: Context<AppEnv>): Promise<{ site: ResolvedSite; summary:
   return { site, summary: summaryRows[0]?.summary }
 }
 
-ask.use('*', requireAuth)
+ask.use('*', requireAuth, requireControlGrant)
 
 ask.post('/:space/:site/ask', async (c) => {
   const user = c.get('user')
@@ -83,7 +84,7 @@ ask.post('/:space/:site/ask', async (c) => {
 
   if (c.env.ASK_LIMITER) {
     const { success } = await c.env.ASK_LIMITER.limit({ key: user.id })
-    if (!success) return c.json({ error: 'rate limited' }, 429)
+    if (!success) return c.json({ error: 'rate limited', code: 'rate_limited', retryable: true } as const, 429)
   }
 
   const sections = [
@@ -114,7 +115,8 @@ ask.post('/:space/:site/ask', async (c) => {
     // credentials, quota) and the client only ever sees the generic 502 — without this line the
     // only diagnostic path is deploying a probe worker (learned the hard way, 2026-08-17).
     console.error('ask: AI.run failed', err instanceof Error ? `${err.name}: ${err.message}` : String(err))
-    return c.json({ error: 'generation failed', retryable: true } as const, 502)
+    const failure = classifyAiFailure(err)
+    return c.json(aiFailureBody(failure), failure === 'quota' ? 429 : 502)
   }
   return new Response(value as ReadableStream, { headers: { 'content-type': 'text/event-stream' } })
 })

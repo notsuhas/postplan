@@ -11,7 +11,7 @@ import type { ViewerSite } from './types'
 
 /** Benign failure sentinel: the prefetch promise NEVER rejects (an unconsumed rejection would
  *  surface as an unhandled-rejection error), it resolves to this instead. */
-export const PREFETCH_FAILED: unique symbol = Symbol('glance:prefetch-failed')
+export const PREFETCH_FAILED: unique symbol = Symbol('postplan:prefetch-failed')
 export type PrefetchResult = Thread[] | typeof PREFETCH_FAILED
 
 export interface ViewerLoaderData {
@@ -38,7 +38,7 @@ export async function loadViewer(args: {
     throw err
   }
   const entry = resolveEntryPath(args.sitePath, site.indexPath)
-  if (entry === null) return { site, entryPath: null, commentsPromise: null }
+  if (entry === null || !site.authenticated) return { site, entryPath: entry, commentsPromise: null }
   // Fired UNAWAITED: the loader (and thus the iframe) resolves while this is still pending. The
   // catch is attached HERE so a rejection is always observed, even if never consumed.
   const commentsPromise = comments.list(site, entry).catch<PrefetchResult>(() => PREFETCH_FAILED)

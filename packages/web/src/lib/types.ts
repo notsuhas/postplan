@@ -1,6 +1,6 @@
 // Mirrors the API response contract (packages/api routes).
 
-export type Visibility = 'private' | 'members' | 'team'
+export type Visibility = 'unlisted' | 'private' | 'members' | 'team'
 export type SiteStatus = 'active' | 'archived'
 
 export interface Me {
@@ -8,6 +8,7 @@ export interface Me {
   email: string
   name: string | null
   role: 'member' | 'superadmin'
+  isOrgMember: boolean
   // True once any Bearer-authenticated CLI call landed an events row — gates the install banner.
   hasUsedCli: boolean
 }
@@ -29,6 +30,8 @@ export interface SpaceDetail extends SpaceSummary {
   memberCount: number
   isMember: boolean
   isOwner: boolean
+  ownerId: string
+  members?: UserLite[]
 }
 
 export interface SiteSummary {
@@ -38,8 +41,6 @@ export interface SiteSummary {
   title: string | null
   visibility: Visibility
   status: SiteStatus
-  // Design theme slug (server-injected stylesheet), null/absent = unthemed.
-  theme?: string | null
   audio?: boolean // every file is audio — a recording/voice site; shows a Mic badge
   hasSummary?: boolean // the site has a stored AI summary; shows a sparkle badge
   // Whether the CALLER has starred this site — per-user state riding a shared feed, never the
@@ -83,8 +84,7 @@ export interface ViewerSite {
   title: string | null
   visibility: Visibility
   status: SiteStatus
-  // Design theme slug applied at serve time; null = unthemed.
-  theme: string | null
+  authenticated: boolean
   isOwner: boolean
   // The caller's own star on this site, resolved in the viewer's single metadata batch so the
   // top-bar button is correct on first paint.
@@ -104,20 +104,11 @@ export interface UserLite {
 export type ShareRole = 'viewer' | 'editor'
 
 export interface ShareSet {
-  userIds: string[]
   groupIds: string[]
-  // Role-aware user list (superset of userIds). Present on the new API; a viewer is the default.
   users: { id: string; role: ShareRole }[]
 }
 
 export type SlugExists = { exists: false } | { exists: true; owned: boolean }
-
-// GET /api/themes — one entry per shipped design theme (packages/api/themes/*).
-export interface ThemeInfo {
-  slug: string
-  name: string
-  description: string
-}
 
 // Mirrors packages/api/src/routes/api-keys.ts KEY_DURATIONS — the only expiries the server will
 // ever accept. Keep this list in sync with that one; it is what drives the expiry dropdown.

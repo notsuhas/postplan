@@ -6,7 +6,7 @@
 // normalizePath changes, this must change with it.
 //
 // This is only a PREDICTION of the file the iframe will land on: the prefetch it keys stays
-// provisional until the iframe's glance:ready confirms the real path (see lib/prefetchArbiter).
+// provisional until the iframe's postplan:ready confirms the real path (see lib/prefetchArbiter).
 
 // Exact mirror of content.ts normalizePath: drop empty/'.'/'..' segments; '' or a trailing '/'
 // is a directory request and maps to its index.html.

@@ -5,7 +5,7 @@ import { getUserById } from '../db/repo'
 import { bearerToken, readCredential } from '../lib/session'
 import type { AppEnv } from '../types'
 
-const SESSION_COOKIE = '__Host-glance_session'
+const SESSION_COOKIE = '__Host-postplan_session'
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 /** True when the request's cookie jar carries a session cookie AT ALL — presence, not validity,
@@ -25,7 +25,7 @@ export const isSameOrigin = (c: Context<AppEnv>): boolean => {
 
 /**
  * CSRF defense-in-depth. Only enforces on cookie-authenticated, state-changing requests:
- * if the `glance_session` cookie is present AND the method is unsafe, require same-origin
+ * if the `postplan_session` cookie is present AND the method is unsafe, require same-origin
  * else 403. Bearer-token CLI calls carry no cookie and pass through untouched; GET/HEAD
  * always pass — safe because a foreign origin's fetch/XHR still can't READ the JSON body
  * without this app's CORS allowing it (unlike a WebSocket upgrade, which is CORS-exempt;
@@ -43,12 +43,6 @@ export const requireSameOrigin = createMiddleware<AppEnv>(async (c, next) => {
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   const credential = await readCredential(c)
   if (!credential) return c.json({ error: 'unauthorized' }, 401)
-  // The KV session / D1 key lookup is a snapshot frozen for the token's life (24h cookie / 30d
-  // CLI / until the key is queried again). Re-resolve the live row each request so a deleted
-  // user is rejected (401) and a role/email change takes effect immediately — e.g. a demoted
-  // superadmin loses privilege now (requireSuperAdmin sees the fresh role) rather than at token
-  // expiry. Single indexed PK read; the viewer hot path reads readSessionOrBearer inline (not
-  // this middleware), so FCP is unaffected.
   const user = await getUserById(c.get('db'), credential.user.id)
   if (!user) return c.json({ error: 'unauthorized' }, 401)
   c.set('user', user)
@@ -85,6 +79,12 @@ export const requireControlGrant = createMiddleware<AppEnv>(async (c, next) => {
   if (credential?.kind === 'key' && !credential.grants.control && UNSAFE.has(c.req.method)) {
     return c.json({ error: 'forbidden' }, 403)
   }
+  await next()
+})
+
+/** Must run after requireAuth. API keys never carry human-only authority. */
+export const requireHumanCredential = createMiddleware<AppEnv>(async (c, next) => {
+  if (c.get('credential')?.kind === 'key') return c.json({ error: 'forbidden' }, 403)
   await next()
 })
 

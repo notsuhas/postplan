@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { AudioPlayer } from '@/components/audio/AudioPlayer'
 import { LiveWaveform } from '@/components/record/LiveWaveform'
 import { VoiceButton } from '@/components/record/VoiceButton'
-import { Spinner } from '@/components/states'
+import { Spinner } from '@/components/ui/states'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -130,7 +130,7 @@ export function RecordDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record a voice comment</DialogTitle>
+          <DialogTitle>Record a voice note</DialogTitle>
           <DialogDescription>
             {stopped ? 'Give it a name and save.' : 'Tap the mic to start. You can pause and resume.'}
           </DialogDescription>

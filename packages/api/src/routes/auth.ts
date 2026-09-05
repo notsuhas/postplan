@@ -1,14 +1,13 @@
-import { decodeIdToken, generateCodeVerifier, generateState } from 'arctic'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
-import { events, users } from '../db/schema'
+import { events, invites, users } from '../db/schema'
 import { bootstrapSuperadminByEmail, createPersonalSpace, superadminStatus, toSessionUser } from '../db/repo'
 import { NEWEST_RELEASE_DATE } from '../whats-new/catalog'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireControlGrant } from '../middleware/auth'
 import { sanitizeAvatarUrl } from '../lib/avatar'
 import { bootstrapDecision } from '../lib/bootstrap'
-import { createGoogle, isGoogleEnabled, OAUTH_SCOPES } from '../lib/oauth'
+import { createWorkos, isAdminEmail, isOrgEmail, isWorkosEnabled, primarySuperadminEmail } from '../lib/workos'
 import {
   bearerToken,
   createCliToken,
@@ -16,10 +15,11 @@ import {
   destroyCliToken,
   destroySession,
   readCredential,
+  restoreUserAccess,
 } from '../lib/session'
 import type { AppEnv, Bindings, SessionUser } from '../types'
 
-const OAUTH_COOKIE = 'glance_oauth'
+const OAUTH_COOKIE = 'postplan_oauth'
 
 /** Only allow same-origin absolute paths as a post-login redirect (no open redirect). */
 function safeNext(next: string | null | undefined): string | null {
@@ -28,30 +28,35 @@ function safeNext(next: string | null | undefined): string | null {
   return next
 }
 
-interface GoogleClaims {
+/** Identity as this app consumes it, independent of who brokered the login. `sub` is the IdP's
+ *  stable subject — the WorkOS user id — and lands in users.googleId (kept as the column name so
+ *  no migration is needed for a rename that changes nothing). */
+interface IdpClaims {
   sub: string
   email: string
   email_verified: boolean
   name?: string
-  // Profile photo URL (granted by the `profile` scope). Stored host-pinned and served through
-  // /api/avatars — never handed to the browser as-is. See lib/avatar.
+  // Profile photo URL. Stored host-pinned and served through /api/avatars — never handed to the
+  // browser as-is. See lib/avatar.
   picture?: string
-  hd?: string
 }
 
 export const auth = new Hono<AppEnv>()
 
 // --- Browser OAuth ---
 
-auth.get('/google', async (c) => {
-  if (!isGoogleEnabled(c.env)) return c.notFound()
-  const state = generateState()
-  const codeVerifier = generateCodeVerifier()
+auth.get('/workos', async (c) => {
+  if (!isWorkosEnabled(c.env)) return c.notFound()
+  const state = crypto.randomUUID()
   const next = safeNext(c.req.query('next')) // carried through the round-trip in the signed cookie
-  const url = createGoogle(c.env).createAuthorizationURL(state, codeVerifier, OAUTH_SCOPES)
-  url.searchParams.set('hd', c.env.ALLOWED_HD) // UX hint only; the hd claim is verified server-side
+  const url = createWorkos(c.env).userManagement.getAuthorizationUrl({
+    provider: 'GoogleOAuth',
+    clientId: c.env.WORKOS_CLIENT_ID as string,
+    redirectUri: `${c.env.APP_URL}/api/auth/callback`,
+    state,
+  })
 
-  await setSignedCookie(c, OAUTH_COOKIE, JSON.stringify({ state, codeVerifier, next }), c.env.SESSION_SECRET, {
+  await setSignedCookie(c, OAUTH_COOKIE, JSON.stringify({ state, next }), c.env.SESSION_SECRET, {
     httpOnly: true,
     secure: c.env.APP_URL.startsWith('https://'),
     sameSite: 'Lax', // Strict would drop the cookie on the cross-site callback redirect
@@ -62,14 +67,14 @@ auth.get('/google', async (c) => {
 })
 
 auth.get('/callback', async (c) => {
-  if (!isGoogleEnabled(c.env)) return c.notFound()
+  if (!isWorkosEnabled(c.env)) return c.notFound()
   const code = c.req.query('code')
   const state = c.req.query('state')
   const stored = await getSignedCookie(c, c.env.SESSION_SECRET, OAUTH_COOKIE)
   deleteCookie(c, OAUTH_COOKIE, { path: '/' })
 
   if (!code || !state || typeof stored !== 'string') return c.redirect('/login?error=oauth')
-  let parsed: { state: string; codeVerifier: string; next?: string | null }
+  let parsed: { state: string; next?: string | null }
   try {
     parsed = JSON.parse(stored)
   } catch {
@@ -77,37 +82,71 @@ auth.get('/callback', async (c) => {
   }
   if (parsed.state !== state) return c.redirect('/login?error=state')
 
-  let claims: GoogleClaims
+  const workos = createWorkos(c.env)
+  let claims: IdpClaims
+  let workosUserId: string
   try {
-    const tokens = await createGoogle(c.env).validateAuthorizationCode(code, parsed.codeVerifier)
-    claims = decodeIdToken(tokens.idToken()) as unknown as GoogleClaims
+    const result = await workos.userManagement.authenticateWithCode({
+      code,
+      clientId: c.env.WORKOS_CLIENT_ID as string,
+    })
+    workosUserId = result.user.id
+    claims = {
+      sub: result.user.id,
+      email: result.user.email,
+      email_verified: result.user.emailVerified,
+      name: [result.user.firstName, result.user.lastName].filter(Boolean).join(' ') || undefined,
+      picture: result.user.profilePictureUrl ?? undefined,
+    }
   } catch {
     return c.redirect('/login?error=exchange')
   }
 
-  // Hard gate: trust the SIGNED hd claim, not the request param.
   const email = claims.email?.toLowerCase() ?? ''
-  if (claims.hd !== c.env.ALLOWED_HD || !claims.email_verified || !email.endsWith(`@${c.env.ALLOWED_HD}`)) {
-    return c.redirect('/login?error=denied')
+  if (!email || !claims.email_verified) return c.redirect('/login?error=denied')
+
+  // Organization-domain users and admins may join directly; external accounts need an invite.
+  if (!isAdminEmail(c.env, email) && !isOrgEmail(c.env, email)) {
+    const invited = await c.get('db').select().from(invites).where(eq(invites.email, email)).limit(1)
+    if (!invited[0]) {
+      c.executionCtx?.waitUntil(workos.userManagement.deleteUser(workosUserId).catch(() => {}))
+      return c.redirect('/login?error=not_invited')
+    }
   }
 
+  // Stamp every completed sign-in, not just gated ones: admins bypass the gate but still show on
+  // the People view, and stamping inside the gate left them reading "never signed in".
+  c.executionCtx?.waitUntil(
+    c
+      .get('db')
+      .update(invites)
+      .set({ usedAt: sql`coalesce(${invites.usedAt}, ${Date.now()})`, workosUserId })
+      .where(eq(invites.email, email))
+      .run()
+      .catch(() => {}),
+  )
+
   const user = await findOrCreateUser(c.get('db'), c.env, claims, email)
+  await restoreUserAccess(c.env.POSTPLAN_SESSIONS, user.id)
   await createSession(c, user)
   return c.redirect(safeNext(parsed.next) ?? '/dashboard')
 })
 
 auth.post('/logout', async (c) => {
   // This route runs neither requireAuth nor requireSameOrigin's cookie gate, so the credential is
-  // resolved directly. A `glk_` API key is not a session — `glance logout` is the wrong verb for
+  // resolved directly. A `glk_` API key is not a session — `postplan logout` is the wrong verb for
   // it (a key is revoked from the keys screen, not by logging out) — so report that rather than
   // silently doing nothing: destroyCliToken below is a KV delete and no-ops on a D1 key, and a
   // false { ok: true } would tell the caller a credential was revoked when it was not.
   if ((await readCredential(c))?.kind === 'key') {
-    return c.json({ error: 'not_a_session', message: 'This is an API key — revoke it from the keys screen, not logout.' }, 400)
+    return c.json(
+      { error: 'not_a_session', message: 'This is an API key — revoke it from the keys screen, not logout.' },
+      400,
+    )
   }
 
   await destroySession(c)
-  // `glance logout` authenticates with a Bearer CLI token and no cookie, so also revoke that
+  // `postplan logout` authenticates with a Bearer CLI token and no cookie, so also revoke that
   // token server-side — otherwise the logged-out CLI credential stays valid for its full 30d TTL.
   const token = bearerToken(c)
   if (token) await destroyCliToken(c, token)
@@ -128,22 +167,30 @@ auth.get('/me', requireAuth, async (c) => {
   return c.json({ ...user, hasUsedCli: used.length > 0 })
 })
 
-// DEV ONLY: skip Google OAuth for local browser testing. Hard-gated to a localhost
-// APP_URL — in prod APP_URL is https://…workers.dev, so this 404s and can never run.
+function isLocalAppUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' && url.hostname === 'localhost'
+  } catch {
+    return false
+  }
+}
+
+// DEV ONLY: skip the IdP round-trip for local browser testing.
 auth.post('/dev-login', async (c) => {
-  if (!c.env.APP_URL.startsWith('http://localhost')) return c.notFound()
-  const email = c.env.SUPERADMIN_EMAIL.toLowerCase()
+  if (!isLocalAppUrl(c.env.APP_URL)) return c.notFound()
+  const email = primarySuperadminEmail(c.env)
   const user = await findOrCreateUser(
     c.get('db'),
     c.env,
-    { sub: `dev-${email}`, email, email_verified: true, name: 'Dev User', hd: c.env.ALLOWED_HD },
+    { sub: `dev-${email}`, email, email_verified: true, name: 'Dev User' },
     email,
   )
   await createSession(c, user)
   return c.json({ ok: true, user })
 })
 
-// --- First-run bootstrap (token-gated, no Google) ---
+// --- First-run bootstrap (token-gated, no IdP) ---
 // Establishes the first superadmin on a fresh deploy. Inert (404) until BOOTSTRAP_TOKEN
 // is set. The token rides in the POST body (never the URL — query strings leak via logs,
 // history, and Referer). On first run there is no session cookie, so middleware
@@ -161,26 +208,27 @@ auth.post('/bootstrap', async (c) => {
 
   // One-shot lifetime op: a tighter window than the CLI default brakes token brute-force.
   const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
-  if (await isCliStartRateLimited(c.env.GLANCE_SESSIONS, `bootstrap:${ip}`, 5, 3600))
+  if (await isCliStartRateLimited(c.env.POSTPLAN_SESSIONS, `bootstrap:${ip}`, 5, 3600))
     return c.json({ error: 'rate_limited' }, 429)
 
   const body = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string })
   const db = c.get('db')
-  const alreadyCompleted = (await c.env.GLANCE_SESSIONS.get(BOOTSTRAP_COMPLETE_KEY)) !== null
+  const alreadyCompleted = (await c.env.POSTPLAN_SESSIONS.get(BOOTSTRAP_COMPLETE_KEY)) !== null
   const decision = await bootstrapDecision({
     expectedToken: c.env.BOOTSTRAP_TOKEN,
     providedToken: body.token,
     alreadyCompleted,
-    status: () => superadminStatus(db, c.env.SUPERADMIN_EMAIL),
+    status: () => superadminStatus(db, primarySuperadminEmail(c.env)),
   })
   if (!decision.ok) return c.json({ error: 'bootstrap_unavailable' }, decision.status)
 
   // Session (KV) is confirmed before the run is marked "done"; the flag is set only AFTER a
   // successful mint, so a KV failure mid-way leaves it unset and the (anti-lockout) decision
   // lets a retry recover without re-locking the deploy. Once set, bootstrap is one-shot (410).
-  const user = await bootstrapSuperadminByEmail(db, c.env.SUPERADMIN_EMAIL, null, NEWEST_RELEASE_DATE)
+  const email = primarySuperadminEmail(c.env)
+  const user = await bootstrapSuperadminByEmail(db, email, null, NEWEST_RELEASE_DATE, isOrgEmail(c.env, email))
   await createSession(c, user)
-  await c.env.GLANCE_SESSIONS.put(BOOTSTRAP_COMPLETE_KEY, '1')
+  await c.env.POSTPLAN_SESSIONS.put(BOOTSTRAP_COMPLETE_KEY, '1')
   return c.json({ ok: true, user })
 })
 
@@ -228,13 +276,13 @@ export async function isCliStartRateLimited(
 
 auth.post('/cli/start', async (c) => {
   const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
-  if (await isCliStartRateLimited(c.env.GLANCE_SESSIONS, ip)) return c.json({ error: 'rate_limited' }, 429)
+  if (await isCliStartRateLimited(c.env.POSTPLAN_SESSIONS, ip)) return c.json({ error: 'rate_limited' }, 429)
 
   const deviceCode = crypto.randomUUID()
   const userCode = generateUserCode()
   const record = JSON.stringify({ status: 'pending', userCode })
-  await c.env.GLANCE_SESSIONS.put(`cli_device:${deviceCode}`, record, { expirationTtl: 600 })
-  await c.env.GLANCE_SESSIONS.put(`cli_user:${userCode}`, deviceCode, { expirationTtl: 600 })
+  await c.env.POSTPLAN_SESSIONS.put(`cli_device:${deviceCode}`, record, { expirationTtl: 600 })
+  await c.env.POSTPLAN_SESSIONS.put(`cli_user:${userCode}`, deviceCode, { expirationTtl: 600 })
   return c.json({
     deviceCode,
     userCode,
@@ -247,58 +295,74 @@ auth.post('/cli/start', async (c) => {
 auth.get('/cli/poll', async (c) => {
   const deviceCode = c.req.query('device_code')
   if (!deviceCode) return c.json({ error: 'device_code required' }, 400)
-  const raw = await c.env.GLANCE_SESSIONS.get(`cli_device:${deviceCode}`)
+  const raw = await c.env.POSTPLAN_SESSIONS.get(`cli_device:${deviceCode}`)
   if (!raw) return c.json({ status: 'expired' }, 404)
   const rec = JSON.parse(raw) as { status: string; token?: string }
   if (rec.status !== 'complete' || !rec.token) return c.json({ status: 'pending' })
-  await c.env.GLANCE_SESSIONS.delete(`cli_device:${deviceCode}`) // one-time read
+  await c.env.POSTPLAN_SESSIONS.delete(`cli_device:${deviceCode}`) // one-time read
   return c.json({ status: 'complete', accessToken: rec.token })
 })
 
-auth.post('/cli/approve', requireAuth, async (c) => {
+auth.post('/cli/approve', requireAuth, requireControlGrant, async (c) => {
   const { userCode } = await c.req.json<{ userCode?: string }>()
   if (!userCode) return c.json({ error: 'userCode required' }, 400)
-  const deviceCode = await c.env.GLANCE_SESSIONS.get(`cli_user:${userCode.toUpperCase()}`)
+  const deviceCode = await c.env.POSTPLAN_SESSIONS.get(`cli_user:${userCode.toUpperCase()}`)
   if (!deviceCode) return c.json({ error: 'invalid or expired code' }, 404)
   const token = await createCliToken(c, c.get('user'))
-  await c.env.GLANCE_SESSIONS.put(
-    `cli_device:${deviceCode}`,
-    JSON.stringify({ status: 'complete', token }),
-    { expirationTtl: 600 },
-  )
-  await c.env.GLANCE_SESSIONS.delete(`cli_user:${userCode.toUpperCase()}`)
+  await c.env.POSTPLAN_SESSIONS.put(`cli_device:${deviceCode}`, JSON.stringify({ status: 'complete', token }), {
+    expirationTtl: 600,
+  })
+  await c.env.POSTPLAN_SESSIONS.delete(`cli_user:${userCode.toUpperCase()}`)
   return c.json({ ok: true })
 })
 
 // --- helpers ---
 
-// Exported for characterization tests. Matches by googleId then email, so a Google login
-// backfills onto a prior bootstrap user (googleId null, same email) without changing role.
+// Exported for characterization tests. Matches by googleId then email, so an IdP login backfills
+// onto a prior bootstrap user (googleId null, same email). Role is preserved unless the address is
+// in the admin allowlist, which promotes; nothing here ever demotes. The googleId column keeps its
+// name: it holds the IdP subject, which is now the WorkOS user id.
 export async function findOrCreateUser(
   db: AppEnv['Variables']['db'],
   env: Bindings,
-  claims: GoogleClaims,
+  claims: IdpClaims,
   email: string,
 ): Promise<SessionUser> {
   const byGoogle = await db.select().from(users).where(eq(users.googleId, claims.sub)).limit(1)
   const existing = byGoogle[0] ?? (await db.select().from(users).where(eq(users.email, email)).limit(1))[0]
 
-  // The photo is re-read from the id_token on EVERY login, which is also the only backfill Google
+  // The photo is re-read from the IdP on EVERY login, which is also the only backfill it
   // offers: users who signed up before avatars existed get one the next time they sign in. A claim
   // that fails the host pin leaves the stored URL untouched rather than clearing a good one.
   const avatarUrl = sanitizeAvatarUrl(claims.picture)
 
+  // Promote on EVERY login, not just at creation: adding an address to SUPERADMIN_EMAILS has to reach
+  // someone who already signed in as a member, or the var silently does nothing for them.
+  // Promote-only — removing an address never demotes, so a fat-fingered edit cannot strip the last
+  // superadmin out of its own instance. Demote through the admin UI, deliberately.
+  const admin = isAdminEmail(env, email)
+  const isOrgMember = isOrgEmail(env, email)
+
   if (existing) {
     const name = claims.name ?? existing.name
+    const role = admin ? 'superadmin' : existing.role
     await db
       .update(users)
-      .set({ name, googleId: claims.sub, avatarUrl: avatarUrl ?? existing.avatarUrl })
+      .set({
+        name,
+        googleId: claims.sub,
+        avatarUrl: avatarUrl ?? existing.avatarUrl,
+        role,
+        isOrgMember,
+        disabledAt: null,
+      })
       .where(eq(users.id, existing.id))
-    return toSessionUser({ ...existing, name })
+    await createPersonalSpace(db, existing.id, email)
+    return toSessionUser({ ...existing, name, role, isOrgMember })
   }
 
   const id = crypto.randomUUID()
-  const role = email === env.SUPERADMIN_EMAIL.toLowerCase() ? 'superadmin' : 'member'
+  const role = admin ? 'superadmin' : 'member'
   // New signups start caught up on release notes (watermark = newest), so they don't land on an
   // inbox full of "unread" features that shipped before they existed. null would mean all-unread.
   await db.insert(users).values({
@@ -308,8 +372,9 @@ export async function findOrCreateUser(
     googleId: claims.sub,
     avatarUrl,
     role,
+    isOrgMember,
     lastSeenReleaseAt: NEWEST_RELEASE_DATE,
   })
   await createPersonalSpace(db, id, email)
-  return { id, email, name: claims.name ?? null, role }
+  return { id, email, name: claims.name ?? null, role, isOrgMember }
 }

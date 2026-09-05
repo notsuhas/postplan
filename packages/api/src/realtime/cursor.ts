@@ -21,7 +21,7 @@ const IV_BYTES = 12
 function cursorKey(secret: string): Promise<CryptoKey> {
   // Domain-separated from the token MACs that use the same secret directly.
   return crypto.subtle
-    .digest('SHA-256', enc.encode(`glance-cursor:${secret}`))
+    .digest('SHA-256', enc.encode(`postplan-cursor:${secret}`))
     .then((raw) => crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']))
 }
 

@@ -4,7 +4,7 @@ import type { AppEnv } from '../types'
 
 /** Round-trips the D1 session bookmark to the browser: sent on responses, echoed back on the
  *  next request so a session anchored at it reads its own prior writes (issue #79). */
-export const BOOKMARK_HEADER = 'x-glance-d1-bookmark'
+export const BOOKMARK_HEADER = 'x-postplan-d1-bookmark'
 
 /** Drizzle client over a D1 session so reads route to the nearest replica (read replication).
  *  The cast is required: D1DatabaseSession deliberately omits exec/dump, which drizzle's
@@ -21,7 +21,7 @@ export function sessionDb(binding: D1Database, anchor: D1SessionConstraint | D1S
 // cross-request read-your-write consistency; without one, 'first-unconstrained' lets even
 // the first query hit a replica.
 export const withDb = createMiddleware<AppEnv>(async (c, next) => {
-  const session = c.env.GLANCE_DB.withSession(c.req.header(BOOKMARK_HEADER) ?? 'first-unconstrained')
+  const session = c.env.POSTPLAN_DB.withSession(c.req.header(BOOKMARK_HEADER) ?? 'first-unconstrained')
   c.set('db', drizzle(session as unknown as D1Database))
   await next()
   const bookmark = session.getBookmark()

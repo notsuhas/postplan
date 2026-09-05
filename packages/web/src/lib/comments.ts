@@ -109,8 +109,10 @@ export type PaintAnchor =
  *  iframe — has its own test instead of being provable only by mutating the wiring shell by hand. */
 export function paintAnchors(threads: Thread[]): PaintAnchor[] {
   return threads.flatMap((t): PaintAnchor[] => {
-    if (t.anchorType === 'text' && t.quote) return [{ id: t.id, anchorType: 'text', quote: t.quote, context: t.context }]
-    if (t.anchorType === 'element' && t.anchor) return [{ id: t.id, anchorType: 'element', selector: t.anchor.selector }]
+    if (t.anchorType === 'text' && t.quote)
+      return [{ id: t.id, anchorType: 'text', quote: t.quote, context: t.context }]
+    if (t.anchorType === 'element' && t.anchor)
+      return [{ id: t.id, anchorType: 'element', selector: t.anchor.selector }]
     return []
   })
 }
@@ -119,7 +121,7 @@ type SiteRef = Pick<ViewerSite, 'spaceSlug' | 'siteSlug'>
 
 // Anchor-shaping fields for a voice thread — everything a create payload carries EXCEPT the body,
 // which the server derives from the recording's transcript. Mirrors NewThreadInput sans `body`.
-export type VoiceCreateFields = Omit<NewThreadInput, 'body'>
+type VoiceCreateFields = Omit<NewThreadInput, 'body'>
 
 const base = (s: SiteRef) => `/api/sites/${s.spaceSlug}/${s.siteSlug}/comments`
 

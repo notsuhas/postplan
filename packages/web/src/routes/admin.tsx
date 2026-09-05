@@ -15,16 +15,17 @@ import {
 } from 'lucide-react'
 import { type LoaderFunctionArgs, redirect, useLoaderData, useRevalidator, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { EmptyState, PageHeader, SectionHeader, Spinner } from '@/components/states'
-import { UserAvatar } from '@/components/UserAvatar'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { EmptyState, PageHeader, SectionHeader, Spinner } from '@/components/ui/states'
+import { UserAvatar } from '@/components/layout/UserAvatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { VisibilityBadge } from '@/components/visibility'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { VisibilityBadge } from '@/components/sites/visibility'
 import { api, ApiError } from '@/lib/api'
 import type { SiteStatus, Visibility } from '@/lib/types'
 
@@ -57,7 +58,24 @@ interface AdminUser {
   createdAt: string
 }
 
-type AdminTab = 'overview' | 'sites' | 'spaces' | 'users'
+interface AdminInvite {
+  email: string
+  invitedBy: string
+  createdAt: number
+  // null = invited but never signed in. The two states read very differently to an operator.
+  usedAt: number | null
+  userId: string | null
+  role: 'member' | 'superadmin' | null
+}
+
+interface InvitesData {
+  invites: AdminInvite[]
+  // Configured superadmins bypass the gate and may hold no invite row, so without
+  // this the tab would look empty on a fresh instance and imply nobody can sign in.
+  admins: string[]
+}
+
+type AdminTab = 'overview' | 'sites' | 'spaces' | 'users' | 'invites'
 
 interface SitesData {
   sites: AdminSite[]
@@ -88,11 +106,12 @@ type LoaderData =
   | { tab: 'sites'; data: SitesData }
   | { tab: 'spaces'; data: AdminSpace[] }
   | { tab: 'users'; data: AdminUser[] }
+  | { tab: 'invites'; data: InvitesData }
 
-const TABS: AdminTab[] = ['overview', 'sites', 'spaces', 'users']
+const TABS: AdminTab[] = ['overview', 'sites', 'spaces', 'users', 'invites']
 
 function asTab(value: string | null): AdminTab {
-  return value === 'sites' || value === 'spaces' || value === 'users' ? value : 'overview'
+  return value === 'sites' || value === 'spaces' || value === 'users' || value === 'invites' ? value : 'overview'
 }
 
 // If the requested page overshoots the available pages — e.g. the last row of the last page was
@@ -118,6 +137,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
     if (tab === 'users') {
       const data = await api.get<AdminUser[]>('/api/admin/users')
+      return { tab, data } satisfies LoaderData
+    }
+    if (tab === 'invites') {
+      const data = await api.get<InvitesData>('/api/admin/invites')
       return { tab, data } satisfies LoaderData
     }
     const status = url.searchParams.get('status') ?? ''
@@ -364,7 +387,7 @@ function StatsPanel({ data }: { data: StatsData }) {
 }
 
 const STATUS_OPTIONS = ['active', 'archived'] as const
-const VISIBILITY_OPTIONS: Visibility[] = ['private', 'members', 'team']
+const VISIBILITY_OPTIONS: Visibility[] = ['unlisted', 'private', 'members', 'team']
 
 // "all" is the sentinel for the unfiltered option (Radix Select can't hold an empty value).
 const ALL = 'all'
@@ -630,6 +653,127 @@ function UsersPanel({ users }: { users: AdminUser[] }) {
   )
 }
 
+// ── Invites tab ─────────────────────────────────────────────────────────────
+// WorkOS brokers Google for ANY account, so "who may sign in here" cannot be inferred from an
+// email domain the way the old `hd` claim allowed — it is this allowlist. Adding a row IS the
+// invite: nothing is emailed, there is no token to leak, and nothing expires.
+function InvitesPanel({ data }: { data: InvitesData }) {
+  const mutate = useMutation()
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault()
+    const value = email.trim()
+    if (!value || busy) return
+    setBusy(true)
+    try {
+      await mutate(`Invited ${value}`, () => api.post('/api/admin/invites', { email: value }))
+      setEmail('')
+    } catch (err) {
+      toast.error('Could not add invite', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={add} className="flex flex-wrap items-center gap-2">
+        <Input
+          type="email"
+          disabled={busy}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="person@company.com"
+          aria-label="Email to invite"
+          className="max-w-xs font-mono text-sm"
+        />
+        <Button type="submit" disabled={busy || email.trim() === ''}>
+          {busy ? 'Inviting…' : 'Invite'}
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          They sign in with Google — nothing is emailed. The address itself is the invite.
+        </p>
+      </form>
+
+      {/* Admins bypass the gate, so listing only invites would read as "nobody can sign in" on a
+          fresh instance. Shown as un-removable because they come from deploy config, not the DB. */}
+      {data.admins.length > 0 && (
+        <div className="rounded-xl border bg-muted/30 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Superadmins · always allowed
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {data.admins.map((a) => (
+              <Badge key={a} variant="secondary" className="font-mono">
+                {a}
+              </Badge>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Set by SUPERADMIN_EMAILS in deploy config — change it there, not here.
+          </p>
+        </div>
+      )}
+
+      {data.invites.length === 0 ? (
+        <EmptyState
+          icon={Users2}
+          title="No invites yet"
+          description="Invite an address above to let someone outside the admin list sign in."
+        />
+      ) : (
+        <div className="rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Invited by</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.invites.map((i) => (
+                <TableRow key={i.email}>
+                  <TableCell className="font-mono text-sm">{i.email}</TableCell>
+                  <TableCell>
+                    {i.usedAt === null ? (
+                      <Badge variant="secondary" className="text-muted-foreground">
+                        hasn&apos;t signed in
+                      </Badge>
+                    ) : i.role === 'superadmin' ? (
+                      <Badge>superadmin</Badge>
+                    ) : (
+                      <Badge variant="secondary">signed in</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{i.invitedBy}</TableCell>
+                  <TableCell className="text-right">
+                    <ConfirmDialog
+                      title={`Revoke ${i.email}?`}
+                      description="They lose access immediately — sessions, CLI tokens and API keys all stop working. Their sites and comments are left untouched."
+                      confirmLabel="Revoke"
+                      onConfirm={() =>
+                        mutate('Invite revoked', () => api.delete(`/api/admin/invites/${encodeURIComponent(i.email)}`))
+                      }
+                    >
+                      <Button variant="ghost" size="sm" className="text-destructive">
+                        Revoke
+                      </Button>
+                    </ConfirmDialog>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Route component ─────────────────────────────────────────────────────────
 export function Component() {
   const loaderData = useLoaderData() as LoaderData
@@ -638,12 +782,16 @@ export function Component() {
 
   const description =
     loaderData.tab === 'overview'
-      ? 'Usage at a glance'
+      ? 'Usage at a postplan'
       : loaderData.tab === 'sites'
         ? `${loaderData.data.total} site${loaderData.data.total === 1 ? '' : 's'}`
         : loaderData.tab === 'spaces'
           ? `${loaderData.data.length} space${loaderData.data.length === 1 ? '' : 's'}`
-          : `${loaderData.data.length} user${loaderData.data.length === 1 ? '' : 's'}`
+          : loaderData.tab === 'users'
+            ? `${loaderData.data.length} user${loaderData.data.length === 1 ? '' : 's'}`
+            : `${loaderData.data.invites.length} invited · ${loaderData.data.admins.length} admin${
+                loaderData.data.admins.length === 1 ? '' : 's'
+              }`
 
   function onTabChange(next: string) {
     // Switching tabs starts fresh — drop site-only filters/pagination.
@@ -663,10 +811,17 @@ export function Component() {
           ))}
         </TabsList>
 
-        {loaderData.tab === 'overview' && <StatsPanel data={loaderData.data} />}
-        {loaderData.tab === 'sites' && <SitesPanel data={loaderData.data} />}
-        {loaderData.tab === 'spaces' && <SpacesPanel spaces={loaderData.data} />}
-        {loaderData.tab === 'users' && <UsersPanel users={loaderData.data} />}
+        <TabsContent value="overview">
+          {loaderData.tab === 'overview' && <StatsPanel data={loaderData.data} />}
+        </TabsContent>
+        <TabsContent value="sites">{loaderData.tab === 'sites' && <SitesPanel data={loaderData.data} />}</TabsContent>
+        <TabsContent value="spaces">
+          {loaderData.tab === 'spaces' && <SpacesPanel spaces={loaderData.data} />}
+        </TabsContent>
+        <TabsContent value="users">{loaderData.tab === 'users' && <UsersPanel users={loaderData.data} />}</TabsContent>
+        <TabsContent value="invites">
+          {loaderData.tab === 'invites' && <InvitesPanel data={loaderData.data} />}
+        </TabsContent>
       </Tabs>
     </div>
   )

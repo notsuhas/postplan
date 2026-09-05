@@ -66,7 +66,13 @@ const PAD = 8
  *  (the wrapper div the rect's coordinates already live in — see CommentPopover's MOUNT POINT
  *  note). A type alias, not an interface — the implicit index signature is what lets it flow
  *  straight into React's CSSProperties. */
-export type PopoverPlacement = { top?: number; bottom?: number; left: number }
+export type PopoverPlacement = {
+  top?: number
+  bottom?: number
+  left: number
+  maxWidth: number
+  maxHeight: number
+}
 
 /** Where a popover of `size` goes so it stays inside `container`: below the rect when it fits (or
  *  when below has at least as much room as above), otherwise flipped above — anchored by `bottom`
@@ -78,11 +84,18 @@ export function placePopover(
   size: { width: number; height: number },
   container: { width: number; height: number },
 ): PopoverPlacement {
-  const left = Math.max(PAD, Math.min(rect.left, container.width - size.width - PAD))
-  const spaceBelow = container.height - (rect.top + rect.height + GAP)
-  const spaceAbove = rect.top - GAP
-  if (size.height <= spaceBelow || spaceBelow >= spaceAbove) return { top: rect.top + rect.height + GAP, left }
-  return { bottom: container.height - rect.top + GAP, left }
+  const maxWidth = Math.max(0, container.width - PAD * 2)
+  const renderedWidth = Math.min(size.width, maxWidth)
+  const left = Math.max(PAD, Math.min(rect.left, container.width - renderedWidth - PAD))
+  const top = Math.max(PAD, rect.top + rect.height + GAP)
+  const bottom = Math.max(PAD, container.height - rect.top + GAP)
+  const spaceBelow = Math.max(0, container.height - PAD - top)
+  const spaceAbove = Math.max(0, container.height - PAD - bottom)
+
+  if (size.height <= spaceBelow || spaceBelow >= spaceAbove) {
+    return { top, left, maxWidth, maxHeight: spaceBelow }
+  }
+  return { bottom, left, maxWidth, maxHeight: spaceAbove }
 }
 
 export function stepPopover(state: PopoverState, event: PopoverEvent): PopoverState {

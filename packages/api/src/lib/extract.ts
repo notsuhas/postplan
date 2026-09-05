@@ -1,8 +1,8 @@
 export const TEXT_CAP = 40_000
-export const TITLE_CAP = 200
+const TITLE_CAP = 200
 // Unfurl cards (Slack, and OG consumers generally) truncate well before this; 300 keeps a full
 // two-sentence blurb without letting a pathological meta tag bloat the row.
-export const DESCRIPTION_CAP = 300
+const DESCRIPTION_CAP = 300
 
 export type EntryFile = { path: string; mimeType: string | null }
 export type Extracted = { ok: true; text: string; truncated: boolean } | { ok: false; reason: string }

@@ -1,13 +1,14 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { sites, spaceMembers, spaces as spacesTable, users } from '../db/schema'
+import { invites, sites, siteUserShares, spaceMembers, spaces as spacesTable, users } from '../db/schema'
 import { revokeUserApiKeys } from '../lib/api-key'
 import { fireAndForget } from '../lib/events'
-import { revokeUserCliTokens } from '../lib/session'
+import { revokeUserAccess, revokeUserCliTokens } from '../lib/session'
 import { cachedStats } from '../lib/stats'
 import { deleteSiteObjects } from '../lib/storage'
-import { isVisibility, normalizeVisibility } from '../lib/visibility'
-import { requireAuth, requireSuperAdmin } from '../middleware/auth'
+import { isVisibility } from '../lib/visibility'
+import { isAdminEmail, superadminEmails } from '../lib/workos'
+import { requireAuth, requireHumanCredential, requireSuperAdmin } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 export const admin = new Hono<AppEnv>()
@@ -16,7 +17,7 @@ const PAGE_SIZE = 50
 
 // Every admin route requires a superadmin: requireAuth first (401 if anonymous),
 // then requireSuperAdmin (403 if a non-superadmin member).
-admin.use('*', requireAuth, requireSuperAdmin)
+admin.use('*', requireAuth, requireHumanCredential, requireSuperAdmin)
 
 // GET /api/admin/sites — every site, newest first, with optional status/visibility filters
 // and 50-per-page pagination. Joins spaces for the human-readable space slug.
@@ -30,8 +31,10 @@ admin.get('/sites', async (c) => {
 
   const filters = []
   if (statusParam === 'active' || statusParam === 'archived') filters.push(eq(sites.status, statusParam))
-  const vis = normalizeVisibility(visibilityParam)
-  if (isVisibility(vis)) filters.push(eq(sites.visibility, vis))
+  if (visibilityParam !== undefined && !isVisibility(visibilityParam)) {
+    return c.json({ error: 'invalid visibility' }, 400)
+  }
+  if (isVisibility(visibilityParam)) filters.push(eq(sites.visibility, visibilityParam))
   const where = filters.length > 0 ? and(...filters) : undefined
 
   const rows = await db
@@ -78,14 +81,14 @@ admin.patch('/sites/:id/restore', async (c) => {
   return c.json({ ok: true })
 })
 
-// DELETE /api/admin/sites/:id — hard delete. Purge R2 objects first, then the row
-// (the FK cascade removes the site's file rows).
+// DELETE /api/admin/sites/:id — hard delete.
 admin.delete('/sites/:id', async (c) => {
   const db = c.get('db')
   const id = c.req.param('id')
   const existing = await db.select({ id: sites.id }).from(sites).where(eq(sites.id, id)).limit(1)
   if (existing.length === 0) return c.json({ error: 'site not found' }, 404)
-  await deleteSiteObjects(db, c.env.GLANCE_FILES, id)
+  await db.update(sites).set({ status: 'archived' }).where(eq(sites.id, id))
+  await deleteSiteObjects(db, c.env.POSTPLAN_FILES, id)
   await db.delete(sites).where(eq(sites.id, id))
   return c.json({ ok: true })
 })
@@ -118,6 +121,7 @@ admin.get('/users', async (c) => {
       email: users.email,
       name: users.name,
       role: users.role,
+      disabledAt: users.disabledAt,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -142,6 +146,89 @@ admin.post('/users/:id/revoke-cli', async (c) => {
 // 5-minute KV entry: the rollup is full-scan-heavy and the admin page refetches it on every
 // navigation, so an uncached loader dominated the account's D1 rows-read budget. The cache read
 // sits BEHIND the router-wide requireSuperAdmin above — cachedStats itself is not a gate.
+// --- Invites -------------------------------------------------------------------------------
+// The invite gate replaced the Google-Workspace `hd` domain check when auth moved to WorkOS:
+// WorkOS brokers Google for ANY account, so membership has to be an explicit allowlist. The row
+// IS the invite — there is no token to send, leak or expire — so this surface is only ever
+// "add an address", "see who has used theirs", "take it away".
+
+// GET /api/admin/invites — the allowlist, plus whether each address has signed in yet. Left-joins
+// users so the UI can show "invited, never signed in" apart from "signed in, here is their role".
+admin.get('/invites', async (c) => {
+  const db = c.get('db')
+  const rows = await db
+    .select({
+      email: invites.email,
+      invitedBy: invites.invitedBy,
+      createdAt: invites.createdAt,
+      usedAt: invites.usedAt,
+      userId: users.id,
+      role: users.role,
+    })
+    .from(invites)
+    .leftJoin(users, eq(users.email, invites.email))
+    .orderBy(desc(invites.createdAt))
+  // Admins bypass the gate and may hold no invite row at all, so the UI would otherwise show an
+  // empty list on a fresh instance and imply nobody can sign in.
+  return c.json({ invites: rows, admins: superadminEmails(c.env) })
+})
+
+// POST /api/admin/invites — { email }. Idempotent: re-inviting an existing address is a no-op
+// success rather than a 409, because the caller's intent ("this person may sign in") already holds.
+admin.post('/invites', async (c) => {
+  const db = c.get('db')
+  const user = c.get('user')
+  const { email: raw } = (await c.req.json().catch(() => ({}))) as { email?: unknown }
+  const email = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  // Deliberately loose: the IdP is the authority on whether an address is real, and a stricter
+  // pattern here would only reject valid addresses it had not heard of.
+  if (!email?.includes('@') || email.length > 320) {
+    return c.json({ error: 'a valid email is required' }, 400)
+  }
+  if (isAdminEmail(c.env, email)) {
+    return c.json({ error: 'that address is already a superadmin — it bypasses the invite gate' }, 409)
+  }
+  await db.insert(invites).values({ email, invitedBy: user.email, createdAt: Date.now() }).onConflictDoNothing()
+  return c.json({ ok: true, email }, 201)
+})
+
+// DELETE /api/admin/invites/:email — revoke. Also kills the sessions and CLI tokens the invitee
+// already holds: leaving them would mean access continues for up to the session TTL after the
+// operator believes they removed it. Their sites and comments are left alone — this is a removal
+// of access, not a purge, and deleting the user row would cascade their content away.
+admin.delete('/invites/:email', async (c) => {
+  const db = c.get('db')
+  const email = c.req.param('email').trim().toLowerCase()
+  const existing = (await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]
+  const invited = (await db.select({ email: invites.email }).from(invites).where(eq(invites.email, email)).limit(1))[0]
+  if (!existing && !invited) return c.json({ error: 'not found' }, 404)
+
+  if (existing) {
+    const ownedGroup = (
+      await db
+        .select({ id: spacesTable.id })
+        .from(spacesTable)
+        .where(and(eq(spacesTable.createdBy, existing.id), eq(spacesTable.type, 'group')))
+        .limit(1)
+    )[0]
+    if (ownedGroup) return c.json({ error: 'transfer or delete this user’s group spaces first' }, 409)
+
+    const disabledAt = new Date().toISOString()
+    await db.batch([
+      db.update(users).set({ disabledAt }).where(eq(users.id, existing.id)),
+      db.delete(siteUserShares).where(eq(siteUserShares.userId, existing.id)),
+      db.delete(spaceMembers).where(eq(spaceMembers.userId, existing.id)),
+      db.delete(invites).where(eq(invites.email, email)),
+    ])
+    await revokeUserAccess(c.env.POSTPLAN_SESSIONS, existing.id)
+    await revokeUserCliTokens(c, existing.id)
+    await revokeUserApiKeys(db, existing.id)
+  } else {
+    await db.delete(invites).where(eq(invites.email, email))
+  }
+  return c.json({ ok: true, revokedCredentials: Boolean(existing) })
+})
+
 admin.get('/stats', async (c) =>
-  c.json(await cachedStats(c.env.GLANCE_SESSIONS, c.get('db'), (p) => fireAndForget(c, p))),
+  c.json(await cachedStats(c.env.POSTPLAN_SESSIONS, c.get('db'), (p) => fireAndForget(c, p))),
 )

@@ -1,14 +1,14 @@
-import { and, desc, eq, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { createSpace, foldSharedSiteRoles, sharedSiteRoleStmts } from '../db/repo'
 import { sites, spaceMembers, spaces as spacesTable, users } from '../db/schema'
-import { checkAccess } from '../lib/access'
+import { canDiscover } from '../lib/access'
 import { batchAll } from '../lib/d1'
 import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
 import { deleteSpaceObjects } from '../lib/storage'
 import { isValidSlug } from '../lib/slug'
-import { requireAuth, requireControlGrant } from '../middleware/auth'
+import { requireAuth, requireControlGrant, requireHumanCredential } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 export const spaces = new Hono<AppEnv>()
@@ -62,14 +62,12 @@ function memberOfSlugStmt(db: DrizzleD1Database, slug: string, userId: string) {
     .limit(1)
 }
 
-// GET /api/spaces/:slug — metadata + member count + caller membership, in ONE post-auth D1 request:
-// all three reads are independent non-failing SELECTs keyed on the slug, so they share a db.batch
-// and the 404 for a missing space is decided post-batch on the space row alone.
+// GET /api/spaces/:slug — metadata, count, caller membership and owner roster in one batch.
 spaces.get('/:slug', requireAuth, async (c) => {
   const user = c.get('user')
   const db = c.get('db')
   const slug = c.req.param('slug')
-  const [spaceRows, counted, memberRows] = await batchAll(db, [
+  const [spaceRows, counted, callerMembership, memberRows] = await batchAll(db, [
     db.select().from(spacesTable).where(eq(spacesTable.slug, slug)).limit(1),
     db
       // Aliased: real D1 `.batch()` maps rows by column NAME and SQLite's name for an
@@ -79,12 +77,20 @@ spaces.get('/:slug', requireAuth, async (c) => {
       .innerJoin(spacesTable, eq(spaceMembers.spaceId, spacesTable.id))
       .where(eq(spacesTable.slug, slug)),
     memberOfSlugStmt(db, slug, user.id),
+    db
+      .select({ id: users.id, email: users.email, name: users.name })
+      .from(spaceMembers)
+      .innerJoin(spacesTable, eq(spaceMembers.spaceId, spacesTable.id))
+      .innerJoin(users, eq(spaceMembers.userId, users.id))
+      .where(eq(spacesTable.slug, slug))
+      .orderBy(users.email),
   ])
   const space = spaceRows[0]
   if (!space) return c.json({ error: 'space not found' }, 404)
 
   const memberCount = Number(counted[0]?.count ?? 0)
-  const isMember = memberRows.length > 0
+  const isMember = callerMembership.length > 0
+  const isOwner = space.createdBy === user.id
   // isOwner lets the UI gate owner-only affordances (invite members) instead of offering
   // actions that can only 403 — the member routes below all enforce createdBy.
   return c.json({
@@ -94,7 +100,9 @@ spaces.get('/:slug', requireAuth, async (c) => {
     type: space.type,
     memberCount,
     isMember,
-    isOwner: space.createdBy === user.id,
+    isOwner,
+    ownerId: space.createdBy,
+    ...(isOwner && space.type === 'group' ? { members: memberRows } : {}),
   })
 })
 
@@ -103,7 +111,7 @@ spaces.get('/:slug', requireAuth, async (c) => {
 // space existence, share reach, membership, and the site rows — with the pure-audio badge folded in
 // as a correlated scalar (pureAudioSql, as /mine and /team do) — all travel in a single db.batch.
 // Each statement is a non-failing SELECT (missing space → empty rows), so the 404 is decided
-// post-batch on the space row alone. Visibility filtering stays in JS (checkAccess); computing the
+// post-batch on the space row alone. Visibility filtering stays in JS; computing the
 // audio scalar for rows the caller can't see is harmless — only visible rows reach the response.
 spaces.get('/:slug/sites', requireAuth, async (c) => {
   const user = c.get('user')
@@ -129,7 +137,7 @@ spaces.get('/:slug/sites', requireAuth, async (c) => {
 
   const isMember = memberRows.length > 0
   const shared = foldSharedSiteRoles(direct, viaGroup)
-  const visible = rows.filter((s) => checkAccess(s, user, isMember, shared.has(s.id)).ok)
+  const visible = rows.filter((s) => canDiscover(s, user, isMember, shared.has(s.id)))
   return c.json(
     visible.map((s) => ({
       ...toFeedRow(s, c.env.APP_URL),
@@ -154,7 +162,11 @@ spaces.post('/:slug/members', requireAuth, requireControlGrant, async (c) => {
   if (space.type === 'personal') return c.json({ error: 'cannot invite members to a personal space' }, 409)
 
   const target = (
-    await db.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = lower(${email})`).limit(1)
+    await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(sql`lower(${users.email}) = lower(${email})`, isNull(users.disabledAt)))
+      .limit(1)
   )[0]
   if (!target) return c.json({ error: 'user not found — they must sign in once first' }, 404)
 
@@ -180,14 +192,60 @@ spaces.delete('/:slug/members/:userId', requireAuth, requireControlGrant, async 
   if (space.createdBy !== user.id) return c.json({ error: 'forbidden' }, 403)
   if (userId === space.createdBy) return c.json({ error: 'cannot remove the space owner' }, 400)
 
-  await db
-    .delete(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, space.id), eq(spaceMembers.userId, userId)))
+  await db.delete(spaceMembers).where(and(eq(spaceMembers.spaceId, space.id), eq(spaceMembers.userId, userId)))
   return c.json({ ok: true })
 })
 
+// PATCH /api/spaces/:slug/owner — hand a group space to an active member.
+spaces.patch('/:slug/owner', requireAuth, requireControlGrant, requireHumanCredential, async (c) => {
+  const user = c.get('user')
+  const db = c.get('db')
+  const slug = c.req.param('slug')
+  const body = await c.req.json().catch(() => null)
+  const userId = typeof body?.userId === 'string' ? body.userId.trim() : ''
+  if (!userId) return c.json({ error: 'userId is required' }, 400)
+
+  const space = (await db.select().from(spacesTable).where(eq(spacesTable.slug, slug)).limit(1))[0]
+  if (!space) return c.json({ error: 'space not found' }, 404)
+  if (space.createdBy !== user.id) return c.json({ error: 'forbidden' }, 403)
+  if (space.type === 'personal') return c.json({ error: 'personal space ownership cannot be transferred' }, 409)
+  if (userId === user.id) return c.json({ error: 'user is already the space owner' }, 400)
+
+  const target = (
+    await db
+      .select({ id: users.id })
+      .from(spaceMembers)
+      .innerJoin(users, eq(spaceMembers.userId, users.id))
+      .where(and(eq(spaceMembers.spaceId, space.id), eq(spaceMembers.userId, userId), isNull(users.disabledAt)))
+      .limit(1)
+  )[0]
+  if (!target) return c.json({ error: 'new owner must be an active space member' }, 409)
+
+  const updated = await db
+    .update(spacesTable)
+    .set({ createdBy: target.id })
+    .where(
+      and(
+        eq(spacesTable.id, space.id),
+        eq(spacesTable.createdBy, user.id),
+        sql`exists (
+          select 1
+          from ${spaceMembers}
+          inner join ${users} on ${spaceMembers.userId} = ${users.id}
+          where ${spaceMembers.spaceId} = ${space.id}
+            and ${spaceMembers.userId} = ${target.id}
+            and ${users.disabledAt} is null
+        )`,
+      ),
+    )
+    .returning({ ownerId: spacesTable.createdBy })
+  if (updated.length === 0) return c.json({ error: 'space or membership changed — reload and try again' }, 409)
+
+  return c.json({ ok: true, ownerId: target.id })
+})
+
 // DELETE /api/spaces/:slug — delete a space (owner or superadmin). Personal spaces are protected.
-spaces.delete('/:slug', requireAuth, requireControlGrant, async (c) => {
+spaces.delete('/:slug', requireAuth, requireControlGrant, requireHumanCredential, async (c) => {
   const user = c.get('user')
   const db = c.get('db')
   const slug = c.req.param('slug')
@@ -210,10 +268,10 @@ spaces.delete('/:slug', requireAuth, requireControlGrant, async (c) => {
       return c.json({ error: 'space has sites owned by other members — they must move or delete them first' }, 409)
   }
 
-  // Purge R2 objects in ONE key query + batched deletes before the FK cascade removes site + file
-  // rows. (The old per-site deleteSiteObjects loop did 2+ subrequests/site → blew the 50-subrequest
-  // free-plan cap mid-loop on a large space, 500ing with a partial destroy.)
-  await deleteSpaceObjects(db, c.env.GLANCE_FILES, space.id)
+  // Hide every site before cleanup so an R2 failure leaves a retryable space, never live pages
+  // backed by a partially deleted object set.
+  await db.update(sites).set({ status: 'archived' }).where(eq(sites.spaceId, space.id))
+  await deleteSpaceObjects(db, c.env.POSTPLAN_FILES, space.id)
   await db.delete(spacesTable).where(eq(spacesTable.id, space.id))
   return c.json({ ok: true })
 })

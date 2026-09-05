@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react'
 import { useEffect } from 'react'
 import { type LoaderFunctionArgs, useLoaderData } from 'react-router'
-import { ReleaseBody, ReleaseImage, formatReleaseDate } from '@/components/ReleaseBody'
+import { ReleaseBody, ReleaseImage, formatReleaseDate } from '@/components/releases/ReleaseBody'
 import { ApiError } from '@/lib/api'
 import { toLogin } from '@/lib/nav'
 import { type Release, type WhatsNewList, whatsNew } from '@/lib/whatsNew'

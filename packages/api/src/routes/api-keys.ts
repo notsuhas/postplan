@@ -3,7 +3,7 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { apiKeys as apiKeysTable } from '../db/schema'
 import { API_KEY_PREFIX, generateApiKey, hashApiKey, isApiKeyGrants } from '../lib/api-key'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 // Self-service control-plane API keys, mounted at /api/api-keys. Every route is scoped to the
@@ -20,7 +20,7 @@ export const KEY_DURATIONS = [1, 7, 30, 90, 180, 365] as const
 export const MAX_ACTIVE_KEYS = 10
 
 export const apiKeys = new Hono<AppEnv>()
-apiKeys.use('*', requireAuth)
+apiKeys.use('*', requireAuth, requireControlGrant)
 
 // Same not-expired predicate style as resolveApiKey (lib/api-key.ts): a JS-side ISO instant bound
 // as a parameter, never SQLite's `datetime('now')` (see that file's comment for why the lexical

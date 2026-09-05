@@ -16,14 +16,13 @@ import { recordVisit } from '@/lib/recents'
 import type { Me } from '@/lib/types'
 import { deepLinkReady, railFromSearch, type RevealRequest } from '@/lib/viewerCommands'
 import { loadViewer, PREFETCH_FAILED, type PrefetchResult, type ViewerLoaderData } from '@/lib/viewerLoader'
-import { AudioView } from '@/components/AudioView'
-import { Spinner } from '@/components/states'
-import { CommandPalette } from '@/components/CommandPalette'
-import { ViewerTopBar } from '@/components/ViewerTopBar'
-import { viewThemeHref } from '@/components/theme-select'
+import { AudioView } from '@/components/viewer/AudioView'
+import { Spinner } from '@/components/ui/states'
+import { CommandPalette } from '@/components/layout/CommandPalette'
+import { ViewerTopBar } from '@/components/viewer/ViewerTopBar'
 import { CommentPopover } from '@/components/review/CommentPopover'
 import { ReviewRail, type TypingPing } from '@/components/review/ReviewRail'
-import { ViewerSidebar } from '@/components/ViewerSidebar'
+import { ViewerSidebar } from '@/components/viewer/ViewerSidebar'
 
 // S11: the loader resolves on SITE META alone; the comments prefetch for the predicted entry file
 // is fired unawaited and rides along as a pending promise — the iframe never waits on comments.
@@ -61,13 +60,16 @@ function Viewer() {
   // visit still flushes when Me resolves after a splat nav.
   const lastReadyPathRef = useRef<string | null>(null)
   const contentOrigin = useMemo(() => new URL(site.contentUrl).origin, [site.contentUrl])
-  const src = useMemo(() => withAnnotate(appendPath(site.contentUrl, sitePath)), [site.contentUrl, sitePath])
+  const src = useMemo(() => {
+    const contentUrl = appendPath(site.contentUrl, sitePath)
+    return site.authenticated ? withAnnotate(contentUrl) : contentUrl
+  }, [site.authenticated, site.contentUrl, sitePath])
   // `entryPath` (loader-resolved via resolveEntryPath, mirroring the server's normalizePath) is
   // the concrete file this URL serves — at the root that's the API's indexPath (root index.html or
   // the lone-upload fallback, e.g. recording.webm), so audio detection, the player src, and comment
   // anchoring work at the root URL too. null = the site has no known root entry (never guess).
   // Audio has no HTML document to frame — it gets a native player instead of the sandboxed
-  // iframe, and (unlike the iframe src) no ?glance_annotate param: that flag only triggers the
+  // iframe, and (unlike the iframe src) no ?postplan_annotate param: that flag only triggers the
   // HTML-injection transform in content.ts, which never applies to audio.
   const isAudio = useMemo(() => entryPath !== null && isAudioFile(entryPath), [entryPath])
   const audioSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
@@ -101,43 +103,6 @@ function Viewer() {
   const [composing, setComposing] = useState<PendingAnchor | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
-  // Viewer-LOCAL theme override (non-owners): purely cosmetic and per-browser — persisted in
-  // localStorage per site, applied by posting glance:theme into the frame (the annotate client
-  // swaps the stylesheet link in place; the server is never written). null = the site's default.
-  const viewThemeKey = `glance:viewTheme:${site.spaceSlug}/${site.siteSlug}`
-  const [viewTheme, setViewTheme] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(viewThemeKey)
-    } catch {
-      return null
-    }
-  })
-  // Read by the message-listener effect (stable subscription) — a state read there would go
-  // stale in the closure; the ref always carries the latest override.
-  const viewThemeRef = useRef(viewTheme)
-  viewThemeRef.current = viewTheme
-  const applyViewTheme = useCallback(
-    (slug: string | null) => {
-      void viewThemeHref(slug).then((href) => {
-        iframeRef.current?.contentWindow?.postMessage({ type: 'glance:theme', href }, contentOrigin)
-      })
-    },
-    [contentOrigin],
-  )
-  const onViewTheme = useCallback(
-    (slug: string | null) => {
-      setViewTheme(slug)
-      try {
-        if (slug === null) localStorage.removeItem(viewThemeKey)
-        else localStorage.setItem(viewThemeKey, slug)
-      } catch {
-        // private mode etc. — the override still applies for this page view
-      }
-      applyViewTheme(slug) // instant swap, even to null (restores the site default in place)
-    },
-    [viewThemeKey, applyViewTheme],
-  )
-
   // Paint anchors back into the iframe via the trusted parent→child channel. A paint IS the
   // highlight now (client.ts lights everything it's sent), so this is gated on `railOpen`: open the
   // panel and every commented passage lights up, close it and the EMPTY paint below clears the page
@@ -150,13 +115,13 @@ function Viewer() {
   const paint = useCallback(() => {
     const win = iframeRef.current?.contentWindow
     if (!win || !loaded) return
-    win.postMessage({ type: 'glance:paint', anchors: railOpen ? paintAnchors(threads) : [] }, contentOrigin)
+    win.postMessage({ type: 'postplan:paint', anchors: railOpen ? paintAnchors(threads) : [] }, contentOrigin)
   }, [threads, railOpen, loaded, contentOrigin])
 
   // ── S11 comments-load arbitration ────────────────────────────────────────────────────────────
   // The loader fires a comments prefetch BEFORE the iframe mounts; this pure reducer
   // (lib/prefetchArbiter) owns every ordering rule — generations (newer loads invalidate all older
-  // in-flight results), provisional HTML prefetches (held until a matching glance:ready), stale
+  // in-flight results), provisional HTML prefetches (held until a matching postplan:ready), stale
   // readys after a splat nav. The component only executes its decisions.
   const arbiter = useRef<ArbiterState>(initialArbiter(entryPath))
 
@@ -180,7 +145,10 @@ function Viewer() {
   )
 
   // Stable site ref for fetches: slugs never change within a mount (Component keys on them).
-  const siteRef = useMemo(() => ({ spaceSlug: site.spaceSlug, siteSlug: site.siteSlug }), [site.spaceSlug, site.siteSlug])
+  const siteRef = useMemo(
+    () => ({ spaceSlug: site.spaceSlug, siteSlug: site.siteSlug }),
+    [site.spaceSlug, site.siteSlug],
+  )
 
   // The ask panel's one streaming call. Stable on siteRef alone — the question/anchor/token-sink/
   // signal all come from the caller, so this never needs to change identity within a mount.
@@ -270,6 +238,7 @@ function Viewer() {
   )
 
   useEffect(() => {
+    if (!site.authenticated) return
     const stream = createCommentStream({
       site: siteRef,
       appOrigin: window.location.origin,
@@ -289,7 +258,7 @@ function Viewer() {
     }
     // All three are stable for the life of a mount (siteRef is memoized on slugs the Component keys
     // on), so this dials ONCE per site and disposes on unmount — never mid-session.
-  }, [siteRef, onPushed, refresh])
+  }, [site.authenticated, siteRef, onPushed, refresh])
 
   // A local write's list refetch, dropped in exactly one case: the room fans this write back to
   // every socket on the site — the author's own included — so a PUSHED change on a CONNECTED stream
@@ -311,7 +280,7 @@ function Viewer() {
   // Actionable count for the toolbar badge: open threads (mirrors the rail's default "open" list).
   const openCount = useMemo(() => threads.filter((t) => t.status === 'open').length, [threads])
 
-  // Per-site tab title: without this the shell's static <title> ("Glance — …") shows for EVERY
+  // Per-site tab title: without this the shell's static <title> ("Postplan — …") shows for EVERY
   // site. site.title is owner-set or deploy-derived from the entry HTML's <title>; fall back to
   // the slug. Restored on unmount so back-navigation to the dashboard keeps the shell default.
   useEffect(() => {
@@ -322,17 +291,18 @@ function Viewer() {
     }
   }, [site.title, site.siteSlug])
 
-  // glance.db credential broker: the injected SDK in the iframe hands us a MessagePort; we
+  // postplan.db credential broker: the injected SDK in the iframe hands us a MessagePort; we
   // execute its data-plane requests with OUR token so no credential ever enters the untrusted
   // frame (P0-1). Bound to THIS site — the page cannot ask for another site's data.
   useEffect(() => {
+    if (!site.authenticated) return
     const broker = attachDbBroker({
       site: { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug },
       contentOrigin,
       getSource: () => iframeRef.current?.contentWindow,
     })
     return broker.dispose
-  }, [site.spaceSlug, site.siteSlug, contentOrigin])
+  }, [site.authenticated, site.spaceSlug, site.siteSlug, contentOrigin])
 
   // The rail's reveal has two producers: the one-shot deep link below and clicks on a painted
   // highlight. A click is the source the nonce was built for — the same thread can be clicked over
@@ -351,7 +321,10 @@ function Viewer() {
   // not a trust oracle — nothing here writes without a subsequent explicit user action.
   useEffect(() => {
     function onMsg(e: MessageEvent) {
-      const intent: Intent | null = parseIntent(e, { origin: contentOrigin, source: iframeRef.current?.contentWindow ?? null })
+      const intent: Intent | null = parseIntent(e, {
+        origin: contentOrigin,
+        source: iframeRef.current?.contentWindow ?? null,
+      })
       if (!intent) return
       if (intent.type === 'ready') {
         // Audio has no iframe/'ready'; for HTML this is where the SPA learns the current file.
@@ -359,25 +332,27 @@ function Viewer() {
         // it and orders a fresh fetch, a duplicate or a stale ready (old iframe doc after a splat
         // nav) is ignored outright — including for recordVisit below.
         const { state, decision } = dispatch({ type: 'ready', path: intent.filePath })
-        if (decision.kind === 'refetch') loadThreads(decision.path)
+        if (decision.kind === 'refetch' && site.authenticated) loadThreads(decision.path)
         // 'ignore' covers duplicates too — a duplicate ready no longer double-counts a visit.
         if (decision.kind === 'ignore') return
         if (state.readyPath !== intent.filePath) return
         lastReadyPathRef.current = intent.filePath
-        // Re-apply the viewer-local theme override to this FRESH document. In-frame navigation
-        // (a link click inside a multi-page site) boots a new document with only the owner's
-        // theme — the parent's `loaded` never toggles for it, so ready is the one signal that
-        // covers first load, parent-driven navs, and in-frame navs alike.
-        if (viewThemeRef.current !== null) applyViewTheme(viewThemeRef.current)
         // Every in-iframe navigation fires 'ready' with the real current file — the only place the
         // SPA learns it, since the URL doesn't change on in-page navigation. Skip until Me resolves
         // (never record to an unknown/shared-machine user); the me-effect below flushes the ref once
         // Me resolves, so a 'ready' that beats the /api/auth/me fetch on a fresh load isn't dropped.
-        if (me) recordVisit(me.id, { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug, title: site.title, filePath: intent.filePath })
+        if (me)
+          recordVisit(me.id, {
+            spaceSlug: site.spaceSlug,
+            siteSlug: site.siteSlug,
+            title: site.title,
+            filePath: intent.filePath,
+          })
       }
       // UNCONDITIONAL (C2b): commenting is on for anyone with access, not just while the rail is
       // open — a text selection feeds the popover reducer (chip first, composer only on an
       // explicit click) whether or not the rail panel happens to be visible.
+      else if (!site.authenticated) return
       else if (intent.type === 'select')
         dispatchPopover({
           type: 'select',
@@ -410,17 +385,29 @@ function Viewer() {
       }
     }
     window.addEventListener('message', onMsg)
-    // The other half of the #27 handshake: the client posts its one boot glance:ready at load, and
+    // The other half of the #27 handshake: the client posts its one boot postplan:ready at load, and
     // on a warm-cache load the iframe can finish BEFORE this listener exists — the ready is lost,
     // filePath stays null, and the rail never loads for the initially open page. Pinging after
     // attach makes the order irrelevant: an already-booted client re-announces, while a ping that
     // beats the load lands on about:blank and is dropped (the boot ready then arrives normally).
     // Effect re-runs re-ping, which is harmless — the arbiter ignores duplicate readys.
-    iframeRef.current?.contentWindow?.postMessage({ type: 'glance:ping' }, contentOrigin)
+    iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:ping' }, contentOrigin)
     return () => window.removeEventListener('message', onMsg)
-  }, [contentOrigin, me, site.spaceSlug, site.siteSlug, site.title, threads, dispatch, loadThreads, revealThread, applyViewTheme])
+  }, [
+    contentOrigin,
+    me,
+    site.authenticated,
+    site.spaceSlug,
+    site.siteSlug,
+    site.title,
+    threads,
+    dispatch,
+    loadThreads,
+    revealThread,
+  ])
 
   useEffect(() => {
+    if (!site.authenticated) return
     api
       .get<Me>('/api/auth/me')
       .then((m) => {
@@ -431,11 +418,16 @@ function Viewer() {
         // Flush whatever file the iframe already reported ready for — on a fresh load 'ready' usually
         // beats this fetch, and the intent handler's `if (me)` gate above would otherwise drop it.
         if (lastReadyPathRef.current) {
-          recordVisit(m.id, { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug, title: site.title, filePath: lastReadyPathRef.current })
+          recordVisit(m.id, {
+            spaceSlug: site.spaceSlug,
+            siteSlug: site.siteSlug,
+            title: site.title,
+            filePath: lastReadyPathRef.current,
+          })
         }
       })
       .catch(() => setMe(null))
-  }, [site.spaceSlug, site.siteSlug, site.title])
+  }, [site.authenticated, site.spaceSlug, site.siteSlug, site.title])
 
   // Consume the loader's prefetch + reset on splat navigation (viewer → another file in the SAME
   // site; cross-site nav remounts via the Component key). A nav brings the loading overlay back and
@@ -458,7 +450,7 @@ function Viewer() {
     }
     if (commentsPromise && commentsPromise !== consumedPrefetch.current && entryPath !== null) {
       consumedPrefetch.current = commentsPromise
-      // HTML stays provisional until its glance:ready confirms the path; audio has no iframe (and
+      // HTML stays provisional until its postplan:ready confirms the path; audio has no iframe (and
       // thus no ready) — it applies as soon as it settles, keeping the audio player's rail working.
       loadThreads(entryPath, { provisional: !isAudio, prefetch: commentsPromise })
     }
@@ -481,6 +473,7 @@ function Viewer() {
   // (Keydown only reaches the parent when focus is outside the sandboxed iframe; the header
   // Search button is the always-available fallback.)
   useEffect(() => {
+    if (!site.authenticated) return
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
@@ -489,7 +482,7 @@ function Viewer() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [site.authenticated])
 
   // Scroll an anchor into view in the iframe: element → its selector; text → its quote. What a rail
   // card's click does; nothing about it changes what is LIT, because everything already is for as
@@ -499,9 +492,10 @@ function Viewer() {
       const win = iframeRef.current?.contentWindow
       if (!win) return
       if (thread.anchorType === 'element' && thread.anchor)
-        win.postMessage({ type: 'glance:focus', selector: thread.anchor.selector }, contentOrigin)
+        win.postMessage({ type: 'postplan:focus', selector: thread.anchor.selector }, contentOrigin)
       // Context rides along so focusing lands on the SAME occurrence the paint highlighted.
-      else if (thread.quote) win.postMessage({ type: 'glance:focus', quote: thread.quote, context: thread.context }, contentOrigin)
+      else if (thread.quote)
+        win.postMessage({ type: 'postplan:focus', quote: thread.quote, context: thread.context }, contentOrigin)
     },
     [contentOrigin],
   )
@@ -527,7 +521,13 @@ function Viewer() {
     // page waits on the iframe's `loaded` onLoad; audio renders no iframe, so `loaded` never fires
     // and gating on it left `?thread=` on an audio page permanently dead — audio is ready as soon
     // as its thread has arrived.
-    if (deepLinkFocused.current || !deepLinkThreadId || !railOpen || !deepLinkReady({ isAudio, loaded, hasThread: !!target })) return
+    if (
+      deepLinkFocused.current ||
+      !deepLinkThreadId ||
+      !railOpen ||
+      !deepLinkReady({ isAudio, loaded, hasThread: !!target })
+    )
+      return
     deepLinkFocused.current = true
     // Scroll the iframe to the anchor; the rail reveals + scrolls the thread card itself (ReviewRail
     // owns the open/resolved filter, so it can un-hide a resolved target).
@@ -579,8 +579,11 @@ function Viewer() {
   }
 
   const createThread = (body: string, mentions: string[]) =>
-    submitThread('Failed to add comment', composing, (path, anchor) => comments.create(site, pendingToInput(path, body, anchor), mentions), () =>
-      setComposing(null),
+    submitThread(
+      'Failed to add comment',
+      composing,
+      (path, anchor) => comments.create(site, pendingToInput(path, body, anchor), mentions),
+      () => setComposing(null),
     )
 
   // Voice sibling: the anchor fields come from the same pending anchor (body is the server-side
@@ -614,7 +617,12 @@ function Viewer() {
 
   const createPopoverThread = (body: string, mentions: string[]) =>
     popoverWrite((anchor, onWritten) =>
-      submitThread('Failed to add comment', anchor, (path, a) => comments.create(site, pendingToInput(path, body, a), mentions), onWritten),
+      submitThread(
+        'Failed to add comment',
+        anchor,
+        (path, a) => comments.create(site, pendingToInput(path, body, a), mentions),
+        onWritten,
+      ),
     )
 
   const createPopoverVoiceThread = (blob: Blob) =>
@@ -658,21 +666,21 @@ function Viewer() {
         onPrint={
           isAudio
             ? undefined
-            : () => iframeRef.current?.contentWindow?.postMessage({ type: 'glance:print' }, contentOrigin)
+            : () => iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:print' }, contentOrigin)
         }
-        viewTheme={viewTheme}
-        onViewTheme={isAudio ? undefined : onViewTheme}
       />
 
-      <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} user={me} />
+      {site.authenticated && <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} user={me} />}
 
-      <ViewerSidebar
-        open={sidebarOpen}
-        onOpenChange={setSidebarOpen}
-        userId={me?.id ?? null}
-        currentSpaceSlug={site.spaceSlug}
-        currentSiteSlug={site.siteSlug}
-      />
+      {site.authenticated && (
+        <ViewerSidebar
+          open={sidebarOpen}
+          onOpenChange={setSidebarOpen}
+          userId={me?.id ?? null}
+          currentSpaceSlug={site.spaceSlug}
+          currentSiteSlug={site.siteSlug}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* The loading overlay lives inside this wrapper so its coords match the iframe viewport. */}
@@ -684,8 +692,8 @@ function Viewer() {
               <iframe
                 ref={iframeRef}
                 // Hosted HTML is rendered on a stable WHITE canvas (the browser's default page
-                // background that every uploaded document assumes), NOT the theme-aware
-                // `bg-background` — which is dark in dark mode, so a doc with hardcoded dark text
+                // background that every uploaded document assumes), not the app's dark background,
+                // so a doc with hardcoded dark text
                 // and no background of its own showed dark-on-dark (invisible). A doc that designs
                 // itself dark still paints over this white with its own background. colorScheme:light
                 // keeps native controls/scrollbars consistent with the light canvas.
@@ -702,21 +710,16 @@ function Viewer() {
                 // new tab that isn't itself sandboxed, so the destination site loads normally.
                 // allow-modals: window.print() counts as a modal, and Chromium blocks it in a
                 // sandboxed frame without this flag — required by the Print / Save as PDF action
-                // (the annotate client's glance:print handler). Also un-blocks alert()/confirm()
+                // (the annotate client's postplan:print handler). Also un-blocks alert()/confirm()
                 // for hosted pages, which matches how interactive artifacts behave elsewhere.
                 sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-top-navigation-by-user-activation allow-modals"
-                // Delegate mic to the cross-origin content frame: without this, getUserMedia is
-                // rejected before the browser prompt can appear. Nothing is granted silently — the
-                // user still approves via the normal permission prompt. Note: the grant keys to the
-                // viewer's top-level origin, so a persistent allow applies to all hosted sites.
-                allow="microphone"
               />
             )}
             {/* Sibling of the iframe ON PURPOSE: this wrapper is the iframe's own box, so the rect
                 the frame reports needs no translation to position the chip/popover over it.
                 The POPOVER is unconditional on railOpen (C2b): anyone who can open the site can
                 comment without opening a panel first. */}
-            {!isAudio && (
+            {site.authenticated && !isAudio && (
               <CommentPopover
                 chip={popover.chip}
                 composer={popover.composer}
@@ -740,7 +743,7 @@ function Viewer() {
           </div>
         </div>
 
-        {railOpen && (
+        {site.authenticated && railOpen && (
           <ReviewRail
             site={site}
             me={me}
@@ -778,7 +781,7 @@ function Viewer() {
 
 function withAnnotate(u: string): string {
   const url = new URL(u)
-  url.searchParams.set('glance_annotate', '1')
+  url.searchParams.set('postplan_annotate', '1')
   return url.toString()
 }
 

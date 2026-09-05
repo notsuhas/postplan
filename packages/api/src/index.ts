@@ -4,10 +4,10 @@ import { sessionDb, withDb } from './db/client'
 import { superadminExists } from './db/repo'
 import { purgeRetention } from './lib/retention'
 import { cachedStats } from './lib/stats'
-import { GLANCE_DB_JS } from './glancedb/bundle'
+import { POSTPLAN_DB_JS } from './postplandb/bundle'
 import { buildPublicConfig } from './lib/bootstrap'
 import { INSTALL_SH } from './install-script'
-import { isGoogleEnabled } from './lib/oauth'
+import { isWorkosEnabled } from './lib/workos'
 import { trackCliUsage } from './middleware/analytics'
 import { requireSameOrigin } from './middleware/auth'
 import { admin } from './routes/admin'
@@ -23,7 +23,6 @@ import { notifications } from './routes/notifications'
 import { whatsNew } from './routes/whats-new'
 import { sites } from './routes/sites'
 import { slackEvents } from './routes/slack-events'
-import { themes } from './routes/themes'
 import { spaces } from './routes/spaces'
 import { stars } from './routes/stars'
 import { upload } from './routes/upload'
@@ -58,7 +57,7 @@ app.use('*', (c, next) =>
   })(c, next),
 )
 // Public installer: serves the repo-root install.sh (single source via build:install) with
-// GLANCE_API_URL defaulted to THIS origin, so `curl -fsSL <origin>/api/install | sh` lands a CLI
+// POSTPLAN_API_URL defaulted to THIS origin, so `curl -fsSL <origin>/api/install | sh` lands a CLI
 // already pointed here — no env to set. Registered BEFORE the /api/* guards: it needs no DB and
 // must accept plain curl (no Origin / no cookie). Lives under /api/* so run_worker_first reaches
 // the worker instead of the SPA asset fallback.
@@ -66,21 +65,17 @@ app.get('/api/install', (c) => {
   const origin = new URL(c.req.url).origin
   const script = INSTALL_SH.replace(
     '#!/bin/sh\nset -eu\n',
-    `#!/bin/sh\nset -eu\n\n# Defaulted by ${origin}/api/install — export GLANCE_API_URL before piping to override.\nGLANCE_API_URL="\${GLANCE_API_URL:-${origin}}"\n`,
+    `#!/bin/sh\nset -eu\n\n# Defaulted by ${origin}/api/install — export POSTPLAN_API_URL before piping to override.\nPOSTPLAN_API_URL="\${POSTPLAN_API_URL:-${origin}}"\n`,
   )
   return c.text(script, 200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' })
 })
 
-// Shared-backend browser SDK (built from src/glancedb/client.ts — bun run build:db). Public GET
+// Shared-backend browser SDK (built from src/postplandb/client.ts — bun run build:db). Public GET
 // (no auth/db) registered before the guards; no-store so SDK updates land immediately while the
 // surface is young. Hosted pages get the same client injected by the content worker instead.
-app.get('/api/glance.js', (c) =>
-  c.body(GLANCE_DB_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' }),
+app.get('/api/postplan.js', (c) =>
+  c.body(POSTPLAN_DB_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' }),
 )
-
-// Design-theme catalog + agent briefs. Public GETs, no DB — registered before the guards
-// (the /api/install idiom) so agents can fetch a brief with plain curl before generating.
-app.route('/api/themes', themes)
 
 // Shared-backend data plane. Registered BEFORE the /api/* guards (like /api/install): it is
 // bearer-token authenticated and cross-origin from the content origin, so it must NOT inherit
@@ -98,7 +93,8 @@ app.get('/api/health', (c) => c.json({ status: 'ok' }))
 app.get('/api/config', async (c) =>
   c.json(
     buildPublicConfig({
-      googleEnabled: isGoogleEnabled(c.env),
+      // WorkOS brokers Google, so the button copy stays accurate; only the broker changed.
+      googleEnabled: isWorkosEnabled(c.env),
       hasSuperadmin: await superadminExists(c.get('db')),
       bootstrapTokenSet: Boolean(c.env.BOOTSTRAP_TOKEN),
     }),
@@ -158,11 +154,11 @@ const DAILY_PURGE_CRON = '0 3 * * *'
 export default {
   fetch: app.fetch,
   async scheduled(event, env, _ctx) {
-    const db = sessionDb(env.GLANCE_DB, 'first-unconstrained')
+    const db = sessionDb(env.POSTPLAN_DB, 'first-unconstrained')
     if (event.cron === DAILY_PURGE_CRON) {
       await purgeRetention(db)
       return
     }
-    await cachedStats(env.GLANCE_SESSIONS, db, (p) => p.then(() => {}))
+    await cachedStats(env.POSTPLAN_SESSIONS, db, (p) => p.then(() => {}))
   },
 } satisfies ExportedHandler<Bindings>

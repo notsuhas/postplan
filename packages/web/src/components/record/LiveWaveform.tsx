@@ -30,8 +30,7 @@ export function LiveWaveform({
     let data: Uint8Array<ArrayBuffer> | null = null
     try {
       const AC =
-        window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+        window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
       if (stream && AC) {
         ctx = new AC()
         const source = ctx.createMediaStreamSource(stream)
@@ -65,10 +64,7 @@ export function LiveWaveform({
   }, [stream, active])
 
   return (
-    <div
-      aria-hidden
-      className={cn('flex h-16 w-full items-center justify-center gap-1', className)}
-    >
+    <div aria-hidden className={cn('flex h-16 w-full items-center justify-center gap-1', className)}>
       {levels.map((level, i) => (
         <span
           // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length decorative bar list

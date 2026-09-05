@@ -51,17 +51,12 @@ export type SummaryEvent =
 
 export const SUMMARY_INITIAL_STATE: SummaryState = { kind: 'loading', requestToken: 0 }
 
-function failedState(
-  error: unknown,
-  requestToken: number,
-  prior?: ReadySnapshot,
-  retryForce = false,
-): SummaryState {
+function failedState(error: unknown, requestToken: number, prior?: ReadySnapshot, retryForce = false): SummaryState {
   return {
     kind: 'failed',
     prior,
-    retryable: error instanceof ApiError && (error.status === 429 || error.status === 502),
-    rateLimited: error instanceof ApiError && error.status === 429,
+    retryable: error instanceof ApiError && (error.retryable ?? error.status === 502),
+    rateLimited: error instanceof ApiError && error.code === 'rate_limited',
     retryForce,
     requestToken,
   }

@@ -7,7 +7,7 @@ import { batchAll, chunk, FEED_ID_CHUNK } from '../lib/d1'
 import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
 import type { ResolvedSite } from '../lib/site-access'
 import { fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
 // Star toggle. Mounted at /api/sites alongside comments/summary, so the 3-segment
@@ -67,15 +67,13 @@ stars.get('/starred', requireAuth, async (c) => {
   )
   const visible = rowChunks
     .flat()
-    .filter(
-      (r) => checkAccess(r, user, memberSpaces.has(r.spaceId), shared.has(r.id)).ok,
-    )
+    .filter((r) => checkAccess(r, user, memberSpaces.has(r.spaceId), shared.has(r.id)).ok)
     // Per-chunk order is lost on flatten; re-impose the STAR order (newest star first).
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
   return c.json(visible.map((r) => toFeedRow(r, c.env.APP_URL)))
 })
 
-stars.use('/:space/:site/star', requireAuth)
+stars.use('/:space/:site/star', requireAuth, requireControlGrant)
 
 // Both verbs are no-op-safe and return the RESULTING state, so a double-click (or a retry of a
 // request whose response was lost) converges instead of erroring: the composite PK absorbs the

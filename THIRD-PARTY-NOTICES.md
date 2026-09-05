@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Glance bundles and depends on open-source software. Each package remains under its own
+Postplan bundles and depends on open-source software. Each package remains under its own
 license; the most significant are listed below. Run `bun pm ls` for the full resolved tree.
 
 ## Runtime
@@ -35,14 +35,3 @@ license; the most significant are listed below. Run `bun pm ls` for the full res
 | vite | MIT |
 
 Full license texts are available in each package's directory under `node_modules/`.
-
-## Vendored fonts (packages/api/themes/*/fonts)
-
-Latin WOFF2 subsets, self-hosted so themed pages stay first-party (#155). All
-licensed under the SIL Open Font License 1.1:
-
-- Sora — © Jonathan Barnbrook, Julián Moncada (Google Fonts)
-- Inter — © Rasmus Andersson (Google Fonts)
-- JetBrains Mono — © JetBrains (Google Fonts)
-- Bangers — © Vernon Adams (Google Fonts)
-- Comic Neue — © Craig Rozynski (Google Fonts)

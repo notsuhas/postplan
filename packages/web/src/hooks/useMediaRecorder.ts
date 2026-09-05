@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { pickAudioMimeType } from '@/lib/recorder'
+import { pickAudioMimeType, recordingAccessError } from '@/lib/recorder'
 
 // State machine for a real in-browser recording: idle → recording ⇄ paused → stopped. The pure
 // MIME/extension/title helpers live in lib/recorder.ts (unit-tested); this hook owns the stateful
@@ -77,11 +77,15 @@ export function useMediaRecorder(): MediaRecorderHook {
 
   const start = useCallback(async () => {
     setError(null)
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("This browser can't access a microphone.")
+      return
+    }
     let media: MediaStream
     try {
       media = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch {
-      setError('Microphone access was denied. Allow it in your browser and try again.')
+    } catch (err) {
+      setError(recordingAccessError(err))
       return
     }
     const mime = pickAudioMimeType()

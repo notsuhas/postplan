@@ -1,7 +1,7 @@
-# Shared backend — `glance.db`
+# Shared backend — `postplan.db`
 
 Quick-style shared backend: hosted static sites get browser-callable persistence with no keys and
-no config — a per-site document store (`glance.db`) behind a dedicated server-side security spine.
+no config — a per-site document store (`postplan.db`) behind a dedicated server-side security spine.
 Every P0 finding from the design security review is designed-in, not retrofitted.
 
 ## Enabling it
@@ -13,7 +13,7 @@ cd packages/api && wrangler secret put DATA_TOKEN_SECRET
 ```
 
 Unset → `/api/_data` is inert (404). The `documents` table ships with the standard D1 migrations
-(`0006_glance_documents.sql`).
+(`0006_postplan_documents.sql`).
 
 ## How it works
 
@@ -25,14 +25,14 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
   over a generic `documents(siteId, collection, docId, json, createdBy, …)` table.
 - **`/api/data-token/:space/:site`** (`dataToken`) — session-authenticated mint. The site owner
   → `read+write`; any other authorized viewer → `read`.
-- **Browser SDK** (`glancedb/client.ts` → built to `glancedb/bundle.ts` via `bun run build:db`;
-  served at `/api/glance.js` and `/_glance/db.js`) — two transports picked from the
-  `__GLANCE_DB__` boot global: same-origin (app pages: session mint, re-mint before expiry and
-  once on 401) and **broker** (hosted pages: see below). `__GLANCE__` belongs to the annotate
+- **Browser SDK** (`postplandb/client.ts` → built to `postplandb/bundle.ts` via `bun run build:db`;
+  served at `/api/postplan.js` and `/_postplan/db.js`) — two transports picked from the
+  `__POSTPLAN_DB__` boot global: same-origin (app pages: session mint, re-mint before expiry and
+  once on 401) and **broker** (hosted pages: see below). `__POSTPLAN__` belongs to the annotate
   overlay.
 - **Parent-frame credential broker** (`web/src/lib/dbBroker.ts` + injection in `content.ts`):
   the content worker injects the SDK into gated HTML served through the app viewer; the SDK
-  hands the parent a `MessagePort` (`glance:db-hello`); the viewer adopts it only from the exact
+  hands the parent a `MessagePort` (`postplan:db-hello`); the viewer adopts it only from the exact
   content-origin iframe it mounted, then executes each shape-validated op with ITS token against
   `/api/_data` and answers with data only. No credential ever enters the untrusted page realm;
   the page cannot name another site (requests bind to the viewed site) or reach any other route
@@ -56,11 +56,11 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
 ## Known limitations
 
 - **Standalone tabs** — a site opened directly on the content origin has no parent frame, so
-  `glance.db` calls fail with a clear "open this site through the Glance app" error. By design
+  `postplan.db` calls fail with a clear "open this site through the Postplan app" error. By design
   for now.
-- **`glance.fs` / `glance.ai`** (planned) — with serve-time non-exec fs serving + AI quotas;
+- **`postplan.fs` / `postplan.ai`** (planned) — with serve-time non-exec fs serving + AI quotas;
   both ride the same broker channel.
-- **`glance.config.json` capability manifest** (the `shared-*` naming convention covers the
+- **`postplan.config.json` capability manifest** (the `shared-*` naming convention covers the
   read opt-in for now); resolving `createdBy` ids to display names.
 - **Per-site quotas / rate-limits** (abuse controls) not yet implemented.
 - Arbitrary `list()` filters (only ship behind bound JSON paths + a field allowlist).

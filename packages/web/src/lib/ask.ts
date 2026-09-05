@@ -10,7 +10,12 @@ export type AskBody = { question: string; quote: string; blockText?: string }
 
 /** Streams the answer via Workers-AI's SSE passthrough, calling `onToken` with each `.response`
  *  chunk as it arrives. Resolves once the stream ends (`data: [DONE]` or the body closes). */
-export async function askStream(site: AskSite, body: AskBody, onToken: (text: string) => void, signal?: AbortSignal): Promise<void> {
+export async function askStream(
+  site: AskSite,
+  body: AskBody,
+  onToken: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   const res = await fetch(`/api/sites/${site.spaceSlug}/${site.siteSlug}/ask`, {
     method: 'POST',
     credentials: 'include',
@@ -20,21 +25,59 @@ export async function askStream(site: AskSite, body: AskBody, onToken: (text: st
   })
   if (!res.ok) {
     let message = res.statusText
+    let code: string | undefined
+    let retryable: boolean | undefined
     try {
-      const errBody = (await res.json()) as { error?: string }
+      const errBody = (await res.json()) as { error?: string; code?: string; retryable?: boolean }
       if (errBody?.error) message = errBody.error
+      code = errBody.code
+      retryable = errBody.retryable
     } catch {
       // non-JSON error body — keep statusText
     }
-    throw new ApiError(res.status, message)
+    throw new ApiError(res.status, message, code, retryable)
   }
-  if (!res.body) return // nothing to stream (e.g. a 204, or a fetch polyfill without body support)
+  if (!res.body) throw new ApiError(502, 'AI returned no answer', 'empty_ai_response', true)
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   // SSE lines can split across chunk boundaries — this carries a trailing partial line into the
   // next chunk instead of losing or mis-parsing it.
   let buffer = ''
+  let tokenCount = 0
+
+  const readLine = (line: string): boolean => {
+    if (!line.startsWith('data: ')) return false
+    const payload = line.slice('data: '.length)
+    if (payload === '[DONE]') return true
+    try {
+      const parsed = JSON.parse(payload) as {
+        response?: unknown
+        type?: unknown
+        delta?: unknown
+        error?: unknown
+        choices?: Array<{ delta?: { content?: unknown } }>
+      }
+      if (parsed.error) throw new ApiError(502, 'AI generation failed', 'generation_failed', true)
+      const chat = parsed.choices?.[0]?.delta?.content
+      const token =
+        typeof parsed.response === 'string' && parsed.response
+          ? parsed.response
+          : typeof chat === 'string' && chat
+            ? chat
+            : parsed.type === 'response.output_text.delta' && typeof parsed.delta === 'string'
+              ? parsed.delta
+              : ''
+      if (token) {
+        tokenCount++
+        onToken(token)
+      }
+    } catch (error) {
+      if (error instanceof ApiError) throw error
+    }
+    return false
+  }
+
   for (;;) {
     const { done, value } = await reader.read()
     if (done) break
@@ -42,31 +85,13 @@ export async function askStream(site: AskSite, body: AskBody, onToken: (text: st
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? '' // last element is either '' (buffer ended on \n) or a partial line
     for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      const payload = line.slice('data: '.length)
-      if (payload === '[DONE]') return
-      try {
-        // Three token shapes, one loop — which one arrives depends on the model the ask route
-        // pins and the request shape it sends (see ASK_MODEL in routes/ask.ts):
-        //   • `{response}` — Workers-AI-native frames (llama and friends)
-        //   • chat-completion chunks — what gpt-oss streams under the chat `messages` shape; the
-        //     answer rides `choices[0].delta.content`, and `.delta.reasoning` (the model's
-        //     chain-of-thought) is deliberately NOT shown
-        //   • `response.output_text.delta` typed events — frontier catalog models via the
-        //     Responses API; other event types (response.created, …) are lifecycle noise
-        const parsed = JSON.parse(payload) as {
-          response?: unknown
-          type?: unknown
-          delta?: unknown
-          choices?: Array<{ delta?: { content?: unknown } }>
-        }
-        const chat = parsed.choices?.[0]?.delta?.content
-        if (typeof parsed.response === 'string' && parsed.response) onToken(parsed.response)
-        else if (typeof chat === 'string' && chat) onToken(chat)
-        else if (parsed.type === 'response.output_text.delta' && typeof parsed.delta === 'string' && parsed.delta) onToken(parsed.delta)
-      } catch {
-        // an unparseable frame is noise, not a reason to abort a stream that is otherwise fine
+      if (readLine(line)) {
+        if (tokenCount === 0) throw new ApiError(502, 'AI returned no answer', 'empty_ai_response', true)
+        return
       }
     }
   }
+  buffer += decoder.decode()
+  if (buffer) readLine(buffer)
+  if (tokenCount === 0) throw new ApiError(502, 'AI returned no answer', 'empty_ai_response', true)
 }

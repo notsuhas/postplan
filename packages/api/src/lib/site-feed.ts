@@ -25,7 +25,7 @@ export function pureAudioSql(siteId: SQLWrapper): SQL.Aliased<number> {
   return sql<number>`(${siteFiles(sql``)} and not ${siteFiles(sql` and not (${isAudioPathSql})`)})`.as('audio')
 }
 
-export function hasSummarySql(siteId: SQLWrapper): SQL.Aliased<number> {
+function hasSummarySql(siteId: SQLWrapper): SQL.Aliased<number> {
   return sql<number>`exists (select 1 from ${siteSummaries} where ${siteSummaries.siteId} = ${siteId})`.as('hasSummary')
 }
 
@@ -35,7 +35,7 @@ export function hasSummarySql(siteId: SQLWrapper): SQL.Aliased<number> {
  * `userId` is the REQUESTING user, never the row's owner: a star is per-user, and binding the wrong
  * identity here is precisely how one person's stars would light up in everyone else's feed.
  */
-export function isStarredSql(siteId: SQLWrapper, userId: string): SQL.Aliased<number> {
+function isStarredSql(siteId: SQLWrapper, userId: string): SQL.Aliased<number> {
   return sql<number>`exists (select 1 from ${siteStars} where ${siteStars.siteId} = ${siteId} and ${siteStars.userId} = ${userId})`.as(
     'starred',
   )
@@ -51,7 +51,6 @@ export function siteFeedColumns(userId: string) {
     title: sites.title,
     visibility: sites.visibility,
     status: sites.status,
-    theme: sites.theme,
     createdAt: sites.createdAt,
     updatedAt: sites.updatedAt,
     audio: pureAudioSql(sites.id),
@@ -60,14 +59,13 @@ export function siteFeedColumns(userId: string) {
   }
 }
 
-type FeedSourceRow = {
+export type FeedSourceRow = {
   id: string
   spaceSlug: string
   slug: string
   title: string | null
   visibility: Visibility
   status: 'active' | 'archived'
-  theme: string | null
   createdAt: string
   updatedAt: string
   audio: number
@@ -83,7 +81,6 @@ export function toFeedRow(row: FeedSourceRow, appUrl: string) {
     title: row.title,
     visibility: row.visibility,
     status: row.status,
-    theme: row.theme,
     audio: row.audio === 1,
     hasSummary: row.hasSummary === 1,
     starred: row.starred === 1,

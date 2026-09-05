@@ -105,6 +105,16 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+function SheetBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sheet-body"
+      className={cn("min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]", className)}
+      {...props}
+    />
+  )
+}
+
 function SheetTitle({
   className,
   ...props
@@ -136,6 +146,7 @@ export {
   SheetTrigger,
   SheetClose,
   SheetContent,
+  SheetBody,
   SheetHeader,
   SheetFooter,
   SheetTitle,

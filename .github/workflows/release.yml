@@ -19,7 +19,7 @@ jobs:
 
       # The CLI is a stdlib-only Go program. All 4 darwin/linux x arm64/x64 targets cross-compile
       # from this one runner via GOOS/GOARCH - no bun, no cross toolchain, no per-OS runners. Asset
-      # names (glance-<arch>-<os>) + the gz + .sha256 contract match the old bun build exactly, so
+      # names (postplan-<arch>-<os>) + the gz + .sha256 contract match the old bun build exactly, so
       # install.sh and the CLI self-update path are unchanged.
       - name: Build standalone binaries
         working-directory: packages/cli
@@ -30,15 +30,15 @@ jobs:
           v="${GITHUB_REF_NAME#v}"
           while read -r goos goarch out; do
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-              go build -trimpath -ldflags="-s -w -X main.version=$v" -o "dist/$out" .
+              go build -trimpath -ldflags="-s -w -X main.version=$v" -o "dist/$out" ./cmd/postplan
             # Checksum the uncompressed binary (what actually runs), then gzip to shrink the download.
             # The installer + self-update verify the decompressed bytes against this sum.
             ( cd dist && shasum -a 256 "$out" | awk '{print $1}' > "$out.sha256" && gzip -9 "$out" )
           done <<'EOF'
-          darwin arm64 glance-arm64-darwin
-          darwin amd64 glance-x64-darwin
-          linux  arm64 glance-arm64-linux
-          linux  amd64 glance-x64-linux
+          darwin arm64 postplan-arm64-darwin
+          darwin amd64 postplan-x64-darwin
+          linux  arm64 postplan-arm64-linux
+          linux  amd64 postplan-x64-linux
           EOF
 
       - name: Publish release
@@ -48,6 +48,6 @@ jobs:
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           files: |
-            packages/cli/dist/glance-*-*.gz
-            packages/cli/dist/glance-*-*.sha256
+            packages/cli/dist/postplan-*-*.gz
+            packages/cli/dist/postplan-*-*.sha256
           generate_release_notes: true

@@ -21,7 +21,7 @@ import { TOKEN_HEADER, WS_PROTOCOL } from '../realtime/protocol'
 import { isUpgrade, reissueUpgrade, subprotocols } from '../realtime/upgrade'
 import type { AppEnv, Bindings, SessionUser } from '../types'
 
-// The shared-backend data plane (`glance.db`). Two surfaces:
+// The shared-backend data plane (`postplan.db`). Two surfaces:
 //   • dataApi  (this file → mounted at /api/_data, BEFORE the /api/* same-origin+cookie guards):
 //     bearer-token-only, exact-origin CORS, its own per-request DB — callable cross-origin from
 //     the content origin, never touching the app session cookie.
@@ -59,7 +59,7 @@ type DataCtx = Context<DataEnv>
 // read-your-write with no client-side bookmark threading (the SDK/broker never see D1 headers).
 // Later queries in the request still ride replicas consistent with that anchor.
 function getDb(c: DataCtx): DrizzleD1Database {
-  return c.get('db') ?? sessionDb(c.env.GLANCE_DB, 'first-primary')
+  return c.get('db') ?? sessionDb(c.env.POSTPLAN_DB, 'first-primary')
 }
 
 export const dataApi = new Hono<DataEnv>()
@@ -136,7 +136,13 @@ function credential(c: DataCtx): string | null {
 // Method → required capability, enforced structurally for every current AND future route on
 // this surface — a new endpoint cannot ship without a capability check. POST maps to `create`
 // (every viewer may submit attributed documents); PUT/DELETE stay behind `write` (owner-only).
-const METHOD_CAP: Record<string, DataCapability> = { GET: 'read', HEAD: 'read', POST: 'create', PUT: 'write', DELETE: 'write' }
+const METHOD_CAP: Record<string, DataCapability> = {
+  GET: 'read',
+  HEAD: 'read',
+  POST: 'create',
+  PUT: 'write',
+  DELETE: 'write',
+}
 dataApi.use('*', async (c, next) => {
   const cap = METHOD_CAP[c.req.method]
   if (!cap || !hasCap(c.get('claims'), cap)) return c.json({ error: 'forbidden' }, 403)
@@ -336,7 +342,10 @@ dataApi.put('/:collection/:docId', async (c) => {
         type: 'update',
         at: now,
       }),
-      db.update(documents).set({ json: parsed.value, updatedAt: now }).where(scoped(claims, collection, docId)),
+      db
+        .update(documents)
+        .set({ json: parsed.value, updatedAt: now })
+        .where(scoped(claims, collection, docId)),
     ])
     await notifyChange(c, logged[0])
     return c.json({ id: docId, data: parsed.value, createdAt: existing.createdAt, updatedAt: now })
@@ -487,16 +496,13 @@ function toDoc(row: DocumentRow) {
 // Role is not consulted: READ_ALL is a read of the site's data, the same content a superadmin is
 // denied on the page itself — minting it by role would reopen that door through the data plane.
 //
-// SECURITY — editor-share confused-deputy (ACCEPTED residual risk, S9): caps key ONLY on ownerId,
-// so a content EDITOR of this site is indistinguishable from any other non-owner and gets read+create
-// only — they never mint write/read_all. This is deliberate: an editor can plant JS in the site, and
-// when the OWNER opens it that script would run with the owner's caps. Do NOT thread the editor's
-// share-role in here to "grant" them write — that would hand every editor read_all/delete over the
-// owner's glance.db docs. Signed off as accepted (editor = semi-trusted, git-collaborator model);
-// if that changes, gate on sites.lastReplacedBy (downgrade to viewer until the owner re-deploys).
-// `dataCaps.editor.pin` in data.test.ts locks this.
-export function dataCapsFor(user: Pick<SessionUser, 'id'>, site: Pick<Site, 'ownerId'>): DataCapability[] {
-  return site.ownerId === user.id ? ['read', 'create', 'write', 'read_all'] : ['read', 'create']
+// An editor-authored revision cannot borrow the owner's authority when the owner opens it.
+export function dataCapsFor(
+  user: Pick<SessionUser, 'id'>,
+  site: Pick<Site, 'ownerId' | 'lastReplacedBy'>,
+): DataCapability[] {
+  const ownerApproved = site.lastReplacedBy === null || site.lastReplacedBy === site.ownerId
+  return site.ownerId === user.id && ownerApproved ? ['read', 'create', 'write', 'read_all'] : ['read', 'create']
 }
 
 // Intersect a caller's own caps ceiling (`base`, from dataCapsFor) against an API key's data-plane

@@ -52,7 +52,7 @@ export function isApiKeyGrants(v: unknown): v is ApiKeyGrants {
 }
 
 /** Mint a fresh control-plane API key secret: 32 CSPRNG bytes, base64url (no padding), prefixed
- *  so a key is recognizable at a glance (and greppable in logs — never log the full value). The
+ *  so a key is recognizable at a postplan (and greppable in logs — never log the full value). The
  *  plaintext is returned to the caller ONCE; only its hash is ever persisted. */
 export function generateApiKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32))
@@ -125,7 +125,7 @@ export async function revokeUserApiKeys(db: DrizzleD1Database, userId: string): 
 // 'first-primary': withDb defaults to 'first-unconstrained', so a replica could still serve an
 // api_keys row that predates a revoke — credential reads must be strongly consistent, not
 // eventually. Falls back to c.get('db') so the harness's route tests (which set the db on the
-// context directly and bind no GLANCE_DB) keep working.
+// context directly and bind no POSTPLAN_DB) keep working.
 export function apiKeyDb(c: Context<AppEnv>): DrizzleD1Database {
-  return c.env.GLANCE_DB ? sessionDb(c.env.GLANCE_DB, 'first-primary') : c.get('db')
+  return c.env.POSTPLAN_DB ? sessionDb(c.env.POSTPLAN_DB, 'first-primary') : c.get('db')
 }

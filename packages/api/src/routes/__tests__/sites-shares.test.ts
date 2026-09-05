@@ -1,0 +1,156 @@
+import { describe, expect, test } from 'bun:test'
+import { Hono } from 'hono'
+import { listNotifications } from '../../db/notifications'
+import { parseShareGrants } from '../../lib/share-grants'
+import { resolveShareRole } from '../../db/repo'
+import { requireSameOrigin } from '../../middleware/auth'
+import { makeDb, makeKv, seedMember, seedSite, seedSpace, seedUser } from '../../test/harness'
+import type { AppEnv } from '../../types'
+import { sites } from '../sites'
+
+// PUT/GET /shares uses one role-aware shape. Groups stay view-only.
+
+const APP_URL = 'https://postplan.example.com'
+
+async function setup() {
+  const db = makeDb()
+  const kv = makeKv()
+  const env = { APP_URL, SESSION_SECRET: 's', POSTPLAN_SESSIONS: kv } as unknown as AppEnv['Bindings']
+  const app = new Hono<AppEnv>()
+  app.use('/api/*', requireSameOrigin)
+  app.use('/api/*', async (c, next) => {
+    c.set('db', db)
+    await next()
+  })
+  app.route('/api/sites', sites)
+  await seedUser(db, { id: 'owner', role: 'member' })
+  await kv.put('cli:tok-owner', JSON.stringify({ id: 'owner', email: 'owner@example.com', name: null, role: 'member' }))
+  await seedUser(db, { id: 'ed', email: 'ed@example.com' })
+  await seedUser(db, { id: 'vw', email: 'vw@example.com' })
+  await seedSpace(db, { id: 'sp', slug: 'mine', createdBy: 'owner' })
+  const grp = await seedSpace(db, { id: 'grp', slug: 'grp', createdBy: 'owner', type: 'group' })
+  await seedMember(db, grp, 'owner')
+  const site = await seedSite(db, { id: 'site', spaceId: 'sp', ownerId: 'owner', slug: 'doc' })
+  return { db, app, env, site, grp }
+}
+
+const auth = { Authorization: 'Bearer tok-owner', Origin: APP_URL, 'Content-Type': 'application/json' }
+const put = (app: Hono<AppEnv>, env: AppEnv['Bindings'], body: unknown) =>
+  app.request('/api/sites/mine/doc/shares', { method: 'PUT', headers: auth, body: JSON.stringify(body) }, env)
+const get = (app: Hono<AppEnv>, env: AppEnv['Bindings']) =>
+  app.request('/api/sites/mine/doc/shares', { headers: auth }, env)
+
+describe('parseShareGrants — pure body normalization', () => {
+  test('new users:[{id,role}] shape carries roles; groups view-only', () => {
+    expect(
+      parseShareGrants({
+        users: [
+          { id: 'a', role: 'editor' },
+          { id: 'b', role: 'viewer' },
+        ],
+        groupIds: ['g'],
+      }),
+    ).toEqual({
+      users: [
+        { userId: 'a', role: 'editor' },
+        { userId: 'b', role: 'viewer' },
+      ],
+      groupIds: ['g'],
+    })
+  })
+  test('old and malformed shapes are rejected', () => {
+    expect(parseShareGrants(null)).toEqual({ error: 'invalid request' })
+    expect(parseShareGrants({ userIds: ['a'], groupIds: [] })).toEqual({ error: 'invalid request' })
+    expect(parseShareGrants({ users: [{ id: 'a', role: 'owner' }], groupIds: [] })).toEqual({
+      error: 'invalid user grant',
+    })
+  })
+})
+
+describe('PUT/GET /shares — roles', () => {
+  test('shares.role.roundtrip: PUT users:[{id,role:editor}] → GET returns role editor, DB agrees', async () => {
+    const { db, app, env, site } = await setup()
+    const res = await put(app, env, {
+      users: [
+        { id: 'ed', role: 'editor' },
+        { id: 'vw', role: 'viewer' },
+      ],
+    })
+    expect(res.status).toBe(200)
+    const body = (await get(app, env).then((r) => r.json())) as { users: { id: string; role: string }[] }
+    expect(body.users).toContainEqual({ id: 'ed', role: 'editor' })
+    expect(body.users).toContainEqual({ id: 'vw', role: 'viewer' })
+    expect(await resolveShareRole(db, site, 'ed')).toBe('editor')
+  })
+
+  test('cannot share into a group the owner does not belong to', async () => {
+    const { db, app, env } = await setup()
+    const foreign = await seedSpace(db, { id: 'foreign', slug: 'foreign', createdBy: 'ed', type: 'group' })
+    await seedMember(db, foreign, 'ed')
+    const res = await put(app, env, { users: [], groupIds: [foreign] })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ groupIds: [] })
+  })
+})
+
+// In app.request there is no executionCtx, so fireAndForget awaits inline — the notification
+// fan-out is complete when the PUT resolves.
+describe('PUT /shares — share notifications', () => {
+  test('share.notify.new: a newly granted user gets one unread type=share row', async () => {
+    const { db, app, env } = await setup()
+    expect((await put(app, env, { users: [{ id: 'ed', role: 'viewer' }] })).status).toBe(200)
+    const { items, unreadCount } = await listNotifications(db, 'ed')
+    expect(unreadCount).toBe(1)
+    expect(items[0]).toMatchObject({ type: 'share', actorName: 'owner@example.com', siteLabel: 'mine/doc' })
+  })
+
+  test('share.notify.no-regrant: re-PUT of the same user (even with a role change) raises nothing new', async () => {
+    const { db, app, env } = await setup()
+    await put(app, env, { users: [{ id: 'ed', role: 'viewer' }] })
+    await put(app, env, {
+      users: [
+        { id: 'ed', role: 'editor' },
+        { id: 'vw', role: 'viewer' },
+      ],
+    })
+    expect((await listNotifications(db, 'ed')).items).toHaveLength(1)
+    expect((await listNotifications(db, 'vw')).items).toHaveLength(1)
+  })
+
+  test('share.notify.removal-silent: dropping a user raises nothing', async () => {
+    const { db, app, env } = await setup()
+    await put(app, env, { users: [{ id: 'ed', role: 'viewer' }] })
+    await put(app, env, { users: [] })
+    expect((await listNotifications(db, 'ed')).items).toHaveLength(1)
+  })
+
+  test('share.notify.groups-silent: a group grant notifies nobody', async () => {
+    const { db, app, env, grp } = await setup()
+    await put(app, env, { groupIds: [grp] })
+    for (const id of ['owner', 'ed', 'vw']) expect((await listNotifications(db, id)).items).toHaveLength(0)
+  })
+
+  test('share.notify.actor-excluded: the caller granting themselves raises nothing', async () => {
+    const { db, app, env } = await setup()
+    await put(app, env, { users: [{ id: 'owner', role: 'viewer' }] })
+    expect((await listNotifications(db, 'owner')).items).toHaveLength(0)
+  })
+
+  test('share.notify.slack: with a bot token, the new user gets a "shared … with you" DM', async () => {
+    const { app, env } = await setup()
+    const posts: { channel: string; text: string }[] = []
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('users.lookupByEmail')) return Response.json({ ok: true, user: { id: 'U-ED' } })
+      posts.push(JSON.parse(String(init?.body)))
+      return Response.json({ ok: true })
+    }) as unknown as typeof fetch
+    const slackEnv = { ...env, SLACK_BOT_TOKEN: 'xoxb-test', SLACK_FETCH: fetchImpl } as AppEnv['Bindings']
+    expect((await put(app, slackEnv, { users: [{ id: 'ed', role: 'viewer' }] })).status).toBe(200)
+    expect(posts).toHaveLength(1)
+    expect(posts[0].channel).toBe('U-ED')
+    expect(posts[0].text).toContain('shared')
+    expect(posts[0].text).toContain('with you')
+    expect(posts[0].text).toContain(`${APP_URL}/mine/doc`)
+  })
+})

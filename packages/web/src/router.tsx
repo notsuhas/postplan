@@ -1,8 +1,8 @@
-import { Link, type LoaderFunctionArgs, type RouteObject, redirect, useRouteError } from 'react-router'
-import { AppShell } from './components/AppShell'
+import { Link, type RouteObject, redirect, useLocation, useRouteError } from 'react-router'
+import { AppShell } from './components/layout/AppShell'
 import { Button } from './components/ui/button'
 import { api, ApiError } from './lib/api'
-import { skipSearchOnlyRevalidation } from './lib/nav'
+import { loginHref, skipSearchOnlyRevalidation } from './lib/nav'
 import { EMPTY_NOTIFICATIONS, type RootData, notifications } from './lib/notifications'
 import type { Me } from './lib/types'
 import { EMPTY_WHATS_NEW, whatsNew } from './lib/whatsNew'
@@ -27,6 +27,7 @@ async function rootLoader(): Promise<RootData> {
 
 function RootError() {
   const error = useRouteError()
+  const location = useLocation()
   const status = error instanceof ApiError ? error.status : (error as { status?: number })?.status
   const map: Record<number, { title: string; body: string }> = {
     401: { title: 'Sign in required', body: 'You need to sign in to view this.' },
@@ -41,14 +42,13 @@ function RootError() {
       <h1 className="mt-4 text-xl font-semibold tracking-tight">{info.title}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{info.body}</p>
       <Button asChild className="mt-6">
-        <Link to="/dashboard">Back to dashboard</Link>
+        <Link to={status === 401 ? loginHref(location) : '/dashboard'}>
+          {status === 401 ? 'Sign in' : 'Back to dashboard'}
+        </Link>
       </Button>
     </div>
   )
 }
-
-export { rootLoader as _rootLoader }
-export type { LoaderFunctionArgs }
 
 // Split out from the entry file (main.tsx) so a test can assert on route ORDER without importing
 // the createRoot/render side effect. See router.test.ts.

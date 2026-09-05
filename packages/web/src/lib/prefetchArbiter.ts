@@ -7,7 +7,7 @@ import type { Thread } from './comments'
 //   generation; only the LATEST one may settle into state. An older in-flight result — including a
 //   same-path one — is ignored, and a stale REJECTION never clears/toasts over a newer success.
 // - PROVISIONAL prefetch: an HTML prefetch is a guess about the file the iframe will land on. Its
-//   result is held (never painted) until a matching glance:ready confirms the path; a mismatched
+//   result is held (never painted) until a matching postplan:ready confirms the path; a mismatched
 //   ready discards it and orders a fresh fetch; if no ready ever arrives (directory listings emit
 //   none) it is simply never applied. Audio has no iframe/ready → non-provisional, applies on settle.
 // - STALE READY: after a splat navigation the OLD iframe document can still deliver a late ready.
@@ -26,7 +26,7 @@ export type PushFold = (data: Thread[], path: string) => Thread[]
 export interface InFlight {
   gen: number
   path: string
-  /** true = HTML prefetch, held for a matching glance:ready; false = applies on settle. */
+  /** true = HTML prefetch, held for a matching postplan:ready; false = applies on settle. */
   provisional: boolean
 }
 
@@ -37,7 +37,7 @@ export interface ArbiterState {
   expected: string | null
   /** The old document's path at navReset time — a late ready for it is stale, not a navigation. */
   staleHint: string | null
-  /** True once a glance:ready confirmed the iframe's real path. */
+  /** True once a postplan:ready confirmed the iframe's real path. */
   confirmed: boolean
   /** The confirmed iframe file path (what the viewer may treat as current). */
   readyPath: string | null
@@ -71,7 +71,16 @@ export interface StepResult {
 }
 
 export function initialArbiter(expected: string | null): ArbiterState {
-  return { gen: 0, expected, staleHint: null, confirmed: false, readyPath: null, inFlight: null, pending: null, buffered: [] }
+  return {
+    gen: 0,
+    expected,
+    staleHint: null,
+    confirmed: false,
+    readyPath: null,
+    inFlight: null,
+    pending: null,
+    buffered: [],
+  }
 }
 
 /** The one place a list becomes visible: every buffered push is folded in, in arrival order, and the
@@ -116,7 +125,9 @@ export function stepArbiter(state: ArbiterState, event: ArbiterEvent): StepResul
       }
       if (!provisional) return applied(next, path, event.data)
       if (state.confirmed) {
-        return state.readyPath === path ? applied(next, path, event.data) : { state: next, decision: { kind: 'discard' } }
+        return state.readyPath === path
+          ? applied(next, path, event.data)
+          : { state: next, decision: { kind: 'discard' } }
       }
       // No ready yet: park it. If no ready ever arrives, it is never applied.
       return { state: { ...next, pending: { path, data: event.data } }, decision: { kind: 'none' } }
@@ -139,7 +150,8 @@ export function stepArbiter(state: ArbiterState, event: ArbiterEvent): StepResul
       // land, and applying the push now would be applying it to the list that one replaces. Held
       // pushes are folded in by `applied` — including onto a LATER read if this one fails, which is
       // why the buffer is not cleared on a discard/error.
-      if (state.inFlight === null && state.pending === null) return { state, decision: { kind: 'live', apply: event.apply } }
+      if (state.inFlight === null && state.pending === null)
+        return { state, decision: { kind: 'live', apply: event.apply } }
       return { state: { ...state, buffered: [...state.buffered, event.apply] }, decision: { kind: 'none' } }
     }
 

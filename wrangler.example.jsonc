@@ -1,0 +1,73 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "postplan",
+  "main": "packages/api/src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false, // custom domain only — one canonical origin
+  // Custom domain, not a route pattern: wrangler owns the DNS record and the cert, and the
+  // hostname resolves to this worker only. Sibling of the content domain below — SEPARATE
+  // hostnames, because the content origin exists so untrusted uploaded HTML can never reach
+  // this origin's session cookie.
+  "routes": [{ "pattern": "postplan.example.com", "custom_domain": true }],
+  "observability": { "enabled": true },
+  // Non-secret config. Secrets (WORKOS_API_KEY/CLIENT_ID, SESSION_SECRET, and the optional
+  // DATA_TOKEN_SECRET for the postplan.db shared backend) via `wrangler secret put`.
+  // setup.sh wires the suhas-test sentinel from the live workers.dev URL on deploy.
+  "vars": {
+    "APP_URL": "https://postplan.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
+    "CONTENT_URL": "https://postplan-content.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
+    "SUPERADMIN_EMAILS": "you@yourcompany.com", // EDIT: first address owns bootstrap; extras are comma-separated
+    "ORG_EMAIL_DOMAINS": "yourcompany.com" // EDIT: signed-in users from these domains can open Team sites
+  },
+  // Main worker serves the React SPA as static assets. run_worker_first forces
+  // /api/* to Hono BEFORE the asset layer (otherwise SPA fallback returns index.html
+  // for API routes). Everything else falls through to assets; unknown paths return
+  // index.html (200) for client-side routing — incl. the /:space/:site viewer route.
+  "assets": {
+    "directory": "packages/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "POSTPLAN_DB",
+      "database_name": "postplan-db",
+      "database_id": "YOUR_D1_DATABASE_ID", // EDIT: replace with your own (see README)
+      "migrations_dir": "packages/api/drizzle"
+    }
+  ],
+  // One hibernating Durable Object per site, fanning out postplan.db change events to subscribed
+  // pages (src/realtime/site-room.ts, re-exported from src/index.ts so class_name resolves).
+  // new_sqlite_classes, NOT new_classes: KV-backed Durable Objects are not on the free plan.
+  "durable_objects": {
+    "bindings": [{ "name": "SITE_ROOM", "class_name": "SiteRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SiteRoom"] }],
+  "r2_buckets": [{ "binding": "POSTPLAN_FILES", "bucket_name": "postplan-files" }],
+  "kv_namespaces": [{ "binding": "POSTPLAN_SESSIONS", "id": "YOUR_KV_NAMESPACE_ID" }], // EDIT: replace with your own (see README)
+  // Workers AI: server-side voice-comment transcription (Whisper). Optional at runtime (AI?: Ai) —
+  // a deploy/dev without it degrades to a transcript placeholder, never an error. Workers AI has NO
+  // local simulator, so `remote: true` proxies inference to the real account; accountless local dev
+  // must use `wrangler dev --local` (the `dev` script does), which disables this binding so env.AI
+  // is undefined and transcription falls back — no Cloudflare login required just to run the app.
+  "ai": { "binding": "AI", "remote": true },
+  // Two cron ticks into the same `scheduled` handler (src/index.ts), branched by `event.cron`:
+  //   "0 * * * *"  — hourly synthetic stats visitor: refreshes only the stats KV halves past
+  //                  their soft TTL (window hourly, totals daily), so the admin dashboard always
+  //                  reads fresh KV and never pays the ~33k-row D1 rollup inline on a request.
+  //   "0 3 * * *"  — daily retention purge (lib/retention.ts, issue #82): deletes events older
+  //                  than 90 days and read notifications older than 30 days. Daily, not hourly —
+  //                  nothing here needs to run more often than once a day.
+  "triggers": { "crons": ["0 * * * *", "0 3 * * *"] },
+  // Free, no Cloudflare zone needed (unlike WAF rules, which don't apply to *.workers.dev).
+  // 10 upload requests / 60s per client IP. period must be 10 or 60.
+  "ratelimits": [
+    { "name": "UPLOAD_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "SUMMARY_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },
+    // Ask is interactive Q&A — its own bucket, not SUMMARY_LIMITER's: 5/min tuned for rare summary
+    // regenerations would 429 a conversation, and a few asks would block summary regeneration.
+    { "name": "ASK_LIMITER", "namespace_id": "1003", "simple": { "limit": 20, "period": 60 } }
+  ]
+}

@@ -1,7 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { type Context, Hono } from 'hono'
 import type { BatchItem, BatchResponse } from 'drizzle-orm/batch'
-import { type ElementAnchor, type StoredTextContext, normalizeText, parseElementAnchor, parseTextContext } from '../lib/anchor'
+import {
+  type ElementAnchor,
+  type StoredTextContext,
+  normalizeText,
+  parseElementAnchor,
+  parseTextContext,
+} from '../lib/anchor'
 import {
   addComment,
   assembleThreadViews,
@@ -51,7 +57,7 @@ import { fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
 import { decideRange } from '../lib/range'
 import { deleteKeys } from '../lib/storage'
 import { transcribeVoice } from '../lib/transcribe'
-import { cookieAuthed, isSameOrigin, requireAuth } from '../middleware/auth'
+import { cookieAuthed, isSameOrigin, requireAuth, requireControlGrant } from '../middleware/auth'
 import { notifyCommentEvent } from '../realtime/notify'
 import { TOKEN_HEADER } from '../realtime/protocol'
 import { isUpgrade, reissueUpgrade } from '../realtime/upgrade'
@@ -288,7 +294,11 @@ async function deliverSlackForComment(
     // merging two email sources — a deliberate simplicity trade for a handful of avoidable reads.
     const emails = await usersEmailsByIds(db, [...new Set(audience.map((a) => a.id))])
     const recipients: SlackRecipient[] = audience.map((a) => ({ ...a, email: emails.get(a.id) ?? null }))
-    await deliverSlack(slackDepsFromEnv(c.env), { actorName: actor.name, actorEmail: actor.email, ...event }, recipients)
+    await deliverSlack(
+      slackDepsFromEnv(c.env),
+      { actorName: actor.name, actorEmail: actor.email, ...event },
+      recipients,
+    )
   } catch {
     // Slack delivery is best-effort and isolated — a fault here never fails the comment.
   }
@@ -329,8 +339,18 @@ function pushCommentCreated(
   comment: Comment,
 ): Promise<void> {
   const author = c.get('user')
-  const { comment: view } = buildCommentCreatedView(thread.id, { comment, authorName: author.name, authorEmail: author.email })
-  return notifyCommentEvent(c, { type: 'comment.created', siteId: site.id, filePath: thread.filePath, threadId: thread.id, comment: view })
+  const { comment: view } = buildCommentCreatedView(thread.id, {
+    comment,
+    authorName: author.name,
+    authorEmail: author.email,
+  })
+  return notifyCommentEvent(c, {
+    type: 'comment.created',
+    siteId: site.id,
+    filePath: thread.filePath,
+    threadId: thread.id,
+    comment: view,
+  })
 }
 
 type ThreadFields = {
@@ -419,7 +439,7 @@ async function ingestVoiceComment(
   // depends on the other — run them together so the AI latency doesn't stack on the upload latency.
   const [transcript] = await Promise.all([
     transcribeVoice(c.env.AI, bytes),
-    c.env.GLANCE_FILES.put(audioKey, bytes, { httpMetadata: { contentType: EXT_MIME[ext] } }),
+    c.env.POSTPLAN_FILES.put(audioKey, bytes, { httpMetadata: { contentType: EXT_MIME[ext] } }),
   ])
   // Best-effort transcript is the stored body so the CLI/agent review loop reads it as text. The
   // transcript is server-generated, so it skips cleanBody's empty-reject; still strip control chars
@@ -434,7 +454,7 @@ const isMultipart = (c: Context<AppEnv>): boolean =>
   (c.req.header('content-type') ?? '').startsWith('multipart/form-data')
 
 // Every route in this router is a comment route, so auth is required on all of them.
-comments.use('*', requireAuth)
+comments.use('*', requireAuth, requireControlGrant)
 
 // GET — list threads (+ ordered comments). With ?filePath, one file's threads; with NO filePath
 // at all, the whole site's threads. Authz is site-level (siteFromFacts), so the site-wide list
@@ -487,7 +507,7 @@ comments.get('/:space/:site/comments/audio/:commentId', async (c) => {
   const comment = extras[0][0]
   if (!comment || comment.deletedAt !== null || !comment.audioKey) return c.json({ error: 'not found' }, 404)
   if (!threadInSite(extras[1][0]?.thread, site.id)) return c.json({ error: 'not found' }, 404)
-  const object = await c.env.GLANCE_FILES.get(comment.audioKey)
+  const object = await c.env.POSTPLAN_FILES.get(comment.audioKey)
   if (!object) return c.json({ error: 'not found' }, 404)
 
   const headers = new Headers({
@@ -640,7 +660,7 @@ async function createVoiceThread(c: Context<AppEnv>, site: ResolvedSite): Promis
       audioKey,
     })
   } catch (e) {
-    await deleteKeys(c.env.GLANCE_FILES, [audioKey]) // compensation: don't orphan the R2 object
+    await deleteKeys(c.env.POSTPLAN_FILES, [audioKey]) // compensation: don't orphan the R2 object
     throw e
   }
   await pushThreadCreated(c, site, fields.filePath, out.thread, out.comment)
@@ -690,9 +710,15 @@ async function replyVoiceComment(c: Context<AppEnv>, site: ResolvedSite, thread:
   const { commentId, audioKey, body } = ingested
   let added: Comment
   try {
-    added = await addComment(c.get('db'), { threadId: thread.id, authorId: c.get('user').id, body, commentId, audioKey })
+    added = await addComment(c.get('db'), {
+      threadId: thread.id,
+      authorId: c.get('user').id,
+      body,
+      commentId,
+      audioKey,
+    })
   } catch (e) {
-    await deleteKeys(c.env.GLANCE_FILES, [audioKey]) // compensation: don't orphan the R2 object
+    await deleteKeys(c.env.POSTPLAN_FILES, [audioKey]) // compensation: don't orphan the R2 object
     throw e
   }
   await pushCommentCreated(c, site, thread, added)
@@ -772,7 +798,7 @@ comments.delete('/:space/:site/comments/:threadId/messages/:commentId', async (c
   else if (isOpening) await deleteComment(c.get('db'), comment.threadId, comment.id)
   else await hardDeleteComment(c.get('db'), comment.threadId, comment.id)
 
-  if (audioKeys.length > 0) await fireAndForget(c, deleteKeys(c.env.GLANCE_FILES, audioKeys))
+  if (audioKeys.length > 0) await fireAndForget(c, deleteKeys(c.env.POSTPLAN_FILES, audioKeys))
   return c.json({ ok: true })
 })
 

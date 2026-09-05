@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useNavigate, useRevalidator } from 'react-router'
-import { ExternalLink, Trash2, UserPlus } from 'lucide-react'
+import { Crown, ExternalLink, Trash2, UserMinus, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { PeoplePicker, ShareDialog, toggle } from '@/components/ShareDialog'
-import { CopyOpenActions, feedColumns } from '@/components/siteColumns'
-import { SortableTable } from '@/components/SortableTable'
-import { EmptyState, PageHeader, SectionHeader, Spinner } from '@/components/states'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { PeoplePicker, ShareDialog, toggle } from '@/components/sites/ShareDialog'
+import { CopyOpenActions, feedColumns } from '@/components/sites/siteColumns'
+import { SortableTable } from '@/components/ui/SortableTable'
+import { EmptyState, PageHeader, SectionHeader, Spinner } from '@/components/ui/states'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,6 +19,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { MountSensor } from '@/components/ui/mount-sensor'
+import { UserAvatar } from '@/components/layout/UserAvatar'
 import { api, ApiError } from '@/lib/api'
 import { toLogin } from '@/lib/nav'
 import type { SiteSummary, SpaceDetail, UserLite } from '@/lib/types'
@@ -45,7 +46,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 // of a free-text email form. Multi-select, then one POST per pick — the API invites by email and
 // is idempotent for existing members. Directory loads on open via MountSensor (Radix mounts the
 // content each open). On any success the route revalidates so the member count stays honest.
-function InviteMembersDialog({ slug }: { slug: string }) {
+function InviteMembersDialog({ slug, members }: { slug: string; members: UserLite[] }) {
   const revalidator = useRevalidator()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -58,20 +59,18 @@ function InviteMembersDialog({ slug }: { slug: string }) {
     setSelected(new Set())
     api
       .get<UserLite[]>('/api/users')
-      .then(setUsers)
+      .then((all) => setUsers(all.filter((candidate) => !members.some((member) => member.id === candidate.id))))
       .catch((err) =>
         toast.error('Could not load people', { description: err instanceof Error ? err.message : undefined }),
       )
       .finally(() => setBusy(false))
-  }, [])
+  }, [members])
 
   async function invite() {
     setSaving(true)
     try {
       const picks = [...selected]
-      const results = await Promise.allSettled(
-        picks.map((email) => api.post(`/api/spaces/${slug}/members`, { email })),
-      )
+      const results = await Promise.allSettled(picks.map((email) => api.post(`/api/spaces/${slug}/members`, { email })))
       const rejects = results.flatMap((r, i) =>
         r.status === 'rejected' ? [{ email: picks[i], reason: r.reason }] : [],
       )
@@ -105,7 +104,7 @@ function InviteMembersDialog({ slug }: { slug: string }) {
         <MountSensor onMount={loadOnMount} />
         <DialogHeader>
           <DialogTitle>Invite members</DialogTitle>
-          <DialogDescription>Pick teammates to grant them access to this space.</DialogDescription>
+          <DialogDescription>Pick a signed-in Postplan user to add to this space.</DialogDescription>
         </DialogHeader>
 
         {busy ? (
@@ -134,12 +133,82 @@ function InviteMembersDialog({ slug }: { slug: string }) {
   )
 }
 
+function MembersSection({ space }: { space: SpaceDetail }) {
+  const revalidator = useRevalidator()
+  const members = space.members ?? []
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SectionHeader index={2} title="Members" />
+        <InviteMembersDialog slug={space.slug} members={members} />
+      </div>
+      <div className="divide-y rounded-lg border bg-card">
+        {members.map((member) => {
+          const owner = member.id === space.ownerId
+          return (
+            <div key={member.id} className="flex items-center gap-3 px-4 py-3">
+              <UserAvatar userId={member.id} name={member.name} email={member.email} className="size-8" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{member.name ?? member.email}</p>
+                {member.name && <p className="truncate text-muted-foreground text-xs">{member.email}</p>}
+              </div>
+              {owner ? (
+                <Badge variant="secondary">Owner</Badge>
+              ) : (
+                <div className="flex shrink-0 items-center gap-1">
+                  <ConfirmDialog
+                    title="Transfer ownership?"
+                    description={`${member.name ?? member.email} will manage members and this space. You will remain a member.`}
+                    confirmLabel="Transfer ownership"
+                    onConfirm={async () => {
+                      await api.patch(`/api/spaces/${space.slug}/owner`, { userId: member.id })
+                      toast.success('Ownership transferred')
+                      revalidator.revalidate()
+                    }}
+                  >
+                    <Button variant="ghost" size="sm" className="max-sm:size-8 max-sm:p-0">
+                      <Crown />
+                      <span className="max-sm:sr-only">Transfer</span>
+                    </Button>
+                  </ConfirmDialog>
+                  <ConfirmDialog
+                    title="Remove this member?"
+                    description={`${member.name ?? member.email} will lose access granted through this space.`}
+                    confirmLabel="Remove member"
+                    destructive
+                    onConfirm={async () => {
+                      await api.delete(`/api/spaces/${space.slug}/members/${member.id}`)
+                      toast.success('Member removed')
+                      revalidator.revalidate()
+                    }}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive max-sm:size-8 max-sm:p-0"
+                    >
+                      <UserMinus />
+                      <span className="max-sm:sr-only">Remove</span>
+                    </Button>
+                  </ConfirmDialog>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-muted-foreground text-xs">
+        The space owner can add people after they sign in to Postplan once.
+      </p>
+    </section>
+  )
+}
+
 // Same table shell as the dashboard feeds; owners get a Share action on their own rows.
 const SPACE_SITE_COLUMNS = feedColumns<SpaceSite>((s) => (
   <CopyOpenActions url={s.url}>
-    {s.isOwner && (
-      <ShareDialog spaceSlug={s.spaceSlug} siteSlug={s.siteSlug} title={s.title} triggerLabel="Share" />
-    )}
+    {s.isOwner && <ShareDialog spaceSlug={s.spaceSlug} siteSlug={s.siteSlug} title={s.title} triggerLabel="Share" />}
   </CopyOpenActions>
 ))
 
@@ -199,19 +268,12 @@ export function Component() {
             <span className="font-mono">/{space.slug}</span>
           </span>
         }
-      >
-        {/* Invite is owner-only server-side — don't offer a button that can only 403. */}
-        {isGroup && space.isOwner && <InviteMembersDialog slug={space.slug} />}
-      </PageHeader>
+      />
 
       <section className="space-y-4">
         <SectionHeader index={1} title="Sites" />
         {sites.length === 0 ? (
-          <EmptyState
-            icon={ExternalLink}
-            title="No sites yet"
-            description="No sites you can access here yet."
-          />
+          <EmptyState icon={ExternalLink} title="No sites yet" description="No sites you can access here yet." />
         ) : (
           <SortableTable
             rows={sites}
@@ -222,7 +284,9 @@ export function Component() {
         )}
       </section>
 
-      {isGroup && <DangerZone space={space} />}
+      {isGroup && space.isOwner && <MembersSection space={space} />}
+
+      {isGroup && space.isOwner && <DangerZone space={space} />}
     </div>
   )
 }

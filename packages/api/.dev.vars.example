@@ -1,11 +1,11 @@
 # Copy to `packages/api/.dev.vars` (gitignored). `wrangler dev` reads it from THIS
 # directory for BOTH workers. In prod, set via `wrangler secret put <NAME>` (+ vars).
 
-# Google OAuth (console.cloud.google.com → Credentials). Dev redirect URI:
+# WorkOS AuthKit. Configure this redirect URI in the WorkOS dashboard:
 #   http://localhost:8787/api/auth/callback
-# OPTIONAL: leave empty to run bootstrap-only (no Google) until you wire OAuth later.
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
+# OPTIONAL: leave both empty to run bootstrap-only until you wire WorkOS later.
+WORKOS_CLIENT_ID=""
+WORKOS_API_KEY=""
 
 # One-shot token gating first-superadmin bootstrap (POST /api/auth/bootstrap).
 # Leave empty to disable bootstrap. Generate: openssl rand -hex 32
@@ -20,7 +20,7 @@ SESSION_SECRET=""
 # Generate: openssl rand -hex 32
 CONTENT_TOKEN_SECRET=""
 
-# Separate HMAC secret for the shared-backend data-plane tokens (glance.db SDK). Keep DISTINCT
+# Separate HMAC secret for the shared-backend data-plane tokens (postplan.db SDK). Keep DISTINCT
 # from CONTENT_TOKEN_SECRET so a leaked content (view) token can't verify as a data token.
 # Leave empty to keep the /api/_data surface inert (feature disabled). Generate: openssl rand -hex 32
 DATA_TOKEN_SECRET=""
@@ -32,6 +32,5 @@ DATA_TOKEN_SECRET=""
 APP_URL="http://localhost:8787"
 CONTENT_URL="http://localhost:8788"
 
-# First superadmin (granted on first login) + allowed Google Workspace domain.
-SUPERADMIN_EMAIL="you@example.com"
-ALLOWED_HD="example.com"
+# First superadmin plus optional additional superadmins, comma-separated.
+SUPERADMIN_EMAILS="you@example.com"

@@ -1,9 +1,9 @@
-/* Annotate-mode styles, served at /_glance/annotate.css and injected alongside the client.
-   Custom Highlight API paint for anchored comment ranges; span-wrap fallback uses .glance-hl. */
-::highlight(glance-comment) {
+/* Annotate-mode styles, served at /_postplan/annotate.css and injected alongside the client.
+   Custom Highlight API paint for anchored comment ranges; span-wrap fallback uses .postplan-hl. */
+::highlight(postplan-comment) {
   background-color: rgba(255, 213, 0, 0.4);
 }
-.glance-hl {
+.postplan-hl {
   background-color: rgba(255, 213, 0, 0.4);
   cursor: pointer;
 }
@@ -13,7 +13,7 @@
 .mermaid svg {
   cursor: zoom-in;
 }
-dialog.glance-lb {
+dialog.postplan-lb {
   border: 0;
   padding: 0;
   background: transparent;
@@ -21,17 +21,19 @@ dialog.glance-lb {
   max-width: 96vw;
   max-height: 96vh;
 }
-dialog.glance-lb::backdrop {
+dialog.postplan-lb::backdrop {
   background: rgba(8, 10, 13, 0.93);
 }
-dialog.glance-lb > div {
+dialog.postplan-lb > div {
   padding: 24px;
   border-radius: 8px;
   cursor: zoom-out;
 }
-dialog.glance-lb svg {
+dialog.postplan-lb svg {
   display: block;
+  /* biome-ignore lint/complexity/noImportantStyles: Host page styles must not resize the lightbox image. */
   width: 100% !important;
+  /* biome-ignore lint/complexity/noImportantStyles: Host page styles must not constrain the lightbox image. */
   max-width: none !important;
   height: auto;
   max-height: 84vh;

@@ -5,9 +5,9 @@ import type { OgCard } from './lib/og-image'
 /** Worker bindings + secrets/vars. Secrets come from `.dev.vars` locally and
  *  `wrangler secret put` in prod; plain vars can live in wrangler.jsonc `vars`. */
 export interface Bindings {
-  GLANCE_DB: D1Database
-  GLANCE_FILES: R2Bucket
-  GLANCE_SESSIONS: KVNamespace
+  POSTPLAN_DB: D1Database
+  POSTPLAN_FILES: R2Bucket
+  POSTPLAN_SESSIONS: KVNamespace
   ASSETS: Fetcher
   UPLOAD_LIMITER?: RateLimit
   SUMMARY_LIMITER?: RateLimit
@@ -17,9 +17,11 @@ export interface Bindings {
   // binding-less deploy degrade gracefully — voice comments still post with a transcript
   // placeholder rather than erroring (see lib/transcribe).
   AI?: Ai
-  // Optional: when unset, Google OAuth routes are inert (404) and login is bootstrap-only.
-  GOOGLE_CLIENT_ID?: string
-  GOOGLE_CLIENT_SECRET?: string
+  // Optional: when unset, the WorkOS routes are inert (404) and login is bootstrap-only.
+  // WorkOS brokers the Google handshake with its own OAuth credentials — there is no Google
+  // Cloud project to create or own.
+  WORKOS_API_KEY?: string
+  WORKOS_CLIENT_ID?: string
   // Optional one-shot secret gating first-superadmin bootstrap. Unset → bootstrap inert (404).
   BOOTSTRAP_TOKEN?: string
   // Optional Slack bot token (xoxb-…). Unset = kill-switch: comment notifications never fan out to
@@ -38,18 +40,20 @@ export interface Bindings {
   OG_RENDER?: (card: OgCard) => Promise<Response>
   SESSION_SECRET: string
   CONTENT_TOKEN_SECRET: string
-  // Optional: separate HMAC secret for the shared-backend data-plane tokens (glance.db SDK).
+  // Optional: separate HMAC secret for the shared-backend data-plane tokens (postplan.db SDK).
   // Distinct from CONTENT_TOKEN_SECRET so a leaked content (view) token can't verify as a data
   // token. When unset, the /api/_data surface is inert (404) — the feature is opt-in per deploy.
   DATA_TOKEN_SECRET?: string
-  // Optional: one hibernating Durable Object per site, fanning out glance.db change events to
+  // Optional: one hibernating Durable Object per site, fanning out postplan.db change events to
   // subscribed pages. Typed optional (like AI) so a binding-less deploy — and every test — still
   // serves mutations: the change_log is written either way, only the live push is skipped.
   SITE_ROOM?: DurableObjectNamespace
   APP_URL: string
   CONTENT_URL: string
-  ALLOWED_HD: string
-  SUPERADMIN_EMAIL: string
+  // Comma-separated domains whose signed-in users can access organization-wide sites.
+  ORG_EMAIL_DOMAINS: string
+  // Comma-separated superadmins. The first address is the bootstrap/dev-login identity.
+  SUPERADMIN_EMAILS: string
 }
 
 /** The minimal user identity stored in KV and attached to the request context. */
@@ -58,6 +62,7 @@ export interface SessionUser {
   email: string
   name: string | null
   role: 'member' | 'superadmin'
+  isOrgMember: boolean
 }
 
 // HOW the caller authenticated, resolved by readCredential (see lib/session.ts) and attached to

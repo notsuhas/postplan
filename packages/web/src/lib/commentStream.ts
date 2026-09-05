@@ -37,7 +37,7 @@ export type CommentStreamSocket = {
   onclose: (() => void) | null
 }
 
-const WS_PROTOCOL = 'glance.db.v1'
+const WS_PROTOCOL = 'postplan.db.v1'
 const RECONNECT_MS = 3000
 /** The ceiling the backoff doubles up to (see `redial`). A room that is simply unavailable then
  *  costs about one dial a minute per tab instead of twenty. */
@@ -64,7 +64,12 @@ export type CommentStream = {
 }
 
 export function createCommentStream(
-  opts: { site: CommentStreamSite; appOrigin: string; onEvent: (event: CommentStreamEvent) => void; onReconnect: () => void },
+  opts: {
+    site: CommentStreamSite
+    appOrigin: string
+    onEvent: (event: CommentStreamEvent) => void
+    onReconnect: () => void
+  },
   deps: { newSocket: (url: string, protocols: string[]) => CommentStreamSocket; reconnectMs?: number } = {
     newSocket: (url, protocols) => new WebSocket(url, protocols) as unknown as CommentStreamSocket,
   },

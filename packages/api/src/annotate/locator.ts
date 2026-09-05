@@ -53,7 +53,7 @@ function escapeRegExp(s: string): string {
  *  twice the stored cap still yields at least TEXT_CONTEXT_LIMIT of comparable text. */
 const CONTEXT_WINDOW = TEXT_CONTEXT_LIMIT * 2
 
-type TextIndex = { acc: string; segs: { node: Text; start: number; end: number; folded: boolean }[] }
+export type TextIndex = { acc: string; segs: { node: Text; start: number; end: number; folded: boolean }[] }
 
 /** Walk every RENDERED text node once and concatenate it (NFKC-folded), remembering where each node
  *  landed. One index serves both re-finding a quote and capturing a selection's context, so the two
@@ -136,7 +136,8 @@ export function findRange(quote: string, doc: Document, context?: TextContext): 
   const [lo, hi] = hit
 
   const at = (pos: number): [Text, number] | null => {
-    for (let i = segs.length - 1; i >= 0; i--) if (pos >= segs[i].start) return [segs[i].node, rawOffset(segs[i], pos - segs[i].start)]
+    for (let i = segs.length - 1; i >= 0; i--)
+      if (pos >= segs[i].start) return [segs[i].node, rawOffset(segs[i], pos - segs[i].start)]
     return null
   }
   const s = at(lo)
@@ -198,7 +199,9 @@ function bestHit(hits: [number, number][], acc: string, context?: TextContext): 
     // else still scores 2 (not the 0 the orphan check below looks for), so the guard could never fire
     // for real data. trimEnd/trimStart drop only that one always-shared character; a genuine match
     // loses nothing it didn't already have to spare, and a dead one finally shows its true score of 0.
-    const score = commonSuffixLen(before.trimEnd(), wantPrefix.trimEnd()) + commonPrefixLen(after.trimStart(), wantSuffix.trimStart())
+    const score =
+      commonSuffixLen(before.trimEnd(), wantPrefix.trimEnd()) +
+      commonPrefixLen(after.trimStart(), wantSuffix.trimStart())
     if (score > bestScore) {
       bestScore = score
       best = hit

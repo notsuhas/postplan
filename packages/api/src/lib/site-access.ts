@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { BatchItem, BatchResponse } from 'drizzle-orm/batch'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { isSpaceMember, resolveIsShared, toSessionUser } from '../db/repo'
@@ -22,7 +22,7 @@ export type ResolvedSite = {
   status: 'active' | 'archived'
   ownerId: string
   contentVersion: number
-  theme: string | null
+  lastReplacedBy: string | null
   createdAt: string
   updatedAt: string
 }
@@ -37,7 +37,7 @@ const RESOLVED_SITE_COLUMNS = {
   status: sitesTable.status,
   ownerId: sitesTable.ownerId,
   contentVersion: sitesTable.contentVersion,
-  theme: sitesTable.theme,
+  lastReplacedBy: sitesTable.lastReplacedBy,
   createdAt: sitesTable.createdAt,
   updatedAt: sitesTable.updatedAt,
 }
@@ -106,9 +106,9 @@ function accessFactsStatements(
     .limit(1)
   if (userId === null) return [site]
   const user = db
-    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role, isOrgMember: users.isOrgMember })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(and(eq(users.id, userId), isNull(users.disabledAt)))
     .limit(1)
   const membership = db
     .select({ userId: spaceMembers.userId })
@@ -141,7 +141,7 @@ function accessFactsStatements(
 function assembleAccessFacts(userId: string | null, rows: unknown[]): AccessFacts {
   const [siteRows, userRows, memberRows, directRows, groupRows] = rows as [
     ResolvedSite[],
-    Pick<User, 'id' | 'email' | 'name' | 'role'>[] | undefined,
+    Pick<User, 'id' | 'email' | 'name' | 'role' | 'isOrgMember'>[] | undefined,
     { userId: string }[] | undefined,
     { role: 'viewer' | 'editor' }[] | undefined,
     { siteId: string }[] | undefined,
@@ -194,9 +194,7 @@ export function siteAccessFromFacts(facts: AccessFacts, user: SessionUser | null
     site: facts.site,
     isMember: facts.isMember,
     isShared,
-    access: facts.site
-      ? checkAccess(facts.site, user, facts.isMember, isShared)
-      : { ok: false, status: 403 },
+    access: facts.site ? checkAccess(facts.site, user, facts.isMember, isShared) : { ok: false, status: 403 },
   }
 }
 
@@ -232,9 +230,9 @@ export async function authorizeViewerById(
 ): Promise<ViewerAuth> {
   const [userRow, isMember, isShared] = await Promise.all([
     db
-      .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+      .select({ id: users.id, email: users.email, name: users.name, role: users.role, isOrgMember: users.isOrgMember })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(and(eq(users.id, userId), isNull(users.disabledAt)))
       .limit(1)
       .then((rows) => rows[0]),
     isSpaceMember(db, site.spaceId, userId),

@@ -4,8 +4,22 @@ import type { ApiKeyGrants } from '../lib/api-key'
 // Column names mirror the spec's SQL exactly (camelCase) so raw `wrangler d1 execute`
 // queries in the runbook keep working. IDs are app-generated UUIDs; timestamps are ISO-8601.
 
+/** Email-pinned gate for external users; organization-domain users and admins join directly. */
+export const invites = sqliteTable('invites', {
+  email: text('email').primaryKey(),
+  invitedBy: text('invitedBy').notNull(),
+  createdAt: integer('createdAt').notNull(),
+  // First completed sign-in, coalesced so it keeps the original timestamp. Null = never signed in.
+  usedAt: integer('usedAt'),
+  // Refreshed on every sign-in, never coalesced: revoking access deletes this WorkOS user, so a
+  // stale id would revoke the wrong one (or nothing).
+  workosUserId: text('workosUserId'),
+})
+
 export const users = sqliteTable('users', {
-  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   email: text('email').notNull().unique(),
   name: text('name'),
   googleId: text('googleId').unique(),
@@ -14,29 +28,45 @@ export const users = sqliteTable('users', {
   // routes/avatars.ts), so this column is the ONLY place a googleusercontent URL is held.
   // Null for users who predate this column until their next Google login, and for bootstrap users.
   avatarUrl: text('avatarUrl'),
-  role: text('role', { enum: ['member', 'superadmin'] }).notNull().default('member'),
-  createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+  role: text('role', { enum: ['member', 'superadmin'] })
+    .notNull()
+    .default('member'),
+  isOrgMember: integer('isOrgMember', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('createdAt')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
   // "What's New" read watermark: the ISO-8601 UTC date through which this user has seen release
   // notes. Nullable — null means "never seen any" (all releases unread). Set on the insert paths
   // (findOrCreateUser / bootstrapSuperadminByEmail) so new signups start caught up. NO catalog
   // import here — keeping the schema catalog-free is what stops the content worker from baking it in.
   lastSeenReleaseAt: text('lastSeenReleaseAt'),
+  disabledAt: text('disabledAt'),
 })
 
 export const spaces = sqliteTable('spaces', {
-  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
   type: text('type', { enum: ['personal', 'group'] }).notNull(),
-  createdBy: text('createdBy').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+  createdBy: text('createdBy')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: text('createdAt')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
 })
 
 export const spaceMembers = sqliteTable(
   'space_members',
   {
-    spaceId: text('spaceId').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
-    userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    spaceId: text('spaceId')
+      .notNull()
+      .references(() => spaces.id, { onDelete: 'cascade' }),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
   },
   (t) => [primaryKey({ columns: [t.spaceId, t.userId] }), index('space_members_user').on(t.userId)],
 )
@@ -44,18 +74,26 @@ export const spaceMembers = sqliteTable(
 export const sites = sqliteTable(
   'sites',
   {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    spaceId: text('spaceId').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    spaceId: text('spaceId')
+      .notNull()
+      .references(() => spaces.id, { onDelete: 'cascade' }),
     slug: text('slug').notNull(),
     title: text('title'),
     // Short blurb derived from the entry HTML's description meta at upload. CONTENT-derived, so a
     // replace overwrites it (title is identity and stays fill-only-null). Feeds the Slack unfurl card.
     description: text('description'),
-    visibility: text('visibility', { enum: ['private', 'members', 'team'] })
+    visibility: text('visibility', { enum: ['unlisted', 'private', 'members', 'team'] })
       .notNull()
       .default('team'),
-    status: text('status', { enum: ['active', 'archived'] }).notNull().default('active'),
-    ownerId: text('ownerId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['active', 'archived'] })
+      .notNull()
+      .default('active'),
+    ownerId: text('ownerId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     // Monotonic content-revision counter, bumped on every REPLACE. Editor replaces MUST pass the
     // version they pulled (CAS: UPDATE … WHERE contentVersion=?) so a stale redeploy 409s instead
     // of clobbering a newer one; owner replaces treat it as advisory. lastReplacedBy records who
@@ -67,17 +105,15 @@ export const sites = sqliteTable(
     // to a fresh prefix; an object is referenced by exactly one file row, ever), so deleting the
     // source may only drop the link, never the content.
     forkedFrom: text('forkedFrom').references((): AnySQLiteColumn => sites.id, { onDelete: 'set null' }),
-    // Optional design theme (slug into the src/themes registry, e.g. 'plivo' | 'broadsheet'); null =
-    // unthemed. Applied at SERVE time as an injected stylesheet link — stored bytes are never
-    // rewritten, so `glance read --pull` stays byte-identical. Plain text, no enum: the registry
-    // (a pure string map — safe for the content-worker bundle) is the single validation authority,
-    // so shipping a new theme is a CSS change, not a migration.
-    theme: text('theme'),
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
     // Last content-activity timestamp: set on create, re-stamped on every REPLACE (upload.ts), so a
     // re-deployed site bubbles back to the top of the Team activity feed (createdAt alone froze a busy
     // site at its creation slot). Renames/moves/visibility changes do NOT bump it — content only.
-    updatedAt: text('updatedAt').notNull().$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updatedAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
   },
   (t) => [
     unique('sites_space_slug_unq').on(t.spaceId, t.slug),
@@ -92,8 +128,12 @@ export const sites = sqliteTable(
 export const files = sqliteTable(
   'files',
   {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    siteId: text('siteId').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
     path: text('path').notNull(),
     storageKey: text('storageKey').notNull().unique(),
     mimeType: text('mimeType'),
@@ -107,7 +147,9 @@ export const files = sqliteTable(
     // nothing writes or reads it today (anchors are painted client-side, not reconciled server-
     // side). Kept nullable for a possible future wiring — do NOT drop the column.
     contentHash: text('contentHash'),
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
   },
   // One row per (site, path): serving picks a file by (siteId, path) via .limit(1), so a
   // duplicate path silently shadows. Upload now rejects dupes before write (storage layer),
@@ -120,12 +162,18 @@ export const files = sqliteTable(
 export const siteUserShares = sqliteTable(
   'site_user_shares',
   {
-    siteId: text('siteId').notNull().references(() => sites.id, { onDelete: 'cascade' }),
-    userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     // Grant tier for THIS user on THIS site. 'viewer' = read-only (the long-standing share
     // semantics, hence the default). 'editor' = may content-replace-redeploy (never rename/move/
     // delete/visibility). Group shares stay view-only — there is no editor row on siteGroupShares.
-    role: text('role', { enum: ['viewer', 'editor'] }).notNull().default('viewer'),
+    role: text('role', { enum: ['viewer', 'editor'] })
+      .notNull()
+      .default('viewer'),
   },
   (t) => [primaryKey({ columns: [t.siteId, t.userId] }), index('site_user_shares_user').on(t.userId)],
 )
@@ -134,8 +182,12 @@ export const siteUserShares = sqliteTable(
 export const siteGroupShares = sqliteTable(
   'site_group_shares',
   {
-    siteId: text('siteId').notNull().references(() => sites.id, { onDelete: 'cascade' }),
-    spaceId: text('spaceId').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    spaceId: text('spaceId')
+      .notNull()
+      .references(() => spaces.id, { onDelete: 'cascade' }),
   },
   (t) => [primaryKey({ columns: [t.siteId, t.spaceId] }), index('site_group_shares_space').on(t.spaceId)],
 )
@@ -150,11 +202,17 @@ export const siteGroupShares = sqliteTable(
 export const siteStars = sqliteTable(
   'site_stars',
   {
-    siteId: text('siteId').notNull().references(() => sites.id, { onDelete: 'cascade' }),
-    userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     // Orders the Starred feed newest-STAR-first (not newest-site-first) — the whole point of the
     // tab is "what I pinned most recently", which the site's own createdAt cannot express.
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
   },
   (t) => [primaryKey({ columns: [t.siteId, t.userId] }), index('site_stars_user').on(t.userId)],
 )
@@ -165,13 +223,19 @@ export const siteStars = sqliteTable(
 export const commentThreads = sqliteTable(
   'comment_threads',
   {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    siteId: text('siteId').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
     filePath: text('filePath').notNull(),
     // 'text' = anchored to a quote; 'page' = whole-page (markdown, or anchoring fallback);
     // 'element' = a pinpoint anchor on a whole element (chart/table/image) — payload in `anchor`.
     // Widening this enum needs NO migration: it's a plain text column with no CHECK constraint.
-    anchorType: text('anchorType', { enum: ['text', 'page', 'element'] }).notNull().default('text'),
+    anchorType: text('anchorType', { enum: ['text', 'page', 'element'] })
+      .notNull()
+      .default('text'),
     // The quote the text painter re-finds in the rendered DOM. Null for page/element threads.
     quote: text('quote'),
     // For an 'element' thread, the client-suggested {selector, tag, preview, textFallback} (see
@@ -186,12 +250,18 @@ export const commentThreads = sqliteTable(
       .default('anchored'),
     start: integer('start'),
     end: integer('end'),
-    status: text('status', { enum: ['open', 'resolved'] }).notNull().default('open'),
+    status: text('status', { enum: ['open', 'resolved'] })
+      .notNull()
+      .default('open'),
     resolvedBy: text('resolvedBy').references(() => users.id, { onDelete: 'set null' }),
     resolvedAt: text('resolvedAt'),
     createdBy: text('createdBy').references(() => users.id, { onDelete: 'set null' }),
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
-    updatedAt: text('updatedAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updatedAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
   },
   (t) => [
     index('threads_site_file_status').on(t.siteId, t.filePath, t.status),
@@ -202,11 +272,17 @@ export const commentThreads = sqliteTable(
 export const comments = sqliteTable(
   'comments',
   {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    threadId: text('threadId').notNull().references(() => commentThreads.id, { onDelete: 'cascade' }),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    threadId: text('threadId')
+      .notNull()
+      .references(() => commentThreads.id, { onDelete: 'cascade' }),
     authorId: text('authorId').references(() => users.id, { onDelete: 'set null' }),
     body: text('body').notNull(),
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
     editedAt: text('editedAt'),
     // Soft delete: keeps the row (and thread shape) so history survives; body is redacted on read.
     deletedAt: text('deletedAt'),
@@ -232,18 +308,24 @@ export const comments = sqliteTable(
 export const commentReactions = sqliteTable(
   'comment_reactions',
   {
-    commentId: text('commentId').notNull().references(() => comments.id, { onDelete: 'cascade' }),
-    userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    commentId: text('commentId')
+      .notNull()
+      .references(() => comments.id, { onDelete: 'cascade' }),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     // A unicode grapheme cluster, NOT one character — a ZWJ family sequence is 11 UTF-16 units.
     // Stored verbatim (control chars stripped at the route boundary); never regex-validated.
     emoji: text('emoji').notNull(),
     // Orders each comment's set first-reacted-first, so the chips don't reshuffle between polls.
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
   },
   (t) => [primaryKey({ columns: [t.commentId, t.userId, t.emoji] })],
 )
 
-// Generic per-site document store backing the browser `glance.db` SDK (shared backend).
+// Generic per-site document store backing the browser `postplan.db` SDK (shared backend).
 // One flat table keyed by (siteId, collection, docId) holding an opaque JSON blob — this is
 // what gives the schemaless collection() DX without a migration per collection. INVARIANTS:
 // `siteId` is ALWAYS derived server-side from the verified data token (never a client field),
@@ -252,14 +334,24 @@ export const commentReactions = sqliteTable(
 export const documents = sqliteTable(
   'documents',
   {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    siteId: text('siteId').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
     collection: text('collection').notNull(),
     docId: text('docId').notNull(),
     json: text('json', { mode: 'json' }).$type<unknown>().notNull(),
-    createdBy: text('createdBy').notNull().references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
-    updatedAt: text('updatedAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdBy: text('createdBy')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updatedAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
   },
   (t) => [
     unique('documents_site_collection_doc_unq').on(t.siteId, t.collection, t.docId),
@@ -267,7 +359,7 @@ export const documents = sqliteTable(
   ],
 )
 
-// Append-only per-site change stream for `glance.db` realtime push. Every documents mutation
+// Append-only per-site change stream for `postplan.db` realtime push. Every documents mutation
 // writes exactly one row here in the SAME db.batch, so a client that reconnects — or notices a
 // gap — replays from a cursor instead of going permanently stale (Cloudflare terminates every
 // WebSocket on a DO shutdown, INCLUDING each code deploy, so replay is not optional).
@@ -278,7 +370,9 @@ export const documents = sqliteTable(
 export const changeLog = sqliteTable(
   'change_log',
   {
-    siteId: text('siteId').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
     // Assigned in-SQL as max(seq)+1 over this siteId inside the mutation's own batch — no
     // read-modify-write round trip, the same trick as `sql\`${sites.contentVersion} + 1\``. There is
     // no autoincrement/rowid PK anywhere in this schema and this is deliberately not the first:
@@ -307,7 +401,9 @@ export const changeLog = sqliteTable(
 export const events = sqliteTable(
   'events',
   {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
     type: text('type', { enum: ['view', 'cli'] }).notNull(),
     // view: served file path; cli: the API route/command (e.g. 'upload', 'comments', 'read').
     action: text('action'),
@@ -315,9 +411,11 @@ export const events = sqliteTable(
     siteId: text('siteId').references(() => sites.id, { onDelete: 'set null' }),
     // Denormalized "space/site" slug pair — survives a site delete for readable per-site rollups.
     siteLabel: text('siteLabel'),
-    // CLI semver from the User-Agent (glance-cli/<version>); null for views and legacy CLIs.
+    // CLI semver from the User-Agent (postplan-cli/<version>); null for views and legacy CLIs.
     cliVersion: text('cliVersion'),
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
   },
   (t) => [
     index('events_type_created').on(t.type, t.createdAt),
@@ -338,8 +436,12 @@ export const events = sqliteTable(
 export const notifications = sqliteTable(
   'notifications',
   {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    recipientId: text('recipientId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    recipientId: text('recipientId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     type: text('type', { enum: ['mention', 'comment', 'share'] }).notNull(),
     actorId: text('actorId').references(() => users.id, { onDelete: 'set null' }),
     siteId: text('siteId').references(() => sites.id, { onDelete: 'set null' }),
@@ -351,7 +453,9 @@ export const notifications = sqliteTable(
     snippet: text('snippet'),
     // Null = unread; set to an ISO timestamp when marked read.
     readAt: text('readAt'),
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
   },
   (t) => [
     // Unread count for one recipient in a single index scan.
@@ -362,6 +466,12 @@ export const notifications = sqliteTable(
     index('notifications_recipient_created').on(t.recipientId, t.createdAt),
     // Supports comment FK maintenance when a comment is hard-deleted through a site/thread cascade.
     index('notifications_comment').on(t.commentId),
+    // Serves the retention purge's `readAt IS NOT NULL AND createdAt < cutoff` (lib/retention.ts).
+    // Neither index above helps — both lead with recipientId — so the purge would full-scan every
+    // run. `readAt` leads so the IS NOT NULL half is a range scan that skips unread rows entirely,
+    // `createdAt` second for the cutoff. Added by migration 0028 but never declared here, so the
+    // squashed baseline would have silently dropped it.
+    index('notifications_read_created').on(t.readAt, t.createdAt),
   ],
 )
 
@@ -379,8 +489,13 @@ export const purgedEventCounts = sqliteTable('purged_event_counts', {
 // summaries survive author deletion. Server-computed `contentVersion` + `promptVersion` together
 // determine staleness.
 export const siteSummaries = sqliteTable('site_summaries', {
-  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  siteId: text('siteId').notNull().unique().references(() => sites.id, { onDelete: 'cascade' }),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  siteId: text('siteId')
+    .notNull()
+    .unique()
+    .references(() => sites.id, { onDelete: 'cascade' }),
   summary: text('summary').notNull(),
   contentVersion: integer('contentVersion').notNull(),
   promptVersion: integer('promptVersion').notNull(),
@@ -388,7 +503,9 @@ export const siteSummaries = sqliteTable('site_summaries', {
   model: text('model').notNull(),
   generatedBy: text('generatedBy').references(() => users.id, { onDelete: 'set null' }),
   truncated: integer('truncated', { mode: 'boolean' }).notNull().default(false),
-  createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+  createdAt: text('createdAt')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updatedAt')
     .notNull()
     .$defaultFn(() => new Date().toISOString())
@@ -396,19 +513,25 @@ export const siteSummaries = sqliteTable('site_summaries', {
 })
 
 // Control-plane API keys: a long-lived credential a user mints for CLI/CI use, distinct from the
-// GLANCE_SESSIONS browser cookie. Only `hash` (SHA-256 hex of the secret) is ever stored — the
+// POSTPLAN_SESSIONS browser cookie. Only `hash` (SHA-256 hex of the secret) is ever stored — the
 // secret itself is shown once at creation and never persisted. `grants` is a JSON blob (see
 // `documents.json` for the same text/json-mode idiom) holding the key's scoped permissions.
 // `revokedAt` is a manual kill switch; `expiresAt` is enforced independently at auth time.
 export const apiKeys = sqliteTable(
   'api_keys',
   {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     hash: text('hash').notNull().unique(),
     grants: text('grants', { mode: 'json' }).$type<ApiKeyGrants>().notNull(),
-    createdAt: text('createdAt').notNull().$defaultFn(() => new Date().toISOString()),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
     expiresAt: text('expiresAt').notNull(),
     revokedAt: text('revokedAt'),
     lastUsedAt: text('lastUsedAt'),

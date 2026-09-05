@@ -4,7 +4,17 @@
 import { Hono } from 'hono'
 import contentApp from '../content'
 import { signToken } from '../lib/token'
-import { makeCaches, makeDb, makeR2, makeRecorder, seedFile, seedMember, seedSite, seedSpace, seedUser } from './harness'
+import {
+  makeCaches,
+  makeDb,
+  makeR2,
+  makeRecorder,
+  seedFile,
+  seedMember,
+  seedSite,
+  seedSpace,
+  seedUser,
+} from './harness'
 
 const tokenKey = 'test-secret'
 
@@ -20,9 +30,9 @@ export function setup({ withCaches = true }: { withCaches?: boolean } = {}) {
   const r2 = makeR2(recorder)
   const caches = makeCaches(recorder)
   const env = {
-    APP_URL: 'https://glance.example.com',
+    APP_URL: 'https://postplan.example.com',
     CONTENT_TOKEN_SECRET: tokenKey,
-    GLANCE_FILES: r2,
+    POSTPLAN_FILES: r2,
   } as unknown as Parameters<typeof contentApp.request>[2]
   const app = new Hono()
   app.use('*', async (c, next) => {

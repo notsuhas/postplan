@@ -5,6 +5,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
+    public retryable?: boolean,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -14,7 +16,7 @@ export class ApiError extends Error {
 /** D1 session bookmark round-trip (issue #79): the server tags responses with the newest
  *  bookmark; echoing it back anchors its next D1 session so reads on a replica still see
  *  this browser's prior writes. */
-export const BOOKMARK_HEADER = 'x-glance-d1-bookmark'
+export const BOOKMARK_HEADER = 'x-postplan-d1-bookmark'
 
 let dbBookmark: string | null = null
 export const __resetDbBookmark = () => {
@@ -35,13 +37,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   captureDbBookmark(res.headers.get(BOOKMARK_HEADER))
   if (!res.ok) {
     let message = res.statusText
+    let code: string | undefined
+    let retryable: boolean | undefined
     try {
-      const body = (await res.json()) as { error?: string }
+      const body = (await res.json()) as { error?: string; code?: string; retryable?: boolean }
       if (body?.error) message = body.error
+      code = body.code
+      retryable = body.retryable
     } catch {
       // non-JSON error body — keep statusText
     }
-    throw new ApiError(res.status, message)
+    throw new ApiError(res.status, message, code, retryable)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T

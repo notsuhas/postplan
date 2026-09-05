@@ -31,7 +31,11 @@ export async function signToken(secret: string, userId: string, scope: string, t
  * worker can reconstruct identity and re-authorize), or null if the token is missing,
  * malformed, expired, or its signature does not match.
  */
-export async function verifyToken(secret: string, scope: string, token: string | null | undefined): Promise<string | null> {
+export async function verifyToken(
+  secret: string,
+  scope: string,
+  token: string | null | undefined,
+): Promise<string | null> {
   if (!token) return null
   const parts = token.split('.')
   if (parts.length !== 3) return null

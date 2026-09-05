@@ -143,9 +143,7 @@ export function truncateSnippet(body: string, max = FEED_SNIPPET_LENGTH): string
 
 function compareFeedCandidates(a: FeedCandidate, b: FeedCandidate): number {
   return (
-    b.row.createdAt.localeCompare(a.row.createdAt) ||
-    KIND_RANK[a.kind] - KIND_RANK[b.kind] ||
-    b.row.rowid - a.row.rowid
+    b.row.createdAt.localeCompare(a.row.createdAt) || KIND_RANK[a.kind] - KIND_RANK[b.kind] || b.row.rowid - a.row.rowid
   )
 }
 
@@ -198,13 +196,14 @@ export function assembleCommentFeed(input: {
     ...input.authored.map((row) => ({ kind: 'authored' as const, row })),
     ...owned.map((row) => ({ kind: 'owned' as const, row })),
   ]
-    .filter(({ row }) =>
-      checkAccess(
-        { visibility: row.visibility, status: row.siteStatus, ownerId: row.ownerId },
-        input.user,
-        input.memberSpaceIds.has(row.spaceId),
-        input.sharedSiteRoles.has(row.siteId),
-      ).ok,
+    .filter(
+      ({ row }) =>
+        checkAccess(
+          { visibility: row.visibility, status: row.siteStatus, ownerId: row.ownerId },
+          input.user,
+          input.memberSpaceIds.has(row.spaceId),
+          input.sharedSiteRoles.has(row.siteId),
+        ).ok,
     )
     .sort(compareFeedCandidates)
     .slice(0, FEED_LIMIT)

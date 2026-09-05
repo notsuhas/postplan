@@ -3,7 +3,7 @@
 // the same offer and both re-issue the same 101, so it is one implementation rather than a copy
 // per route.
 //
-// Split out of ./protocol.ts on purpose: that module is in glancedb/client.ts's import graph and
+// Split out of ./protocol.ts on purpose: that module is in postplandb/client.ts's import graph and
 // is inlined into the committed browser bundle, so anything added there churns the bundle hash.
 // None of this is browser code.
 
