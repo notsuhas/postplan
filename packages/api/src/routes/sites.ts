@@ -782,7 +782,7 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
   })
 })
 
-// DELETE /api/sites/:spaceSlug/:siteSlug — hard delete (owner or superadmin). Purges R2 first.
+// DELETE /api/sites/:spaceSlug/:siteSlug — hard delete (owner or superadmin).
 // The superadmin arm is the ONE power an admin holds over a site it cannot read: it may remove
 // someone else's page (and archive/restore it via the admin panel) but never open, replace, retier,
 // share, move, or moderate it. Every one of those is owner-only — see lib/access.ts.
@@ -799,6 +799,9 @@ sites.delete('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, async (c
     return c.json({ error: 'forbidden' }, 403)
   }
 
+  // Make the site unreadable before R2 cleanup. If cleanup fails, the archived row is retryable
+  // and no live URL points at a partially deleted object set.
+  await db.update(sitesTable).set({ status: 'archived' }).where(eq(sitesTable.id, site.id))
   await deleteSiteObjects(db, c.env.POSTPLAN_FILES, site.id)
   await db.delete(sitesTable).where(eq(sitesTable.id, site.id)) // FK cascade removes files rows
 

@@ -81,13 +81,13 @@ admin.patch('/sites/:id/restore', async (c) => {
   return c.json({ ok: true })
 })
 
-// DELETE /api/admin/sites/:id — hard delete. Purge R2 objects first, then the row
-// (the FK cascade removes the site's file rows).
+// DELETE /api/admin/sites/:id — hard delete.
 admin.delete('/sites/:id', async (c) => {
   const db = c.get('db')
   const id = c.req.param('id')
   const existing = await db.select({ id: sites.id }).from(sites).where(eq(sites.id, id)).limit(1)
   if (existing.length === 0) return c.json({ error: 'site not found' }, 404)
+  await db.update(sites).set({ status: 'archived' }).where(eq(sites.id, id))
   await deleteSiteObjects(db, c.env.POSTPLAN_FILES, id)
   await db.delete(sites).where(eq(sites.id, id))
   return c.json({ ok: true })

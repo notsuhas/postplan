@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { eq } from 'drizzle-orm'
 import type { Hono } from 'hono'
+import { sites } from '../db/schema'
 import { seedFile, seedGroupShare, seedMember, seedSite, seedSpace, seedUserShare } from '../test/harness'
 import {
   authHeaders as auth,
@@ -183,6 +185,23 @@ describe('DELETE /api/spaces/:slug', () => {
     const res = await del(app, env, 'acme', 'admin')
     expect(res.status).toBe(200)
     expect(r2.store.has(k)).toBe(false)
+  })
+
+  test('an R2 failure archives every site before leaving the space retryable', async () => {
+    const { db, kv, r2, app, env } = await setup()
+    await mintUser(db, kv, 'u1')
+    await seedSpace(db, { id: 'g', createdBy: 'u1', slug: 'acme' })
+    await seedMember(db, 'g', 'u1')
+    const site = await seedSite(db, { spaceId: 'g', ownerId: 'u1', slug: 'page' })
+    await seedFile(db, r2, site, { path: 'index.html', text: 'page' })
+    r2.delete = async () => {
+      throw new Error('R2 unavailable')
+    }
+
+    const res = await del(app, env, 'acme', 'u1')
+
+    expect(res.status).toBe(500)
+    expect((await db.select().from(sites).where(eq(sites.id, site)))[0].status).toBe('archived')
   })
 })
 

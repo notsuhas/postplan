@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { sites } from '../db/schema'
-import { seedMember, seedSite, seedSpace } from '../test/harness'
+import { seedFile, seedMember, seedSite, seedSpace } from '../test/harness'
 import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
 
 // DELETE /api/sites/:space/:site — an API key MAY create sites (deploy is the headline use case)
@@ -46,5 +46,19 @@ describe('DELETE /api/sites/:space/:site — credential-based deny', () => {
 
     const res = await ctx.app.request('/api/sites/acme/ghost', { method: 'DELETE', headers: authKey(secret) }, ctx.env)
     expect(res.status).toBe(403)
+  })
+
+  test('an R2 failure leaves the site archived and retryable', async () => {
+    const ctx = await setup()
+    await seedFile(ctx.db, ctx.r2, 'deck', { path: 'index.html', text: 'page' })
+    ctx.r2.delete = async () => {
+      throw new Error('R2 unavailable')
+    }
+
+    const res = await ctx.app.request('/api/sites/acme/deck', { method: 'DELETE', headers: auth('owner') }, ctx.env)
+
+    expect(res.status).toBe(500)
+    const [site] = await ctx.db.select().from(sites).where(eq(sites.id, 'deck'))
+    expect(site.status).toBe('archived')
   })
 })

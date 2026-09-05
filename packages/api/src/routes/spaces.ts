@@ -268,9 +268,9 @@ spaces.delete('/:slug', requireAuth, requireControlGrant, requireHumanCredential
       return c.json({ error: 'space has sites owned by other members — they must move or delete them first' }, 409)
   }
 
-  // Purge R2 objects in ONE key query + batched deletes before the FK cascade removes site + file
-  // rows. (The old per-site deleteSiteObjects loop did 2+ subrequests/site → blew the 50-subrequest
-  // free-plan cap mid-loop on a large space, 500ing with a partial destroy.)
+  // Hide every site before cleanup so an R2 failure leaves a retryable space, never live pages
+  // backed by a partially deleted object set.
+  await db.update(sites).set({ status: 'archived' }).where(eq(sites.spaceId, space.id))
   await deleteSpaceObjects(db, c.env.POSTPLAN_FILES, space.id)
   await db.delete(spacesTable).where(eq(spacesTable.id, space.id))
   return c.json({ ok: true })

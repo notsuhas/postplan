@@ -1,5 +1,28 @@
 import { describe, expect, test } from 'bun:test'
+import { eq } from 'drizzle-orm'
+import { sites } from '../db/schema'
+import { seedFile, seedMember, seedSite, seedSpace } from '../test/harness'
 import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../test/route-fixtures'
+
+describe('DELETE /api/admin/sites/:id', () => {
+  test('an R2 failure leaves the site archived and retryable', async () => {
+    const { app, db, kv, env, r2 } = makeRouteApp()
+    await mintUser(db, kv, 'admin', { role: 'superadmin' })
+    await mintUser(db, kv, 'owner')
+    await seedSpace(db, { id: 'space', slug: 'space', createdBy: 'owner' })
+    await seedMember(db, 'space', 'owner')
+    await seedSite(db, { id: 'site', spaceId: 'space', ownerId: 'owner' })
+    await seedFile(db, r2, 'site', { path: 'index.html', text: 'page' })
+    r2.delete = async () => {
+      throw new Error('R2 unavailable')
+    }
+
+    const res = await app.request('/api/admin/sites/site', { method: 'DELETE', headers: auth('admin') }, env)
+
+    expect(res.status).toBe(500)
+    expect((await db.select().from(sites).where(eq(sites.id, 'site')))[0].status).toBe('archived')
+  })
+})
 
 describe('POST /api/admin/users/:id/revoke-cli', () => {
   test('a superadmin API key cannot enter the human admin plane', async () => {
