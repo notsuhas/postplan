@@ -58,6 +58,7 @@ export type NotificationView = {
 /** Insert notifications in one D1 batch of bind-safe statements. Empty input never touches D1. */
 export async function createNotifications(db: DrizzleD1Database, rows: NotificationInput[]): Promise<void> {
   if (rows.length === 0) return
+  const createdAt = now()
   const inserts = chunk(rows, NOTIFICATION_ROWS_PER_INSERT).map((batch) =>
     db.insert(notifications).values(
       batch.map((r) => ({
@@ -70,6 +71,7 @@ export async function createNotifications(db: DrizzleD1Database, rows: Notificat
         commentId: r.commentId ?? null,
         filePath: r.filePath ?? null,
         snippet: r.snippet ?? null,
+        createdAt,
       })),
     ),
   )
