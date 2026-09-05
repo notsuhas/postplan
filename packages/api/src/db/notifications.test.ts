@@ -223,6 +223,32 @@ describe('resolveCommentAudience tags each recipient with a reason (owner>partic
     expect(byId.get(owner)).toBe('owner') // owner beats participant AND share
     expect(byId.get(shareAndParticipant)).toBe('participant') // participant beats share
   })
+
+  test('team replies exclude external participants unless directly shared', async () => {
+    const db = makeDb()
+    const owner = await seedUser(db)
+    const guest = await seedUser(db, { isOrgMember: false })
+    const actor = await seedUser(db)
+    const spaceId = await seedSpace(db, { createdBy: owner })
+    const siteId = await seedSite(db, { spaceId, ownerId: owner, visibility: 'team' })
+    const threadId = await seedThread(db, { siteId, filePath: 'index.html', createdBy: owner })
+    await seedComment(db, { threadId, authorId: guest })
+
+    const beforeShare = await resolveCommentAudience(db, teamSite(siteId, spaceId, owner), {
+      threadId,
+      isReply: true,
+      exclude: new Set([actor]),
+    })
+    expect(beforeShare.some((recipient) => recipient.id === guest)).toBe(false)
+
+    await seedUserShare(db, siteId, guest)
+    const afterShare = await resolveCommentAudience(db, teamSite(siteId, spaceId, owner), {
+      threadId,
+      isReply: true,
+      exclude: new Set([actor]),
+    })
+    expect(afterShare.some((recipient) => recipient.id === guest)).toBe(true)
+  })
 })
 
 describe('S1 — createNotifications persists type comment + commentId; comment delete nulls commentId', () => {

@@ -7,7 +7,7 @@ import { NEWEST_RELEASE_DATE } from '../whats-new/catalog'
 import { requireAuth, requireControlGrant } from '../middleware/auth'
 import { sanitizeAvatarUrl } from '../lib/avatar'
 import { bootstrapDecision } from '../lib/bootstrap'
-import { createWorkos, isAdminEmail, isWorkosEnabled, primarySuperadminEmail } from '../lib/workos'
+import { createWorkos, isAdminEmail, isOrgEmail, isWorkosEnabled, primarySuperadminEmail } from '../lib/workos'
 import {
   bearerToken,
   createCliToken,
@@ -105,10 +105,8 @@ auth.get('/callback', async (c) => {
   const email = claims.email?.toLowerCase() ?? ''
   if (!email || !claims.email_verified) return c.redirect('/login?error=denied')
 
-  // Hard gate. WorkOS brokers Google for ANY account, so the old `hd` domain check has no
-  // equivalent — membership is an explicit allowlist. Admins are exempt so a fresh instance is
-  // reachable before any invite exists. A rejected login leaves no WorkOS user behind.
-  if (!isAdminEmail(c.env, email)) {
+  // Organization-domain users and admins may join directly; external accounts need an invite.
+  if (!isAdminEmail(c.env, email) && !isOrgEmail(c.env, email)) {
     const invited = await c.get('db').select().from(invites).where(eq(invites.email, email)).limit(1)
     if (!invited[0]) {
       c.executionCtx?.waitUntil(workos.userManagement.deleteUser(workosUserId).catch(() => {}))
@@ -227,7 +225,8 @@ auth.post('/bootstrap', async (c) => {
   // Session (KV) is confirmed before the run is marked "done"; the flag is set only AFTER a
   // successful mint, so a KV failure mid-way leaves it unset and the (anti-lockout) decision
   // lets a retry recover without re-locking the deploy. Once set, bootstrap is one-shot (410).
-  const user = await bootstrapSuperadminByEmail(db, primarySuperadminEmail(c.env), null, NEWEST_RELEASE_DATE)
+  const email = primarySuperadminEmail(c.env)
+  const user = await bootstrapSuperadminByEmail(db, email, null, NEWEST_RELEASE_DATE, isOrgEmail(c.env, email))
   await createSession(c, user)
   await c.env.POSTPLAN_SESSIONS.put(BOOTSTRAP_COMPLETE_KEY, '1')
   return c.json({ ok: true, user })
@@ -342,16 +341,24 @@ export async function findOrCreateUser(
   // Promote-only — removing an address never demotes, so a fat-fingered edit cannot strip the last
   // superadmin out of its own instance. Demote through the admin UI, deliberately.
   const admin = isAdminEmail(env, email)
+  const isOrgMember = isOrgEmail(env, email)
 
   if (existing) {
     const name = claims.name ?? existing.name
     const role = admin ? 'superadmin' : existing.role
     await db
       .update(users)
-      .set({ name, googleId: claims.sub, avatarUrl: avatarUrl ?? existing.avatarUrl, role, disabledAt: null })
+      .set({
+        name,
+        googleId: claims.sub,
+        avatarUrl: avatarUrl ?? existing.avatarUrl,
+        role,
+        isOrgMember,
+        disabledAt: null,
+      })
       .where(eq(users.id, existing.id))
     await createPersonalSpace(db, existing.id, email)
-    return toSessionUser({ ...existing, name, role })
+    return toSessionUser({ ...existing, name, role, isOrgMember })
   }
 
   const id = crypto.randomUUID()
@@ -365,8 +372,9 @@ export async function findOrCreateUser(
     googleId: claims.sub,
     avatarUrl,
     role,
+    isOrgMember,
     lastSeenReleaseAt: NEWEST_RELEASE_DATE,
   })
   await createPersonalSpace(db, id, email)
-  return { id, email, name: claims.name ?? null, role }
+  return { id, email, name: claims.name ?? null, role, isOrgMember }
 }

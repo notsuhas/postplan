@@ -3,8 +3,20 @@ import type { SessionUser } from '../types'
 import { makeDb, seedGroupShare, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
 import { searchSites } from './sites'
 
-const member = (id: string): SessionUser => ({ id, email: `${id}@example.com`, name: null, role: 'member' })
-const superadmin = (id: string): SessionUser => ({ id, email: `${id}@example.com`, name: null, role: 'superadmin' })
+const member = (id: string, isOrgMember = true): SessionUser => ({
+  id,
+  email: `${id}@example.com`,
+  name: null,
+  role: 'member',
+  isOrgMember,
+})
+const superadmin = (id: string): SessionUser => ({
+  id,
+  email: `${id}@example.com`,
+  name: null,
+  role: 'superadmin',
+  isOrgMember: true,
+})
 const ids = (rows: { id: string }[]) => new Set(rows.map((r) => r.id))
 
 // searchSites is the "openable" search surface: one bounded candidate query then an
@@ -57,7 +69,7 @@ describe('searchSites (cmdk site search)', () => {
     expect(res.has(priv)).toBe(false)
   })
 
-  test('search-team-visible-to-any-member', async () => {
+  test('search-team-visible-to-organization-member-only', async () => {
     const db = makeDb()
     const me = await seedUser(db, { id: 'me' })
     const owner = await seedUser(db)
@@ -67,6 +79,7 @@ describe('searchSites (cmdk site search)', () => {
     const res = ids(await searchSites(db, member(me), 'feed'))
     expect(res.has(team)).toBe(true)
     expect(res.has(priv)).toBe(false) // private in a space me isn't a member of
+    expect(ids(await searchSites(db, member(me, false), 'feed')).has(team)).toBe(false)
   })
 
   test('search-explicit-share-included: direct share and via-group share both included', async () => {

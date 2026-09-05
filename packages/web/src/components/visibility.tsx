@@ -36,8 +36,8 @@ export const VISIBILITY_META: Record<Visibility, { label: string; hint: string; 
     badge: 'bg-sky-500/15 text-sky-600 dark:text-sky-300',
   },
   team: {
-    label: 'All users',
-    hint: 'Everyone signed in to Postplan',
+    label: 'Team',
+    hint: 'Signed-in users with an organization email',
     icon: Building2,
     badge: 'bg-primary/15 text-primary',
   },

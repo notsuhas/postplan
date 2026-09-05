@@ -98,25 +98,36 @@ export async function resolveCommentAudience(
   if (site.status === 'archived') return []
 
   const directSharesStmt = db
-    .select({ userId: siteUserShares.userId })
+    .select({ userId: siteUserShares.userId, isOrgMember: users.isOrgMember })
     .from(siteUserShares)
-    .where(eq(siteUserShares.siteId, site.id))
+    .innerJoin(users, eq(siteUserShares.userId, users.id))
+    .where(and(eq(siteUserShares.siteId, site.id), isNull(users.disabledAt)))
   const participantsStmt = db
-    .selectDistinct({ authorId: comments.authorId })
+    .selectDistinct({ authorId: comments.authorId, isOrgMember: users.isOrgMember })
     .from(comments)
-    .where(and(eq(comments.threadId, opts.threadId), isNotNull(comments.authorId)))
+    .innerJoin(users, eq(comments.authorId, users.id))
+    .where(and(eq(comments.threadId, opts.threadId), isNotNull(comments.authorId), isNull(users.disabledAt)))
+  const ownerStmt = db
+    .select({ id: users.id, isOrgMember: users.isOrgMember })
+    .from(users)
+    .where(and(eq(users.id, site.ownerId), isNull(users.disabledAt)))
   const audienceFacts = async (): Promise<{
-    directRows: { userId: string }[]
-    participantRows: { authorId: string | null }[]
+    directRows: { userId: string; isOrgMember: boolean }[]
+    participantRows: { authorId: string | null; isOrgMember: boolean }[]
+    ownerRows: { id: string; isOrgMember: boolean }[]
   }> => {
     if (opts.isReply) {
-      const [directRows, participantRows] = await batchAll(db, [directSharesStmt, participantsStmt])
-      return { directRows, participantRows }
+      const [directRows, participantRows, ownerRows] = await batchAll(db, [
+        directSharesStmt,
+        participantsStmt,
+        ownerStmt,
+      ])
+      return { directRows, participantRows, ownerRows }
     }
-    const [directRows] = await batchAll(db, [directSharesStmt])
-    return { directRows, participantRows: [] }
+    const [directRows, ownerRows] = await batchAll(db, [directSharesStmt, ownerStmt])
+    return { directRows, participantRows: [], ownerRows }
   }
-  const { directRows, participantRows } = await audienceFacts()
+  const { directRows, participantRows, ownerRows } = await audienceFacts()
   const directShares = new Set(directRows.map((row) => row.userId))
   // TS-only narrowing; the SQL isNotNull predicate already excludes null authors.
   const participantIds = participantRows
@@ -132,9 +143,26 @@ export async function resolveCommentAudience(
   for (const id of opts.exclude) audience.delete(id)
   const candidates = [...audience]
   if (candidates.length === 0) return []
-  // Every candidate is an authenticated user id from an FK-backed audience fact. Team visibility
-  // admits all of them, so no access-fact queries are needed.
-  if (site.visibility === 'team') return candidates.map((id) => ({ id, reason: reasonOf(id) }))
+  const activeUserIds = new Set([
+    ...ownerRows.map((row) => row.id),
+    ...directRows.map((row) => row.userId),
+    ...participantIds,
+  ])
+  const orgMemberIds = new Set([
+    ...ownerRows.filter((row) => row.isOrgMember).map((row) => row.id),
+    ...directRows.filter((row) => row.isOrgMember).map((row) => row.userId),
+    ...participantRows.filter((row) => row.isOrgMember).flatMap((row) => (row.authorId ? [row.authorId] : [])),
+  ])
+
+  if (site.visibility === 'team') {
+    return candidates
+      .filter((id) => {
+        if (!activeUserIds.has(id)) return false
+        return checkAccess(site, { id, role: 'member', isOrgMember: orgMemberIds.has(id) }, false, directShares.has(id))
+          .ok
+      })
+      .map((id) => ({ id, reason: reasonOf(id) }))
+  }
 
   const accessFactStatements = chunk(candidates, D1_MAX_IN).flatMap((ids) => [
     {
@@ -157,7 +185,10 @@ export async function resolveCommentAudience(
     db,
     accessFactStatements.map(({ statement }) => statement),
   )
-  const accessRows = { groupRows: [] as { userId: string }[], memberRows: [] as { userId: string }[] }
+  const accessRows = {
+    groupRows: [] as { userId: string }[],
+    memberRows: [] as { userId: string }[],
+  }
   for (const [index, { name }] of accessFactStatements.entries()) accessRows[name].push(...accessRowChunks[index])
   const { groupRows, memberRows } = accessRows
   const groupSharedIds = new Set(groupRows.map((row) => row.userId))
@@ -165,9 +196,8 @@ export async function resolveCommentAudience(
 
   return candidates
     .filter((id) => {
-      // Recipient role is deliberately not consulted — and `checkAccess` no longer looks at it
-      // either, so a superadmin is notified only where a plain member would be.
-      const recipient = { id, role: 'member' as const }
+      if (!activeUserIds.has(id)) return false
+      const recipient = { id, role: 'member' as const, isOrgMember: orgMemberIds.has(id) }
       return checkAccess(site, recipient, memberIds.has(id), directShares.has(id) || groupSharedIds.has(id)).ok
     })
     .map((id) => ({ id, reason: reasonOf(id) }))

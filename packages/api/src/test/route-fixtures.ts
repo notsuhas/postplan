@@ -33,6 +33,7 @@ export function makeRouteApp() {
     SESSION_SECRET: 's',
     CONTENT_URL: 'https://content.example.com',
     CONTENT_TOKEN_SECRET: 'content-secret',
+    ORG_EMAIL_DOMAINS: 'example.com',
     POSTPLAN_SESSIONS: kv,
     POSTPLAN_FILES: r2,
   } as unknown as AppEnv['Bindings']
@@ -82,12 +83,13 @@ export async function mintUser(
   db: RouteApp['db'],
   kv: RouteApp['kv'],
   id: string,
-  opts: { role?: 'member' | 'superadmin'; email?: string } = {},
+  opts: { role?: 'member' | 'superadmin'; email?: string; isOrgMember?: boolean } = {},
 ): Promise<string> {
   const role = opts.role ?? 'member'
   const email = opts.email ?? `${id}@example.com`
-  await seedUser(db, { id, email, role })
-  await kv.put(`cli:tok-${id}`, JSON.stringify({ id, email, name: null, role }))
+  const isOrgMember = opts.isOrgMember ?? true
+  await seedUser(db, { id, email, role, isOrgMember })
+  await kv.put(`cli:tok-${id}`, JSON.stringify({ id, email, name: null, role, isOrgMember }))
   // The per-user index entry `createCliToken` writes alongside the token. Without it the fixture
   // looks authenticated but is invisible to `revokeUserCliTokens`, which enumerates this prefix —
   // so the offboarding kill-switch could not be tested at all, and a regression that stopped

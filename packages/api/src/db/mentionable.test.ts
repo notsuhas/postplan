@@ -66,13 +66,14 @@ describe('C6 — members: adds the site space members', () => {
   })
 })
 
-describe('C7 — team: all users; always excludes caller', () => {
+describe('C7 — team: organization users only; always excludes caller', () => {
   test('team site', async () => {
     const db = makeDb()
     const owner = await seedUser(db)
     const caller = await seedUser(db)
     const a = await seedUser(db)
     const b = await seedUser(db)
+    const guest = await seedUser(db, { isOrgMember: false })
 
     const space = await seedSpace(db, { createdBy: owner })
     const site = await seedSite(db, { spaceId: space, ownerId: owner, visibility: 'team' })
@@ -81,6 +82,7 @@ describe('C7 — team: all users; always excludes caller', () => {
     const got = ids(await listMentionableUsers(db, site_, caller))
     expect(got).toEqual(new Set([owner, a, b]))
     expect(got.has(caller)).toBe(false)
+    expect(got.has(guest)).toBe(false)
   })
 
   test('archived site → nobody is mentionable (410-for-all mirror)', async () => {

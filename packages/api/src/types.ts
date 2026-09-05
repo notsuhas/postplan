@@ -50,6 +50,8 @@ export interface Bindings {
   SITE_ROOM?: DurableObjectNamespace
   APP_URL: string
   CONTENT_URL: string
+  // Comma-separated domains whose signed-in users can access organization-wide sites.
+  ORG_EMAIL_DOMAINS: string
   // Comma-separated superadmins. The first address is the bootstrap/dev-login identity.
   SUPERADMIN_EMAILS: string
 }
@@ -60,6 +62,7 @@ export interface SessionUser {
   email: string
   name: string | null
   role: 'member' | 'superadmin'
+  isOrgMember: boolean
 }
 
 // HOW the caller authenticated, resolved by readCredential (see lib/session.ts) and attached to

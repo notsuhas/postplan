@@ -279,6 +279,12 @@ describe('T1.4 live transitions on the same token', () => {
     await expectFlip(s, t, () => s.db.delete(users).where(eq(users.id, viewer)), 403)
   })
 
+  test('200 → organization membership removed → 403', async () => {
+    const s = setup()
+    const { viewer, token: t } = await teamSite(s, [{ path: 'index.html', text: '<p>x</p>' }])
+    await expectFlip(s, t, () => s.db.update(users).set({ isOrgMember: false }).where(eq(users.id, viewer)), 403)
+  })
+
   test('200 → archive site → 410', async () => {
     const s = setup()
     const { siteId, token: t } = await teamSite(s, [{ path: 'index.html', text: '<p>x</p>' }])
@@ -347,7 +353,13 @@ describe('T1.6 fetchAccessFacts assembles hand-seeded facts', () => {
     await s.db.delete(siteUserShares).where(and(eq(siteUserShares.siteId, siteId), eq(siteUserShares.userId, viewer)))
     const { facts } = await fetchAccessFacts(s.db, 'sp', 'site', viewer)
     expect(facts.site?.id).toBe(siteId)
-    expect(facts.user).toEqual({ id: viewer, email: 'viewer@example.com', name: 'Viewer', role: 'member' })
+    expect(facts.user).toEqual({
+      id: viewer,
+      email: 'viewer@example.com',
+      name: 'Viewer',
+      role: 'member',
+      isOrgMember: true,
+    })
     expect(facts.isMember).toBe(false)
     expect(facts.directRole).toBeNull()
     expect(facts.groupShared).toBe(false)

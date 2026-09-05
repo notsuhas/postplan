@@ -4,15 +4,17 @@ import { canDiscover, checkAccess } from './access'
 import { isValidSlug, slugifyHandle } from './slug'
 import { signToken, verifyToken } from './token'
 
-const owner: SessionUser = { id: 'u1', email: 'a@example.com', name: null, role: 'member' }
-const other: SessionUser = { id: 'u2', email: 'b@example.com', name: null, role: 'member' }
-const admin: SessionUser = { id: 'u3', email: 'c@example.com', name: null, role: 'superadmin' }
+const owner: SessionUser = { id: 'u1', email: 'a@example.com', name: null, role: 'member', isOrgMember: true }
+const other: SessionUser = { id: 'u2', email: 'b@example.com', name: null, role: 'member', isOrgMember: true }
+const guest: SessionUser = { id: 'u4', email: 'd@outside.com', name: null, role: 'member', isOrgMember: false }
+const admin: SessionUser = { id: 'u3', email: 'c@example.com', name: null, role: 'superadmin', isOrgMember: true }
 const site = (visibility: 'unlisted' | 'private' | 'members' | 'team', status: 'active' | 'archived' = 'active') =>
   ({ visibility, status, ownerId: 'u1' }) as const
 
 describe('checkAccess', () => {
-  test('team: any authed user, anon → 401', () => {
+  test('team: organization user allowed, signed-in guest denied, anon → 401', () => {
     expect(checkAccess(site('team'), other, false).ok).toBe(true)
+    expect(checkAccess(site('team'), guest, false)).toEqual({ ok: false, status: 403 })
     const r = checkAccess(site('team'), null, false)
     expect(r).toEqual({ ok: false, status: 401 })
   })

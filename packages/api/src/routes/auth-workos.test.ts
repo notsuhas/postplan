@@ -8,6 +8,7 @@ const base = {
   APP_URL: 'https://postplan.example.com',
   SESSION_SECRET: 'test-session-secret',
   SUPERADMIN_EMAILS: 'you@example.com',
+  ORG_EMAIL_DOMAINS: 'example.com',
 } as AppEnv['Bindings']
 
 describe('GET /workos guard (creds optional)', () => {

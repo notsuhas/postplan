@@ -42,7 +42,7 @@ Create a WorkOS environment whose redirect URI is `$APP_URL/api/auth/callback`. 
 scripts/wire-workos.sh
 ```
 
-The script writes both secrets to the main worker, redeploys it, and checks `/api/config`. Invited email addresses can then sign in through WorkOS. Superadmin addresses bypass the invite gate.
+The script writes both secrets to the main worker, redeploys it, and checks `/api/config`. Users from `ORG_EMAIL_DOMAINS` and superadmins can join directly. External users need an invite.
 
 ## Optional shared backend
 
@@ -68,4 +68,4 @@ Enable read replication in the Cloudflare dashboard under D1 database settings. 
 
 ## CI deploys
 
-`.github/workflows/deploy.yml` deploys on pushes to `main`. Configure the Cloudflare token and the instance variables named by that workflow. Worker secrets persist across deploys and must be set separately.
+`.github/workflows/deploy.yml` migrates D1 and deploys both workers on pushes to `main`. Configure `CLOUDFLARE_API_TOKEN` as a repository secret and each `CF_*` value referenced by the workflow as a repository variable. Worker secrets persist across deploys and must be set separately.

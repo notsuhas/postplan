@@ -222,6 +222,7 @@ export async function seedUser(db: DrizzleD1Database, o: Partial<NewUser> = {}):
     email: o.email ?? `${id}@example.com`,
     name: o.name ?? null,
     role: o.role ?? 'member',
+    isOrgMember: o.isOrgMember ?? true,
     avatarUrl: o.avatarUrl ?? null,
   })
   return id

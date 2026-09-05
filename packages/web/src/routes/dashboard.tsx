@@ -169,6 +169,7 @@ function useFeedSlot<T>(promise: Promise<T>): FeedSlot<T> {
 }
 
 export function Component() {
+  const root = useRouteLoaderData('root') as RootData | undefined
   const loaded = useLoaderData() as {
     sites: Promise<SiteSummary[]>
     starred: Promise<SiteSummary[]>
@@ -194,9 +195,9 @@ export function Component() {
     () =>
       deriveFeedState(
         { sites, starred, shared, spaces, team, comments },
-        { requestedTab: tabFromParam(searchParams.get('tab')) },
+        { requestedTab: tabFromParam(searchParams.get('tab')), showTeam: root?.user?.isOrgMember !== false },
       ),
-    [sites, starred, shared, spaces, team, comments, searchParams],
+    [sites, starred, shared, spaces, team, comments, searchParams, root?.user?.isOrgMember],
   )
   const setTab = useSetTabParam(state.staleTab)
 

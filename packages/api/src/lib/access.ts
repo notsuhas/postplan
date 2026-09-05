@@ -29,11 +29,12 @@ const ALLOW: AccessResult = { ok: true }
  */
 export function checkAccess(
   site: Pick<Site, 'visibility' | 'status' | 'ownerId'>,
-  user: Pick<SessionUser, 'id' | 'role'> | null,
+  user: Pick<SessionUser, 'id' | 'role' | 'isOrgMember'> | null,
   isMember: boolean,
   isShared = false,
 ): AccessResult {
   if (site.status === 'archived') return { ok: false, status: 410 }
+  if (user?.id === site.ownerId) return ALLOW
   // Explicit per-user / per-group grant — additive on top of the visibility tier.
   if (isShared && user) return ALLOW
 
@@ -43,7 +44,8 @@ export function checkAccess(
     case 'unlisted':
       return ALLOW
     case 'team':
-      return user ? ALLOW : { ok: false, status: 401 }
+      if (!user) return { ok: false, status: 401 }
+      return user.isOrgMember ? ALLOW : { ok: false, status: 403 }
     case 'members':
       if (!user) return { ok: false, status: 401 }
       return isMember || site.ownerId === user.id ? ALLOW : { ok: false, status: 403 }
@@ -57,7 +59,7 @@ export function checkAccess(
 
 export function canDiscover(
   site: Pick<Site, 'visibility' | 'status' | 'ownerId'>,
-  user: Pick<SessionUser, 'id' | 'role'>,
+  user: Pick<SessionUser, 'id' | 'role' | 'isOrgMember'>,
   isMember: boolean,
   isShared = false,
 ): boolean {

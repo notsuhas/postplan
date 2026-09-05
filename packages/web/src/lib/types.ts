@@ -8,6 +8,7 @@ export interface Me {
   email: string
   name: string | null
   role: 'member' | 'superadmin'
+  isOrgMember: boolean
   // True once any Bearer-authenticated CLI call landed an events row — gates the install banner.
   hasUsedCli: boolean
 }

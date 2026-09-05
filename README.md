@@ -36,7 +36,7 @@ bunx wrangler r2 bucket create postplan-files
 cp deploy.example.env deploy.env
 ```
 
-Fill `deploy.env` with the returned IDs, two separate HTTPS hostnames, your admin email, and secrets generated with `openssl rand -hex 32`. Then run `scripts/setup.sh`. It renders the ignored instance configs, migrates D1, deploys both workers, sets secrets, and verifies the app. Open `/login` and use `BOOTSTRAP_TOKEN` to claim the first admin.
+Fill `deploy.env` with the returned IDs, two separate HTTPS hostnames, admin email, organization email domains, and secrets generated with `openssl rand -hex 32`. Then run `scripts/setup.sh`. It renders the ignored instance configs, migrates D1, deploys both workers, sets secrets, and verifies the app. Open `/login` and use `BOOTSTRAP_TOKEN` to claim the first admin.
 
 > Multiple Cloudflare accounts? `export CLOUDFLARE_ACCOUNT_ID=<id>` first. Manual provisioning, secrets, and optional WorkOS login: see [DEPLOY.md](DEPLOY.md).
 

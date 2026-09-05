@@ -224,6 +224,7 @@ function makeUser(overrides: Partial<SessionUser> = {}): SessionUser {
     email: 'user@example.com',
     name: 'Test User',
     role: 'member',
+    isOrgMember: true,
     ...overrides,
   }
 }

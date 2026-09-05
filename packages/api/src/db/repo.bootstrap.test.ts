@@ -67,7 +67,7 @@ describe('getUserById', () => {
     const db = makeDb()
     await db.insert(users).values({ id: 'u1', email: 'a@x.com', name: 'Ada', role: 'superadmin' })
     const u = await getUserById(db, 'u1')
-    expect(u).toEqual({ id: 'u1', email: 'a@x.com', name: 'Ada', role: 'superadmin' })
+    expect(u).toEqual({ id: 'u1', email: 'a@x.com', name: 'Ada', role: 'superadmin', isOrgMember: false })
   })
 
   test('null-when-missing: an unknown id resolves to null (a deleted user is logged out)', async () => {

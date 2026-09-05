@@ -10,12 +10,15 @@ import { findOrCreateUser } from './auth'
 
 const env = {
   SUPERADMIN_EMAILS: 'boss@example.com, second@other.com, third@other.com',
+  ORG_EMAIL_DOMAINS: 'example.com,other.com',
 } as AppEnv['Bindings']
 
 const claims = (sub: string, email: string) => ({ sub, email, email_verified: true, name: 'X' }) as never
 
 const roleOf = async (db: ReturnType<typeof makeDb>, id: string) =>
   (await db.select().from(users).where(eq(users.id, id)))[0]?.role
+const orgStatusOf = async (db: ReturnType<typeof makeDb>, id: string) =>
+  (await db.select().from(users).where(eq(users.id, id)))[0]?.isOrgMember
 
 describe('findOrCreateUser — who becomes a superadmin', () => {
   test('the first SUPERADMIN_EMAILS address is a superadmin on first login', async () => {
@@ -35,6 +38,22 @@ describe('findOrCreateUser — who becomes a superadmin', () => {
     const db = makeDb()
     const u = await findOrCreateUser(db, env, claims('g-3', 'nobody@other.com'), 'nobody@other.com')
     expect(u.role).toBe('member')
+  })
+
+  test('organization membership follows the configured email domains on every login', async () => {
+    const db = makeDb()
+    const u = await findOrCreateUser(db, env, claims('g-org', 'person@example.com'), 'person@example.com')
+    expect(u.isOrgMember).toBe(true)
+
+    const changed = { ...env, ORG_EMAIL_DOMAINS: 'other.com' } as AppEnv['Bindings']
+    const signedInAgain = await findOrCreateUser(
+      db,
+      changed,
+      claims('g-org', 'person@example.com'),
+      'person@example.com',
+    )
+    expect(signedInAgain.isOrgMember).toBe(false)
+    expect(await orgStatusOf(db, u.id)).toBe(false)
   })
 
   // The reason the grant is not creation-only.

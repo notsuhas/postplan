@@ -101,7 +101,9 @@ export async function searchSites(
   // the admin panel (metadata only), never this openable-sites search.
   const active = eq(sitesTable.status, 'active')
   const reaches = [
-    or(eq(sitesTable.ownerId, user.id), eq(sitesTable.visibility, 'team')),
+    user.isOrgMember
+      ? or(eq(sitesTable.ownerId, user.id), eq(sitesTable.visibility, 'team'))
+      : eq(sitesTable.ownerId, user.id),
     ...chunk([...memberSpaces], D1_MAX_IN).map((ids) => inArray(sitesTable.spaceId, ids)),
     ...chunk([...shared], D1_MAX_IN).map((ids) => inArray(sitesTable.id, ids)),
   ]
@@ -264,6 +266,7 @@ sites.get('/shared', requireAuth, async (c) => {
 // Capped — this is an at-a-postplan activity feed, not a full log.
 sites.get('/team', requireAuth, async (c) => {
   const user = c.get('user')
+  if (!user.isOrgMember) return c.json([])
   const db = c.get('db')
   const rows = await db
     .select({
@@ -343,7 +346,7 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
   // canReplace stay bound to the DIRECT role only), and the file manifest — in ONE slug-keyed
   // db.batch. Cookie (browser viewer) OR CLI Bearer token (`postplan read`) — both mint the same
   // gated URL.
-  const user = await readSessionOrBearer(c)
+  const presentedUser = await readSessionOrBearer(c)
   const filesStmt = db
     .select({ path: filesTable.path })
     .from(filesTable)
@@ -363,14 +366,15 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
       .limit(1)
   // The manifest and the star ride the batch only for an AUTHED caller — an anonymous probe 401s
   // below and must not burn up-to-200 manifest row reads per request on this cookie-less endpoint.
-  const { facts, extras } = await (user
-    ? fetchAccessFacts(db, spaceSlug, siteSlug, user.id, filesStmt, starStmt(user.id))
+  const { facts, extras } = await (presentedUser
+    ? fetchAccessFacts(db, spaceSlug, siteSlug, presentedUser.id, filesStmt, starStmt(presentedUser.id))
     : fetchAccessFacts(db, spaceSlug, siteSlug, null))
   const site = facts.site
   // Existence (404) is still decided before any auth-dependent branch, so a missing site never
   // leaks — the site row rides the same batch.
   if (!site) return c.json({ error: 'not found' }, 404)
 
+  const user = facts.user
   const [siteFiles = [], starRows = []] = extras
   const role = facts.directRole
   const access = checkAccess(site, user, facts.isMember, isSharedFromFacts(facts))

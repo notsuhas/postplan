@@ -757,7 +757,7 @@ describe('S2 C22 — one notification batch serves every recipient', () => {
     // Observed route budget: two loose createThread inserts, then one notification INSERT inside
     // the final batch. The write stays batched for one chunk because 10+ rows must split under
     // D1's 100-bound-parameter cap without adding a round trip.
-    expect(db.counters).toEqual({ batches: 4, loose: 2, batchStmts: 9, insert: 3, update: 0, delete: 0 })
+    expect(db.counters).toEqual({ batches: 4, loose: 2, batchStmts: 10, insert: 3, update: 0, delete: 0 })
     const rows = [
       ...(await listNotifications(db, owner)).items,
       ...(await listNotifications(db, shared)).items,

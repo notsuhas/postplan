@@ -35,3 +35,15 @@ export function primarySuperadminEmail(env: Pick<Bindings, 'SUPERADMIN_EMAILS'>)
 export function isAdminEmail(env: Pick<Bindings, 'SUPERADMIN_EMAILS'>, email: string): boolean {
   return superadminEmails(env).includes(email.toLowerCase())
 }
+
+function orgEmailDomains(env: Pick<Bindings, 'ORG_EMAIL_DOMAINS'>): string[] {
+  return (env.ORG_EMAIL_DOMAINS ?? '')
+    .split(',')
+    .map((domain) => domain.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean)
+}
+
+export function isOrgEmail(env: Pick<Bindings, 'ORG_EMAIL_DOMAINS'>, email: string): boolean {
+  const domain = email.toLowerCase().split('@')[1]
+  return Boolean(domain && orgEmailDomains(env).includes(domain))
+}

@@ -106,7 +106,7 @@ function accessFactsStatements(
     .limit(1)
   if (userId === null) return [site]
   const user = db
-    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role, isOrgMember: users.isOrgMember })
     .from(users)
     .where(and(eq(users.id, userId), isNull(users.disabledAt)))
     .limit(1)
@@ -141,7 +141,7 @@ function accessFactsStatements(
 function assembleAccessFacts(userId: string | null, rows: unknown[]): AccessFacts {
   const [siteRows, userRows, memberRows, directRows, groupRows] = rows as [
     ResolvedSite[],
-    Pick<User, 'id' | 'email' | 'name' | 'role'>[] | undefined,
+    Pick<User, 'id' | 'email' | 'name' | 'role' | 'isOrgMember'>[] | undefined,
     { userId: string }[] | undefined,
     { role: 'viewer' | 'editor' }[] | undefined,
     { siteId: string }[] | undefined,
@@ -230,7 +230,7 @@ export async function authorizeViewerById(
 ): Promise<ViewerAuth> {
   const [userRow, isMember, isShared] = await Promise.all([
     db
-      .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+      .select({ id: users.id, email: users.email, name: users.name, role: users.role, isOrgMember: users.isOrgMember })
       .from(users)
       .where(and(eq(users.id, userId), isNull(users.disabledAt)))
       .limit(1)

@@ -77,7 +77,7 @@ const contentOf = <T>(slot: FeedSlot<T>): TabContent<T> => {
   }
 }
 
-export function deriveFeedState(slots: FeedSlots, view: { requestedTab: TabId }): FeedState {
+export function deriveFeedState(slots: FeedSlots, view: { requestedTab: TabId; showTeam?: boolean }): FeedState {
   const groupSpaces = slots.spaces.status === 'resolved' ? slots.spaces.data.filter((s) => s.type === 'group') : null
 
   // Sites, Team and Comments always exist (a failed feed degrades to a contained error INSIDE its
@@ -108,7 +108,9 @@ export function deriveFeedState(slots: FeedSlots, view: { requestedTab: TabId })
     ...(groupSpaces !== null && groupSpaces.length > 0
       ? [{ id: 'spaces', label: 'Your spaces', count: groupSpaces.length, rows: groupSpaces } as const]
       : []),
-    { id: 'team', label: 'Team activity', count: null, content: contentOf(slots.team) },
+    ...(view.showTeam === false
+      ? []
+      : ([{ id: 'team', label: 'Team activity', count: null, content: contentOf(slots.team) }] as const)),
     { id: 'comments', label: 'Comments', count: null, content: contentOf(slots.comments) },
   ]
 

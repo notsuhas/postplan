@@ -14,8 +14,8 @@ import {
   users,
 } from './schema'
 
-export function toSessionUser(u: Pick<User, 'id' | 'email' | 'name' | 'role'>): SessionUser {
-  return { id: u.id, email: u.email, name: u.name, role: u.role }
+export function toSessionUser(u: Pick<User, 'id' | 'email' | 'name' | 'role' | 'isOrgMember'>): SessionUser {
+  return { id: u.id, email: u.email, name: u.name, role: u.role, isOrgMember: u.isOrgMember }
 }
 
 /** Single indexed (PK) row read of a user's identity fields — null if the row is gone. Lets
@@ -23,9 +23,9 @@ export function toSessionUser(u: Pick<User, 'id' | 'email' | 'name' | 'role'>): 
 export async function getUserById(
   db: DrizzleD1Database,
   id: string,
-): Promise<Pick<User, 'id' | 'email' | 'name' | 'role'> | null> {
+): Promise<Pick<User, 'id' | 'email' | 'name' | 'role' | 'isOrgMember'> | null> {
   const row = await db
-    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role, isOrgMember: users.isOrgMember })
     .from(users)
     .where(and(eq(users.id, id), isNull(users.disabledAt)))
     .limit(1)
@@ -39,9 +39,9 @@ export async function getUserById(
 export async function getUserByEmail(
   db: DrizzleD1Database,
   email: string,
-): Promise<Pick<User, 'id' | 'email' | 'name' | 'role'> | null> {
+): Promise<Pick<User, 'id' | 'email' | 'name' | 'role' | 'isOrgMember'> | null> {
   const row = await db
-    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role, isOrgMember: users.isOrgMember })
     .from(users)
     .where(and(eq(users.email, email.toLowerCase()), isNull(users.disabledAt)))
     .limit(1)
@@ -124,26 +124,29 @@ export async function bootstrapSuperadminByEmail(
   // reached repo module never pulls whats-new/catalog into the content worker's bundle — the auth
   // path supplies NEWEST_RELEASE_DATE; default null keeps an existing promotion / tests catalog-free.
   lastSeenReleaseAt: string | null = null,
+  isOrgMember = true,
 ): Promise<SessionUser> {
   const email = rawEmail.toLowerCase()
   const existing = (await db.select().from(users).where(eq(users.email, email)).limit(1))[0]
 
   if (existing) {
     if (existing.role !== 'superadmin') {
-      await db.update(users).set({ role: 'superadmin', disabledAt: null }).where(eq(users.id, existing.id))
+      await db.update(users).set({ role: 'superadmin', disabledAt: null, isOrgMember }).where(eq(users.id, existing.id))
     } else if (existing.disabledAt) {
-      await db.update(users).set({ disabledAt: null }).where(eq(users.id, existing.id))
+      await db.update(users).set({ disabledAt: null, isOrgMember }).where(eq(users.id, existing.id))
+    } else if (existing.isOrgMember !== isOrgMember) {
+      await db.update(users).set({ isOrgMember }).where(eq(users.id, existing.id))
     }
     await createPersonalSpace(db, existing.id, existing.email)
-    return toSessionUser({ ...existing, role: 'superadmin' })
+    return toSessionUser({ ...existing, role: 'superadmin', isOrgMember })
   }
 
   const id = crypto.randomUUID()
   // Caught-up default (watermark = newest, supplied by the auth path) so a freshly bootstrapped
   // superadmin isn't greeted by a backlog of "unread" release notes. Mirrors findOrCreateUser.
-  await db.insert(users).values({ id, email, name, googleId: null, role: 'superadmin', lastSeenReleaseAt })
+  await db.insert(users).values({ id, email, name, googleId: null, role: 'superadmin', lastSeenReleaseAt, isOrgMember })
   await createPersonalSpace(db, id, email)
-  return { id, email, name, role: 'superadmin' }
+  return { id, email, name, role: 'superadmin', isOrgMember }
 }
 
 /** Insert a space and add its creator as a member, atomically (D1 batch). Returns the new id. */
@@ -272,7 +275,7 @@ export type UserLite = { id: string; name: string | null; email: string }
  * MIRRORING the tier structure of `checkAccess` (not a naive union):
  *   every tier → owner + explicit user-shares + members of group-shared spaces (additive grants);
  *   `members`  → PLUS the site's own space members;
- *   `team`     → ALL users (any authenticated user can open a team site);
+ *   `team`     → organization members;
  *   `private`  → owner + shares only.
  * The caller is always excluded (you don't mention yourself). Returned sorted by display name for a
  * stable autocomplete. The route re-runs this on create as the authorization gate (defense in depth).
@@ -281,8 +284,6 @@ export type UserLite = { id: string; name: string | null; email: string }
  *   - archived → nobody is mentionable (matches checkAccess's 410-for-all), enforced here directly.
  *   - role is not consulted (same as `checkAccess`) — an admin is mentionable only via the normal
  *     owner/member/share paths (don't spam every admin on every private site).
- * `team` returns the whole user table on the assumption of a single allowed login domain (domain
- * gating happens at auth, not in this row set).
  */
 export async function listMentionableUsers(
   db: DrizzleD1Database,
@@ -295,12 +296,12 @@ export async function listMentionableUsers(
   const project = { id: users.id, name: users.name, email: users.email }
   const byName = sql`coalesce(${users.name}, ${users.email})`
 
-  // team: any authenticated user can open the site, so everyone (minus the caller) is mentionable.
+  // Team sites are visible to organization-domain accounts only.
   if (site.visibility === 'team') {
     return db
       .select(project)
       .from(users)
-      .where(and(ne(users.id, callerId), isNull(users.disabledAt)))
+      .where(and(ne(users.id, callerId), eq(users.isOrgMember, true), isNull(users.disabledAt)))
       .orderBy(byName)
   }
 
