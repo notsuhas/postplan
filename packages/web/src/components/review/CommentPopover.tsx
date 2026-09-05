@@ -147,7 +147,7 @@ export function CommentPopover({
           // the reducer means when a click on the chip mints a fresh one over an open (even dirty) box.
           key={composer.id}
           rect={composer.anchor.rect}
-          className="absolute z-30 w-80 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
+          className="absolute z-30 w-80 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg [scrollbar-gutter:stable]"
           // Escape closes the popover — but ONLY once the Composer hasn't already claimed it for its
           // open mention menu (it preventDefaults there). Menu first, popover on the next press.
           onKeyDown={(e) => {
@@ -291,7 +291,7 @@ function AskPanel({
     <div
       ref={panelRef}
       style={style}
-      className="absolute z-30 w-80 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
+      className="absolute z-30 w-80 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg [scrollbar-gutter:stable]"
       onKeyDown={(e) => {
         if (e.key === 'Escape') onDismiss()
       }}
@@ -322,7 +322,7 @@ function AskPanel({
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 4
         }}
         style={{ maxHeight: 'min(45vh, 320px)' }}
-        className="overflow-y-auto rounded-md border bg-muted/30 px-3 py-2"
+        className="overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 [scrollbar-gutter:stable]"
       >
         {turns.map((turn, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: turns are append-only (an errored one is replaced in place); index identity is exactly their identity.

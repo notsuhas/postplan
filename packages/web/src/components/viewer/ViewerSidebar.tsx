@@ -5,7 +5,7 @@ import { clear, type RecentEntry, removeEntry, siteName, useRecents, visibleEntr
 import { timeAgo } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
 // An overlay Sheet (not a persistent panel) so it never fights the right-hand ReviewRail for
 // width, in the viewer's already-tight full-bleed layout (ViewerTopBar + canvas [+ rail]).
@@ -49,7 +49,7 @@ export function ViewerSidebar({
           )}
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto py-2">
+        <SheetBody className="py-2">
           {entries.length === 0 ? (
             <p className="px-4 py-8 text-center text-muted-foreground text-sm">Sites you open will show up here.</p>
           ) : (
@@ -63,7 +63,7 @@ export function ViewerSidebar({
               />
             ))
           )}
-        </div>
+        </SheetBody>
       </SheetContent>
     </Sheet>
   )

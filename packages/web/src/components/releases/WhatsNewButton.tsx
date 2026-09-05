@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   Sheet,
+  SheetBody,
   SheetClose,
   SheetContent,
   SheetDescription,
@@ -106,7 +107,7 @@ function WhatsNewDialog({ releases, open, onDismiss }: { releases: Release[]; op
               : "Here's what shipped since you were last here."}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 [scrollbar-gutter:stable]">
           <ul className="space-y-8">
             {releases.map((r) => (
               <li key={r.slug}>
@@ -142,7 +143,7 @@ function WhatsNewSheet({ data, onOpen }: { data: WhatsNewList; onOpen: () => voi
           </SheetTitle>
           <SheetDescription className="sr-only">Recent Postplan product updates and release notes.</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <SheetBody className="px-5 py-4">
           {data.items.length === 0 ? (
             <p className="py-10 text-center text-muted-foreground text-sm">Nothing new yet — check back soon.</p>
           ) : (
@@ -154,7 +155,7 @@ function WhatsNewSheet({ data, onOpen }: { data: WhatsNewList; onOpen: () => voi
               ))}
             </ul>
           )}
-        </div>
+        </SheetBody>
         <div className="border-t px-5 py-3 text-center">
           <SheetClose asChild>
             <Link to="/whats-new" className="font-medium text-primary text-sm hover:underline">

@@ -155,7 +155,7 @@ export function ShareDialog(props: IShareDialog) {
             {groups.length > 0 ? (
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Other spaces</p>
-                <div className="max-h-32 space-y-0.5 overflow-y-auto">
+                <div className="max-h-32 space-y-0.5 overflow-y-auto [scrollbar-gutter:stable]">
                   {groups.map((g) => (
                     <PickerRow
                       key={g.id}
@@ -243,7 +243,7 @@ export function PeoplePicker({
         <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…" className="pl-8" />
       </div>
-      <div className="max-h-56 space-y-0.5 overflow-y-auto">
+      <div className="max-h-56 space-y-0.5 overflow-y-auto [scrollbar-gutter:stable]">
         {shown.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">No people found.</p>
         ) : (

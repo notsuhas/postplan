@@ -273,7 +273,7 @@ export function ApiKeyDialog({
                     <Spinner />
                   </div>
                 ) : (
-                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2 [scrollbar-gutter:stable]">
                     {sites.length === 0 && <p className="text-sm text-muted-foreground">No sites yet.</p>}
                     {sites.map((s) => (
                       <label key={s.id} className="flex items-center gap-2 text-sm">

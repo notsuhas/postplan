@@ -8,7 +8,7 @@ import { Link } from 'react-router'
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs">
+    <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <code>{children}</code>
     </pre>
   )
@@ -21,7 +21,7 @@ function Code({ children }: { children: string }) {
 // [method, path, what it does, whether a key credential may call it]
 function EndpointTable({ rows }: { rows: [string, string, string, string][] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full text-xs">
         <tbody>
           {rows.map(([method, path, purpose, keyAllowed]) => (

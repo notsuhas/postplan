@@ -2,7 +2,15 @@ import { CircleHelp } from 'lucide-react'
 import { useState } from 'react'
 import { GettingStarted } from '@/components/onboarding/GettingStarted'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 
 // Header "?" next to the What's New sparkle: the same GettingStarted walkthrough the empty
 // dashboard shows, permanently reachable — e.g. grabbing the install one-liner on a new machine.
@@ -24,9 +32,9 @@ export function HelpButton() {
           </SheetTitle>
           <SheetDescription className="sr-only">How to install the CLI and publish your first site.</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <SheetBody className="px-5 py-4">
           <GettingStarted onNavigate={() => setOpen(false)} />
-        </div>
+        </SheetBody>
       </SheetContent>
     </Sheet>
   )

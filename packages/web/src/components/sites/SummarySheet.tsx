@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/ui/states'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { MountSensor } from '@/components/ui/mount-sensor'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -195,9 +195,9 @@ export function SummarySheet(props: ISummarySheet) {
           </SheetTitle>
           <SheetDescription className="sr-only">AI-generated summary of the site entry page.</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <SheetBody className="px-5 py-4">
           <SummaryBody state={state} />
-        </div>
+        </SheetBody>
         {hasFooter && (
           <div className="flex flex-col gap-2 border-t px-5 py-3">
             <SummaryFooter state={state} generate={generate} />

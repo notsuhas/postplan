@@ -256,7 +256,7 @@ export function ReviewRail({
         ))}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
         {/* Both creation paths get named (#112). Keyed on getCurrentTime, which is the one prop
             that is still genuinely audio-only — the audio view has no DOM to select text in, so
             offering it a "select text" path would be a lie. */}
