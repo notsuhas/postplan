@@ -213,7 +213,7 @@ export function Component() {
       {/* Mounted at the route level (not inside a tab), so ?new=space opens it from anywhere. */}
       <NewSpaceDialog />
       <Tabs value={state.activeTab} onValueChange={(t) => setTab(t as TabId)} className="gap-6">
-        <TabsList variant="line">
+        <TabsList variant="line" className="-mx-4 w-[calc(100%+2rem)] px-4 sm:mx-0 sm:w-fit sm:px-0">
           {state.tabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id}>
               {tab.label}
@@ -488,8 +488,8 @@ function CommentsFeed({ comments }: { comments: CommentFeedItem[] }) {
 // single "New" menu. Creating is one click (record / upload); the sites list leads the page.
 function DashboardToolbar({ spaces }: { spaces: SpaceSummary[] }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="space-y-1">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:items-end sm:gap-4">
+      <div className="min-w-0 space-y-1">
         <h1 className="font-semibold text-xl tracking-tight">Your work</h1>
         <p className="text-muted-foreground text-sm">Record a note or drop a folder — everyone gets a URL.</p>
       </div>

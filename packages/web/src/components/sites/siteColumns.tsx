@@ -27,6 +27,7 @@ export function starColumn<T extends SiteSummary>(): Column<T> {
     srLabel: 'Star',
     headClassName: 'w-8',
     cellClassName: 'w-8',
+    mobile: 'corner',
     render: (s) => <StarCell site={s} />,
   }
 }
@@ -56,12 +57,15 @@ export function nameColumn<T extends SiteSummary>(): Column<T> {
     label: 'Name',
     headClassName: 'max-w-[15rem]',
     cellClassName: 'max-w-[15rem]',
+    mobile: 'primary',
     compare: (a, b) => (a.title ?? a.siteSlug).localeCompare(b.title ?? b.siteSlug),
     render: (s) => (
       <div className="flex items-center gap-2">
         {s.audio && <Mic className="size-3.5 shrink-0 text-primary" aria-label="Audio" />}
         {s.hasSummary && <Sparkles className="size-3.5 shrink-0 text-primary" aria-label="Has AI summary" />}
-        <span className="truncate font-medium">{s.title ?? s.siteSlug}</span>
+        <span className="truncate font-medium max-sm:line-clamp-2 max-sm:whitespace-normal max-sm:text-base max-sm:leading-snug">
+          {s.title ?? s.siteSlug}
+        </span>
         {s.status === 'archived' && <Badge variant="secondary">archived</Badge>}
         {/* "Shared with me" feed only: an editor grantee can redeploy this site's content. */}
         {s.role === 'editor' && <Badge>You can edit</Badge>}
@@ -75,6 +79,7 @@ export function urlColumn<T extends SiteSummary>(): Column<T> {
     key: 'url',
     label: 'URL',
     cellClassName: 'max-w-[22rem]',
+    mobile: 'secondary',
     render: (s) => (
       <a
         href={s.url}
@@ -82,7 +87,10 @@ export function urlColumn<T extends SiteSummary>(): Column<T> {
         rel="noreferrer"
         className="block truncate font-mono text-sm text-muted-foreground hover:text-foreground hover:underline"
       >
-        {s.url.replace(/^https?:\/\//, '')}
+        <span className="max-sm:hidden">{s.url.replace(/^https?:\/\//, '')}</span>
+        <span className="sm:hidden">
+          /{s.spaceSlug}/{s.siteSlug}
+        </span>
       </a>
     ),
   }
@@ -118,7 +126,14 @@ export function OpenLinkButton({ url }: { url: string }) {
 // Trailing actions cell — the right-aligned shape shared by all three tables; `render` supplies
 // the buttons (Open + kebab / Copy + Open / Open).
 export function actionsColumn<T>(render: (row: T) => ReactNode): Column<T> {
-  return { key: 'actions', label: '', headClassName: 'text-right', cellClassName: 'text-right', render }
+  return {
+    key: 'actions',
+    label: '',
+    headClassName: 'text-right',
+    cellClassName: 'text-right',
+    mobile: 'actions',
+    render,
+  }
 }
 
 // The read-only feed table — Name / URL / Visibility / Created plus caller-supplied trailing
