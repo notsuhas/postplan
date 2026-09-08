@@ -35,7 +35,7 @@ describe('GET /workos guard (creds optional)', () => {
 })
 
 describe('POST /dev-login guard', () => {
-  test('accepts localhost and rejects lookalike hosts', async () => {
+  function setup() {
     const { db, env } = makeRouteApp()
     const app = new Hono<AppEnv>()
     app.use('*', async (c, next) => {
@@ -43,6 +43,11 @@ describe('POST /dev-login guard', () => {
       await next()
     })
     app.route('/api/auth', auth)
+    return { app, env }
+  }
+
+  test('accepts localhost and rejects lookalike hosts', async () => {
+    const { app, env } = setup()
     const local = await app.request(
       '/api/auth/dev-login',
       { method: 'POST' },
@@ -55,6 +60,42 @@ describe('POST /dev-login guard', () => {
     )
 
     expect(local.status).toBe(200)
+    expect(local.headers.get('set-cookie') ?? '').toContain('__Host-postplan_session=')
     expect(lookalike.status).toBe(404)
+  })
+
+  test('remote HTTP preview gets a scoped dev cookie that authenticates only local development', async () => {
+    const { app, env } = setup()
+    const localEnv = {
+      ...env,
+      APP_URL: 'http://localhost:5173',
+      SUPERADMIN_EMAILS: 'dev@example.com',
+    } as AppEnv['Bindings']
+    const login = await app.request(
+      '/api/auth/dev-login',
+      { method: 'POST', headers: { Origin: 'http://100.119.18.105:5173' } },
+      localEnv,
+    )
+
+    expect(login.status).toBe(200)
+    const setCookie = login.headers.get('set-cookie') ?? ''
+    expect(setCookie).toContain('postplan_dev_session=')
+    expect(setCookie).not.toContain('__Host-postplan_session=')
+    expect(setCookie.toLowerCase()).not.toContain('secure')
+    const cookie = setCookie.split(';')[0]
+
+    const localMe = await app.request('/api/auth/me', { headers: { Cookie: cookie } }, localEnv)
+    expect(localMe.status).toBe(200)
+    expect(await localMe.json()).toMatchObject({ email: 'dev@example.com', role: 'superadmin' })
+
+    const productionMe = await app.request('/api/auth/me', { headers: { Cookie: cookie } }, env)
+    expect(productionMe.status).toBe(401)
+
+    const logout = await app.request('/api/auth/logout', { method: 'POST', headers: { Cookie: cookie } }, localEnv)
+    expect(logout.status).toBe(200)
+    expect(logout.headers.get('set-cookie') ?? '').toContain('postplan_dev_session=;')
+
+    const afterLogout = await app.request('/api/auth/me', { headers: { Cookie: cookie } }, localEnv)
+    expect(afterLogout.status).toBe(401)
   })
 })

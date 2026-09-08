@@ -11,9 +11,11 @@ import { createWorkos, isAdminEmail, isOrgEmail, isWorkosEnabled, primarySuperad
 import {
   bearerToken,
   createCliToken,
+  createDevLoginSession,
   createSession,
   destroyCliToken,
   destroySession,
+  isLocalAppUrl,
   readCredential,
   restoreUserAccess,
 } from '../lib/session'
@@ -167,15 +169,6 @@ auth.get('/me', requireAuth, async (c) => {
   return c.json({ ...user, hasUsedCli: used.length > 0 })
 })
 
-function isLocalAppUrl(value: string): boolean {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' && url.hostname === 'localhost'
-  } catch {
-    return false
-  }
-}
-
 // DEV ONLY: skip the IdP round-trip for local browser testing.
 auth.post('/dev-login', async (c) => {
   if (!isLocalAppUrl(c.env.APP_URL)) return c.notFound()
@@ -186,7 +179,7 @@ auth.post('/dev-login', async (c) => {
     { sub: `dev-${email}`, email, email_verified: true, name: 'Dev User' },
     email,
   )
-  await createSession(c, user)
+  await createDevLoginSession(c, user)
   return c.json({ ok: true, user })
 })
 
