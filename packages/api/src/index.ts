@@ -9,6 +9,7 @@ import { POSTPLAN_DB_JS } from './postplandb/bundle'
 import { buildPublicConfig } from './lib/bootstrap'
 import { INSTALL_SH } from './install-script'
 import { isWorkosEnabled } from './lib/workos'
+import { siteShareShell } from './lib/site-share-shell'
 import { trackCliUsage } from './middleware/analytics'
 import { requireSameOrigin } from './middleware/auth'
 import { admin } from './routes/admin'
@@ -192,7 +193,20 @@ const DAILY_PURGE_CRON = '0 3 * * *'
 // Daily retention purge (issue #82): trims `events` (90d) and read `notifications` (30d) — see
 // lib/retention.ts for the delete shapes and how it preserves stats.ts's all-time totals.
 export default {
-  fetch: app.fetch,
+  async fetch(request, env, executionCtx) {
+    const shareShell = await siteShareShell(request, env)
+    if (shareShell) return shareShell
+    const pathname = new URL(request.url).pathname
+    if (
+      pathname.startsWith('/api/') ||
+      pathname === '/llms.txt' ||
+      pathname.startsWith('/skills/') ||
+      pathname.startsWith('/.well-known/')
+    ) {
+      return app.fetch(request, env, executionCtx)
+    }
+    return env.ASSETS.fetch(request)
+  },
   async scheduled(event, env, _ctx) {
     const db = sessionDb(env.POSTPLAN_DB, 'first-unconstrained')
     if (event.cron === DAILY_PURGE_CRON) {
