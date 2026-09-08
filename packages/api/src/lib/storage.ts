@@ -1,6 +1,6 @@
 import { and, eq, isNotNull } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
-import { comments, commentThreads, files, sites } from '../db/schema'
+import { comments, commentThreads, files, siteVersionFiles, siteVersions, sites } from '../db/schema'
 
 export const MAX_FILE_BYTES = 20 * 1024 * 1024 // 20MB/file (spec resolved decision #3)
 
@@ -46,11 +46,8 @@ export type CopyableFile = { path: string; storageKey: string; mimeType: string 
 /**
  * Copy a site's stored objects to a FRESH uuid prefix (fork). Returns the new file rows.
  *
- * The bytes are genuinely copied — a fork never shares an R2 object with its source. That keeps the
- * system's core storage invariant intact: **an object is referenced by exactly one `files` row**, so
- * deleting any site only ever deletes objects nothing else can reach. (The alternative — sharing keys
- * and reference-counting the deletes — makes every delete path capable of stranding a live site, to
- * optimize an operation that happens far less often than deploy. Not worth it.)
+ * The bytes are genuinely copied — a fork never shares an R2 object with its source. Version snapshots
+ * may share that site's objects, but no object is referenced across sites, so site deletion stays safe.
  *
  * The Workers R2 binding has no server-side copy, so this is a real get→put per file
  * (https://developers.cloudflare.com/r2/api/workers/workers-api-reference/). If ANY object fails or
@@ -98,13 +95,18 @@ export async function copyObjects(
  *  audio (comments ⨝ threads on this site with a non-null audioKey), batched ≤1000. */
 export async function deleteSiteObjects(db: DrizzleD1Database, bucket: R2Bucket, siteId: string): Promise<void> {
   const fileRows = await db.select({ storageKey: files.storageKey }).from(files).where(eq(files.siteId, siteId))
+  const versionRows = await db
+    .select({ storageKey: siteVersionFiles.storageKey })
+    .from(siteVersionFiles)
+    .innerJoin(siteVersions, eq(siteVersionFiles.versionId, siteVersions.id))
+    .where(eq(siteVersions.siteId, siteId))
   const audioRows = await db
     .select({ audioKey: comments.audioKey })
     .from(comments)
     .innerJoin(commentThreads, eq(comments.threadId, commentThreads.id))
     .where(and(eq(commentThreads.siteId, siteId), isNotNull(comments.audioKey)))
   const audioKeys = audioRows.map((r) => r.audioKey).filter((k): k is string => k !== null)
-  await deleteKeys(bucket, [...fileRows.map((r) => r.storageKey), ...audioKeys])
+  await deleteKeys(bucket, [...new Set([...fileRows, ...versionRows].map((r) => r.storageKey)), ...audioKeys])
 }
 
 /** Delete all R2 objects for EVERY site in a space: uploaded files (files ⨝ sites) AND voice-comment
@@ -116,6 +118,12 @@ export async function deleteSpaceObjects(db: DrizzleD1Database, bucket: R2Bucket
     .from(files)
     .innerJoin(sites, eq(files.siteId, sites.id))
     .where(eq(sites.spaceId, spaceId))
+  const versionRows = await db
+    .select({ storageKey: siteVersionFiles.storageKey })
+    .from(siteVersionFiles)
+    .innerJoin(siteVersions, eq(siteVersionFiles.versionId, siteVersions.id))
+    .innerJoin(sites, eq(siteVersions.siteId, sites.id))
+    .where(eq(sites.spaceId, spaceId))
   const audioRows = await db
     .select({ audioKey: comments.audioKey })
     .from(comments)
@@ -123,5 +131,5 @@ export async function deleteSpaceObjects(db: DrizzleD1Database, bucket: R2Bucket
     .innerJoin(sites, eq(commentThreads.siteId, sites.id))
     .where(and(eq(sites.spaceId, spaceId), isNotNull(comments.audioKey)))
   const audioKeys = audioRows.map((r) => r.audioKey).filter((k): k is string => k !== null)
-  await deleteKeys(bucket, [...fileRows.map((r) => r.storageKey), ...audioKeys])
+  await deleteKeys(bucket, [...new Set([...fileRows, ...versionRows].map((r) => r.storageKey)), ...audioKeys])
 }

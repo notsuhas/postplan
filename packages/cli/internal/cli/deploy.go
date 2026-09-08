@@ -85,12 +85,20 @@ func (c *client) personalSpace() (string, error) {
 }
 
 func (c *client) deploy(argv []string) error {
-	positional, flags := argparse.ParseArgs(argv, map[string]bool{"include-hidden": true})
+	positional, flags := argparse.ParseArgs(argv, map[string]bool{"include-hidden": true, "yes": true, "json": true})
+	if err := argparse.ValidateFlags(flags, "include-hidden", "yes", "json", "visibility", "space", "name"); err != nil {
+		return err
+	}
+	if len(positional) > 1 {
+		return fmt.Errorf("Expected one path, got %d", len(positional))
+	}
 	path := ""
 	if len(positional) > 0 {
 		path = positional[0]
 	}
 	includeHidden := flags["include-hidden"] == true
+	assumeYes := flags["yes"] == true
+	jsonOutput := flags["json"] == true
 
 	visibility := "team"
 	visibilitySet := false
@@ -207,10 +215,12 @@ func (c *client) deploy(argv []string) error {
 		if !ex.CanReplace {
 			return fmt.Errorf("%s/%s is taken by another user.", space, name)
 		}
-		ans := c.prompt(fmt.Sprintf("Site exists at %s/%s. Replace? (y/N) ", space, name))
-		if strings.ToLower(ans) != "y" {
-			fmt.Fprintln(c.out, "Cancelled.")
-			return nil
+		if !assumeYes {
+			ans := c.prompt(fmt.Sprintf("Site exists at %s/%s. Replace? (y/N) ", space, name))
+			if strings.ToLower(ans) != "y" {
+				fmt.Fprintln(c.out, "Cancelled.")
+				return nil
+			}
 		}
 		replace = true
 	}
@@ -245,9 +255,11 @@ func (c *client) deploy(argv []string) error {
 		return err
 	}
 
-	fmt.Fprintf(c.out, "Uploading %d file(s) to %s/%s…\n", len(entries), space, name)
-	for _, e := range entries {
-		fmt.Fprintf(c.out, "  %s\n", e.rel) // surface the exact set so the user isn't blind to what ships
+	if !jsonOutput {
+		fmt.Fprintf(c.out, "Uploading %d file(s) to %s/%s…\n", len(entries), space, name)
+		for _, e := range entries {
+			fmt.Fprintf(c.out, "  %s\n", e.rel)
+		}
 	}
 	uploadPath := "/api/upload/" + space + "/" + name
 	if replace {
@@ -261,12 +273,17 @@ func (c *client) deploy(argv []string) error {
 	if !ok(resp) {
 		return fmt.Errorf("Upload failed (%d): %s", resp.StatusCode, bodySlice(resp))
 	}
-	var out struct {
+	var result struct {
 		URL string `json:"url"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.out, "✓ Deployed → %s\n", out.URL)
+	if jsonOutput {
+		return json.NewEncoder(c.out).Encode(map[string]any{
+			"url": result.URL, "space": space, "site": name, "files": len(entries), "replaced": replace,
+		})
+	}
+	fmt.Fprintf(c.out, "✓ Deployed → %s\n", result.URL)
 	return nil
 }

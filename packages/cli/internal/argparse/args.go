@@ -1,5 +1,11 @@
 package argparse
 
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
 // Parse `--flag value` pairs and positionals. Flags named in booleanFlags are valueless
 // (`--open` -> true) and do NOT consume the next token, so a positional after them survives
 // (e.g. `comments --open x/y` keeps `x/y`). Every other flag is a value-flag (string); a
@@ -29,4 +35,23 @@ func ParseArgs(argv []string, booleanFlags map[string]bool) (positional []string
 		}
 	}
 	return positional, flags
+}
+
+// ValidateFlags rejects misspelled or unsupported flags before a command does any work.
+func ValidateFlags(flags map[string]any, allowed ...string) error {
+	valid := make(map[string]bool, len(allowed))
+	for _, name := range allowed {
+		valid[name] = true
+	}
+	var unknown []string
+	for name := range flags {
+		if !valid[name] {
+			unknown = append(unknown, "--"+name)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return fmt.Errorf("Unknown flag: %s", strings.Join(unknown, ", "))
 }

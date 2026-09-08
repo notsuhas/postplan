@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"postplan/internal/argparse"
 	"strings"
 )
 
@@ -26,21 +27,34 @@ func splitSpaceSlug(target string) (space, slug string, err error) {
 }
 
 func (c *client) del(argv []string) error {
+	positional, flags := argparse.ParseArgs(argv, map[string]bool{"yes": true, "dry-run": true})
+	if err := argparse.ValidateFlags(flags, "yes", "dry-run"); err != nil {
+		return err
+	}
 	target := ""
-	if len(argv) > 0 {
-		target = argv[0]
+	if len(positional) > 0 {
+		target = positional[0]
+	}
+	if len(positional) != 1 {
+		return fmt.Errorf("Usage: postplan delete <space/slug> [--yes] [--dry-run]")
 	}
 	space, name, err := splitSpaceSlug(target)
 	if err != nil {
-		return fmt.Errorf("Usage: postplan delete <space/slug>")
+		return fmt.Errorf("Usage: postplan delete <space/slug> [--yes] [--dry-run]")
+	}
+	if flags["dry-run"] == true {
+		fmt.Fprintf(c.out, "Would delete %s/%s.\n", space, name)
+		return nil
 	}
 	if err := c.requireAuth(); err != nil {
 		return err
 	}
-	ans := c.prompt(fmt.Sprintf("Delete %s/%s? (y/N) ", space, name))
-	if strings.ToLower(ans) != "y" {
-		fmt.Fprintln(c.out, "Cancelled.")
-		return nil
+	if flags["yes"] != true {
+		ans := c.prompt(fmt.Sprintf("Delete %s/%s? (y/N) ", space, name))
+		if strings.ToLower(ans) != "y" {
+			fmt.Fprintln(c.out, "Cancelled.")
+			return nil
+		}
 	}
 	resp, err := c.authed("DELETE", "/api/sites/"+space+"/"+name, nil, nil)
 	if err != nil {
@@ -55,15 +69,19 @@ func (c *client) del(argv []string) error {
 }
 
 func (c *client) move(argv []string) error {
-	target, dest := "", ""
-	if len(argv) > 0 {
-		target = argv[0]
+	positional, flags := argparse.ParseArgs(argv, nil)
+	if err := argparse.ValidateFlags(flags); err != nil {
+		return err
 	}
-	if len(argv) > 1 {
-		dest = argv[1]
+	target, dest := "", ""
+	if len(positional) > 0 {
+		target = positional[0]
+	}
+	if len(positional) > 1 {
+		dest = positional[1]
 	}
 	space, name, err := splitSpaceSlug(target)
-	if err != nil || dest == "" {
+	if err != nil || dest == "" || len(positional) != 2 {
 		return fmt.Errorf("Usage: postplan move <space/slug> <new-space>")
 	}
 	if err := c.requireAuth(); err != nil {

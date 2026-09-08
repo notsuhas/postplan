@@ -25,7 +25,13 @@ type notificationsResponse struct {
 }
 
 func (c *client) notifications(args []string) error {
-	_, flags := argparse.ParseArgs(args, map[string]bool{"json": true, "read": true})
+	positional, flags := argparse.ParseArgs(args, map[string]bool{"json": true, "read": true})
+	if err := argparse.ValidateFlags(flags, "json", "read"); err != nil {
+		return err
+	}
+	if len(positional) != 0 {
+		return fmt.Errorf("Usage: postplan notifications [--read] [--json]")
+	}
 	if flags["read"] == true && flags["json"] == true {
 		return fmt.Errorf("--read and --json cannot be combined")
 	}

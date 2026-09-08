@@ -56,6 +56,7 @@ jobs:
         run: |
           bun run build:annotate
           bun run build:db
+          bun run build:agent-docs
           bun run build:install
           bun run build:whatsnew
 

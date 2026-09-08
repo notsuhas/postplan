@@ -10,10 +10,7 @@
     "type": "git",
     "url": "https://github.com/notsuhas/postplan.git"
   },
-  "homepage": "https://github.com/notsuhas/postplan#readme",
-  "bugs": {
-    "url": "https://github.com/notsuhas/postplan/issues"
-  },
+  "homepage": "https://postplan.theclau.de",
   "keywords": [
     "static-hosting",
     "cloudflare-workers",
@@ -37,6 +34,7 @@
     "dev:content": "bunx wrangler dev -c wrangler.content.jsonc --port 8788 --inspector-port 9230 --persist-to .wrangler-shared",
     "dev:web": "cd packages/web && bunx vite",
     "build:web": "cd packages/web && bunx vite build",
+    "build:generated": "cd packages/api && bun run build:annotate && bun run build:db && bun run build:agent-docs && bun run build:install && bun run build:whatsnew && bunx biome format --write src/annotate/bundle.ts src/postplandb/bundle.ts src/agent-docs.ts src/install-script.ts src/whats-new/catalog.ts",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test scripts && bun run --filter '*' test",
     "lint": "biome lint .",

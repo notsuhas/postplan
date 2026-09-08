@@ -33,7 +33,7 @@ export function CopyButton({
         try {
           await navigator.clipboard.writeText(text)
           setCopied(true)
-          toast.success(copiedMessage, { description: text })
+          toast.success(copiedMessage)
           setTimeout(() => setCopied(false), 1500)
         } catch {
           toast.error("Couldn't copy to clipboard")

@@ -183,6 +183,11 @@ func refreshSkill(execPath string) {
 }
 
 func (c *client) upgradeCmd(argv []string) error {
+	for _, arg := range argv {
+		if arg != "--quiet" {
+			return fmt.Errorf("Unknown argument: %s", arg)
+		}
+	}
 	background := slices.Contains(argv, "--quiet")
 	if !isInstalledBinary() {
 		if background {

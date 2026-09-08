@@ -14,6 +14,12 @@ import (
 // silently diverge from the server's collision suffixing.
 func (c *client) fork(argv []string) error {
 	positional, flags := argparse.ParseArgs(argv, nil)
+	if err := argparse.ValidateFlags(flags, "space", "name"); err != nil {
+		return err
+	}
+	if len(positional) != 1 {
+		return fmt.Errorf("Usage: postplan fork <space/slug> [--space <slug>] [--name <slug>]")
+	}
 	target := ""
 	if len(positional) > 0 {
 		target = positional[0]

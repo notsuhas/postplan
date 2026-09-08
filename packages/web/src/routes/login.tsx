@@ -10,6 +10,7 @@ import '@/tailwind.css'
 
 // Public source — surfaced in the header + footer so a self-hoster can find the repo.
 const REPO_URL = 'https://github.com/notsuhas/postplan'
+const HOSTED_URL = 'https://postplan.theclau.de'
 
 const ERRORS: Record<string, string> = {
   denied: 'Google did not return a verified email address.',
@@ -29,22 +30,28 @@ const BOOTSTRAP_ERRORS: Record<number, string> = {
 
 const FEATURES = [
   {
-    label: 'Invite-only sign-in',
-    detail: 'Sign in with an invited Google account — no new password to manage.',
+    label: 'Review where the work lives',
+    detail: 'Pin comments to exact text or elements, record voice notes, and keep every thread with the artifact.',
   },
   {
-    label: 'Drag-drop or CLI',
-    detail: 'Drop a folder in the browser or run postplan deploy. Same upload, same URL.',
+    label: 'Built for agent loops',
+    detail: 'Deploy, read feedback, reply, and publish the next version without leaving the terminal.',
   },
   {
-    label: 'unlisted · private · members · all users',
-    detail: 'Four access levels per site — from a secret link to everyone signed in.',
+    label: 'Files, apps, and documents',
+    detail: 'Share HTML, Markdown, images, PDFs, audio, or a complete multi-file web app.',
   },
   {
-    label: '$0/month on Cloudflare',
-    detail: 'Workers, R2, D1 and KV at the edge. No servers to patch, global by default.',
+    label: 'Private by design',
+    detail: 'Choose unlisted, private, members, or team access for each site. Content runs on an isolated origin.',
   },
 ]
+
+const REVIEW_STEPS = [
+  ['01', 'Agent publishes', 'One command turns a file or folder into a stable review URL.'],
+  ['02', 'You mark it up', 'Comment on the exact sentence, element, or moment that needs work.'],
+  ['03', 'Agent closes the loop', 'It reads open threads, makes the change, replies, and deploys again.'],
+] as const
 
 // The real getting-started flow: install → login → deploy. `host` is this deployment's own
 // origin so the demo mirrors what the visitor will actually see, not a placeholder domain.
@@ -61,17 +68,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
   try {
     await api.get<Me>('/api/auth/me')
     return redirect(next ?? '/dashboard') // already signed in — honor the return URL
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 401) {
-      // Logged out: ask the server which login options to offer.
-      // Degrade gracefully — a config blip must never take down the login page itself.
-      try {
-        return await api.get<PublicConfig>('/api/config')
-      } catch {
-        return { googleEnabled: false, bootstrapAvailable: false } satisfies PublicConfig
-      }
+  } catch {
+    try {
+      return await api.get<PublicConfig>('/api/config')
+    } catch {
+      return { googleEnabled: false, bootstrapAvailable: false } satisfies PublicConfig
     }
-    throw err
   }
 }
 
@@ -85,13 +87,15 @@ export function Component() {
 
   // This deployment's own origin drives the copy-paste install one-liner and the demo output,
   // so what a visitor copies is pre-pointed at THIS instance (mirrors GET /api/install).
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const browserOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+  const origin = import.meta.env.DEV ? HOSTED_URL : browserOrigin
   const host = origin.replace(/^https?:\/\//, '') || 'postplan.example.com'
   const installCmd = `curl -fsSL ${origin}/api/install | sh`
   const terminal = terminalSteps(installCmd, host)
+  const agentPrompt = `Use Postplan at ${origin}. Read ${origin}/llms.txt, install its CLI and skill, then publish the artifact in this workspace for review.`
 
   return (
-    <div className="dark relative min-h-screen w-full overflow-hidden bg-[#070b16] font-sans text-foreground antialiased">
+    <div className="dark relative min-h-screen w-full overflow-x-hidden bg-[#070b16] font-sans text-foreground antialiased">
       {/* blueprint drafting grid: hairlines every 28px, brighter major lines every 4th cell,
           over a faint overhead-light gradient — pure CSS, no canvas */}
       <div
@@ -163,11 +167,9 @@ export function Component() {
             </p>
 
             <ul className="bp-rise mt-9 grid gap-x-8 gap-y-5 sm:grid-cols-2" style={{ animationDelay: '280ms' }}>
-              {FEATURES.map((f, i) => (
+              {FEATURES.map((f) => (
                 <li key={f.label} className="flex gap-3">
-                  <span className="mt-0.5 font-mono text-xs tabular-nums text-primary">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
+                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_8px_rgba(245,158,11,0.55)]" />
                   <div>
                     <div className="font-mono text-[13px] font-medium text-foreground">{f.label}</div>
                     <div className="mt-1 text-[13px] leading-snug text-muted-foreground">{f.detail}</div>
@@ -278,6 +280,87 @@ export function Component() {
           </a>
         </footer>
       </div>
+
+      <section className="relative z-10 border-y border-white/10 bg-[#080d19]/85 px-4 py-20 sm:px-8" id="workflow">
+        <div className="mx-auto max-w-6xl">
+          <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">The review loop</p>
+          <div className="mt-4 grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+            <div>
+              <h2 className="max-w-lg font-mono text-3xl font-semibold tracking-tight sm:text-4xl">
+                Feedback agents can actually act on.
+              </h2>
+              <p className="mt-4 max-w-md leading-relaxed text-muted-foreground">
+                Stop pasting screenshots and scattered notes back into chat. Postplan keeps the artifact, its source,
+                and every review thread in one place.
+              </p>
+            </div>
+            <ol className="grid gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-3">
+              {REVIEW_STEPS.map(([number, title, detail]) => (
+                <li key={number} className="bg-[#0a1120] p-6">
+                  <span className="font-mono text-xs text-primary">{number}</span>
+                  <h3 className="mt-8 font-mono text-sm font-medium">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section className="relative z-10 px-4 py-20 sm:px-8" id="agents">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Agent-ready</p>
+            <h2 className="mt-4 font-mono text-3xl font-semibold tracking-tight sm:text-4xl">
+              Give any coding agent one prompt.
+            </h2>
+            <p className="mt-4 max-w-lg leading-relaxed text-muted-foreground">
+              The public agent guide, install script, and bundled skill all come from this deployment. Your agent gets
+              the exact commands, safety rules, and review workflow without a custom integration.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-4 font-mono text-xs">
+              <a className="text-primary underline-offset-4 hover:underline" href="/scratch/index.html">
+                Explore sample sites
+              </a>
+              <a className="text-primary underline-offset-4 hover:underline" href="/llms.txt">
+                Read llms.txt
+              </a>
+              <a className="text-primary underline-offset-4 hover:underline" href="/skills/postplan-cli/SKILL.md">
+                View agent skill
+              </a>
+              <a
+                className="text-primary underline-offset-4 hover:underline"
+                href={REPO_URL}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Self-host on Cloudflare
+              </a>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0a1120]/90 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <span className="font-mono text-xs text-muted-foreground">prompt.txt</span>
+              <CopyButton
+                text={agentPrompt}
+                label="copy prompt"
+                copiedMessage="Agent prompt copied"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 font-mono text-[11px] text-muted-foreground hover:text-foreground [&_svg]:size-3"
+              />
+            </div>
+            <p className="p-5 font-mono text-[13px] leading-7 text-foreground/80">{agentPrompt}</p>
+          </div>
+        </div>
+      </section>
+
+      <footer className="relative z-10 border-t border-white/10 px-4 py-8 sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 font-mono text-xs text-muted-foreground">
+          <span>Open source · self-hosted · built for human review</span>
+          <span>HTML · Markdown · images · PDFs · audio · apps</span>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -54,6 +54,7 @@ describe('apply-config.sh', () => {
     expect(main).toContain('"database_name": "postplan-db"')
     expect(main).toContain('"bucket_name": "files"')
     expect(main).toContain('"pattern": "app.example.com"')
+    expect(main).toContain('"run_worker_first": ["/api/*", "/llms.txt", "/skills/*", "/.well-known/*"]')
     expect(content).toContain('"name": "postplan-content"')
     expect(content).toContain('"pattern": "content.example.com"')
     expect(headers).toContain('https://content.example.com')
@@ -61,11 +62,12 @@ describe('apply-config.sh', () => {
   })
 
   test('rejects shared or non-origin URLs', () => {
-    for (const overrides of [
+    const invalidOverrides: Record<string, string>[] = [
       { CONTENT_URL: 'https://app.example.com' },
       { APP_URL: 'http://app.example.com' },
       { APP_URL: 'https://app.example.com/path' },
-    ]) {
+    ]
+    for (const overrides of invalidOverrides) {
       const root = fixture(overrides)
       expect(Bun.spawnSync(['bash', 'scripts/apply-config.sh'], { cwd: root }).exitCode).not.toBe(0)
     }

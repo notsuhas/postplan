@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { secureHeaders } from 'hono/secure-headers'
+import { LLMS_TXT, POSTPLAN_SKILL_MD } from './agent-docs'
 import { sessionDb, withDb } from './db/client'
 import { superadminExists } from './db/repo'
 import { purgeRetention } from './lib/retention'
@@ -56,6 +57,32 @@ app.use('*', (c, next) =>
     },
   })(c, next),
 )
+
+const publicTextHeaders = {
+  'content-type': 'text/plain; charset=utf-8',
+  'cache-control': 'public, max-age=300',
+}
+
+app.get('/llms.txt', (c) => {
+  const origin = c.env.APP_URL
+  return c.body(LLMS_TXT.replaceAll('{{POSTPLAN_ORIGIN}}', origin), 200, publicTextHeaders)
+})
+
+app.get('/skills/postplan-cli/SKILL.md', (c) => c.body(POSTPLAN_SKILL_MD, 200, publicTextHeaders))
+
+app.get('/.well-known/agents.json', (c) => {
+  const origin = c.env.APP_URL
+  return c.json({
+    name: 'Postplan',
+    description: 'Publish agent-built files, collect anchored review comments, and iterate from the terminal.',
+    homepage: origin,
+    documentation: `${origin}/llms.txt`,
+    skill: `${origin}/skills/postplan-cli/SKILL.md`,
+    health: `${origin}/api/health`,
+    capabilities: ['deploy', 'read', 'comments', 'reply', 'fork', 'versions', 'rollback', 'notifications'],
+  })
+})
+
 // Public installer: serves the repo-root install.sh (single source via build:install) with
 // POSTPLAN_API_URL defaulted to THIS origin, so `curl -fsSL <origin>/api/install | sh` lands a CLI
 // already pointed here — no env to set. Registered BEFORE the /api/* guards: it needs no DB and
