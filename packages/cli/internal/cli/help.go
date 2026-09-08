@@ -21,6 +21,7 @@ Commands:
   notifications  Read review notifications
   versions       List a site's deployment history
   rollback       Restore an earlier deployment as a new version
+  feedback       List, claim, and complete sent feedback
   skill          Install the bundled agent skill
   upgrade        Install the latest CLI release
   version        Print the CLI version
@@ -92,6 +93,12 @@ Example:
 
 Example:
   postplan rollback team/report 2 --yes --json`,
+		"feedback": `Usage: postplan feedback <list|claim|complete> [options]
+
+Examples:
+  postplan feedback list team/report --json
+  postplan feedback claim <batch-id> --json
+  postplan feedback complete <batch-id> --version 4 --json`,
 		"upgrade": `Usage: postplan upgrade`,
 		"version": `Usage: postplan version`,
 		"logout":  `Usage: postplan logout`,
