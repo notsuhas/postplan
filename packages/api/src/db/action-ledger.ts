@@ -8,8 +8,7 @@ export type LedgerAction =
   | 'feedback.complete'
   | 'site.publish'
   | 'site.rollback'
-  | 'share.link.create'
-  | 'share.link.revoke'
+  | 'share.update'
 
 export async function recordAction(
   db: DrizzleD1Database,

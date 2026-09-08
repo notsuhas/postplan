@@ -52,6 +52,7 @@ describe('buildThreadCreatedView — a just-created thread, via the SAME assembl
       id: threadId,
       filePath: 'index.html',
       anchorType: 'page',
+      anchorStatus: 'anchored',
       quote: null,
       anchor: null,
       context: null,
@@ -61,6 +62,7 @@ describe('buildThreadCreatedView — a just-created thread, via the SAME assembl
       resolvedAt: null,
       createdBy: author,
       createdByName: 'Author One',
+      createdVersion: 0,
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
       comments: [

@@ -1,9 +1,20 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { recordAction } from '../db/action-ledger'
-import { stableRequestHash } from '../db/idempotency'
-import { commentThreads, comments, feedbackBatchItems, feedbackBatches, spaces, sites, users } from '../db/schema'
+import { replayIdempotent, stableRequestHash, storeIdempotent } from '../db/idempotency'
+import { resolveShareRole } from '../db/repo'
+import {
+  commentThreads,
+  comments,
+  feedbackBatchItems,
+  feedbackBatches,
+  siteVersions,
+  spaces,
+  sites,
+  users,
+} from '../db/schema'
 import { resolveSiteForAccess } from '../lib/site-access'
+import { canReplace } from '../lib/access'
 import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv } from '../types'
 
@@ -58,26 +69,24 @@ async function loadBatch(db: AppEnv['Variables']['db'], batchId: string): Promis
   if (!row) return null
   const items = await db
     .select({
-      commentId: comments.id,
-      threadId: comments.threadId,
-      page: commentThreads.filePath,
-      anchor: commentThreads.anchor,
-      anchorType: commentThreads.anchorType,
-      anchorStatus: commentThreads.anchorStatus,
-      quote: commentThreads.quote,
-      anchorVersion: commentThreads.createdVersion,
-      authorId: comments.authorId,
-      authorName: users.name,
-      authorEmail: users.email,
-      text: comments.body,
-      createdAt: comments.createdAt,
+      commentId: feedbackBatchItems.commentId,
+      threadId: feedbackBatchItems.threadId,
+      page: feedbackBatchItems.page,
+      selector: feedbackBatchItems.selector,
+      sourceContext: feedbackBatchItems.sourceContext,
+      anchorType: feedbackBatchItems.anchorType,
+      anchorStatus: feedbackBatchItems.anchorStatus,
+      quote: feedbackBatchItems.quote,
+      anchorVersion: feedbackBatchItems.anchorVersion,
+      authorId: feedbackBatchItems.authorId,
+      authorName: feedbackBatchItems.authorName,
+      text: feedbackBatchItems.text,
+      version: feedbackBatchItems.version,
+      createdAt: feedbackBatchItems.commentCreatedAt,
     })
     .from(feedbackBatchItems)
-    .innerJoin(comments, eq(feedbackBatchItems.commentId, comments.id))
-    .innerJoin(commentThreads, eq(comments.threadId, commentThreads.id))
-    .leftJoin(users, eq(comments.authorId, users.id))
     .where(eq(feedbackBatchItems.batchId, batchId))
-    .orderBy(asc(comments.createdAt), asc(comments.id))
+    .orderBy(asc(feedbackBatchItems.commentCreatedAt), asc(feedbackBatchItems.commentId))
   return {
     id: row.batch.id,
     site: { space: row.space, slug: row.slug },
@@ -89,27 +98,21 @@ async function loadBatch(db: AppEnv['Variables']['db'], batchId: string): Promis
     completedAt: row.batch.completedAt,
     cancelledAt: row.batch.cancelledAt,
     completedVersion: row.batch.completedVersion,
-    items: items.map((item) => {
-      const element =
-        item.anchorType === 'element' && item.anchor && typeof item.anchor === 'object'
-          ? (item.anchor as { selector?: unknown })
-          : null
-      return {
-        commentId: item.commentId,
-        threadId: item.threadId,
-        page: item.page,
-        selector: typeof element?.selector === 'string' ? element.selector : null,
-        sourceContext: item.anchor,
-        anchorType: item.anchorType,
-        anchorStatus: item.anchorStatus,
-        quote: item.quote,
-        author: { id: item.authorId, name: item.authorName ?? item.authorEmail ?? 'unknown' },
-        text: item.text,
-        version: row.batch.siteVersion,
-        anchorVersion: item.anchorVersion,
-        createdAt: item.createdAt,
-      }
-    }),
+    items: items.map((item) => ({
+      commentId: item.commentId,
+      threadId: item.threadId,
+      page: item.page,
+      selector: item.selector,
+      sourceContext: item.sourceContext,
+      anchorType: item.anchorType,
+      anchorStatus: item.anchorStatus,
+      quote: item.quote,
+      author: { id: item.authorId, name: item.authorName },
+      text: item.text,
+      version: item.version,
+      anchorVersion: item.anchorVersion,
+      createdAt: item.createdAt,
+    })),
   }
 }
 
@@ -125,8 +128,14 @@ async function batchSite(db: AppEnv['Variables']['db'], id: string) {
 }
 
 export const feedback = new Hono<AppEnv>()
-feedback.use('*', requireAuth)
-feedback.use('*', requireControlGrant)
+// This router mounts at `/api`, so keep its middleware scoped to the feedback
+// surface. A catch-all here would authenticate every later `/api/*` route and
+// change both unknown-route semantics and the carefully budgeted D1 reads of
+// unrelated endpoints.
+for (const path of ['/sites/:space/:site/feedback', '/sites/:space/:site/feedback/*', '/feedback', '/feedback/*']) {
+  feedback.use(path, requireAuth)
+  feedback.use(path, requireControlGrant)
+}
 
 feedback.post('/sites/:space/:site/feedback', async (c) => {
   const key = keyFrom(c.req.raw)
@@ -139,6 +148,7 @@ feedback.post('/sites/:space/:site/feedback', async (c) => {
   const access = await resolveSiteForAccess(db, space, siteSlug, user)
   if (!access.site) return c.json({ error: 'not found' }, 404)
   if (!access.access.ok) return c.json({ error: 'forbidden' }, access.access.status)
+  const reviewedSite = access.site
 
   const explicit = Array.isArray(body.commentIds)
     ? [...new Set(body.commentIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
@@ -149,7 +159,7 @@ feedback.post('/sites/:space/:site/feedback', async (c) => {
   const requestHash = await stableRequestHash({
     allOpen,
     commentIds: [...explicit].sort(),
-    siteVersion: access.site.contentVersion,
+    siteId: access.site.id,
   })
   const existing = await db
     .select({ id: feedbackBatches.id, requestHash: feedbackBatches.requestHash })
@@ -170,9 +180,24 @@ feedback.post('/sites/:space/:site/feedback', async (c) => {
   ]
   if (!allOpen) predicates.push(inArray(comments.id, explicit))
   const selected = await db
-    .select({ id: comments.id })
+    .select({
+      commentId: comments.id,
+      threadId: comments.threadId,
+      page: commentThreads.filePath,
+      sourceContext: commentThreads.anchor,
+      anchorType: commentThreads.anchorType,
+      anchorStatus: commentThreads.anchorStatus,
+      quote: commentThreads.quote,
+      anchorVersion: commentThreads.createdVersion,
+      authorId: comments.authorId,
+      authorName: users.name,
+      authorEmail: users.email,
+      text: comments.body,
+      commentCreatedAt: comments.createdAt,
+    })
     .from(comments)
     .innerJoin(commentThreads, eq(comments.threadId, commentThreads.id))
+    .leftJoin(users, eq(comments.authorId, users.id))
     .where(and(...predicates))
     .orderBy(asc(comments.createdAt), asc(comments.id))
     .limit(MAX_BATCH_ITEMS + 1)
@@ -194,7 +219,31 @@ feedback.post('/sites/:space/:site/feedback', async (c) => {
       claimableAt: new Date(now.getTime() + UNDO_MS).toISOString(),
       createdAt: now.toISOString(),
     }),
-    db.insert(feedbackBatchItems).values(selected.map((item) => ({ batchId, commentId: item.id }))),
+    db.insert(feedbackBatchItems).values(
+      selected.map((item) => {
+        const element =
+          item.anchorType === 'element' && item.sourceContext && typeof item.sourceContext === 'object'
+            ? (item.sourceContext as { selector?: unknown })
+            : null
+        return {
+          batchId,
+          commentId: item.commentId,
+          threadId: item.threadId,
+          page: item.page,
+          selector: typeof element?.selector === 'string' ? element.selector : null,
+          sourceContext: item.sourceContext,
+          anchorType: item.anchorType,
+          anchorStatus: item.anchorStatus,
+          quote: item.quote,
+          authorId: item.authorId,
+          authorName: item.authorName ?? item.authorEmail ?? 'unknown',
+          text: item.text,
+          version: reviewedSite.contentVersion,
+          anchorVersion: item.anchorVersion,
+          commentCreatedAt: item.commentCreatedAt,
+        }
+      }),
+    ),
   ])
   await recordAction(db, {
     actorId: user.id,
@@ -215,6 +264,10 @@ feedback.post('/sites/:space/:site/feedback/:batchId/undo', async (c) => {
   const db = c.get('db')
   const user = c.get('user')
   const { space, site: siteSlug, batchId } = c.req.param()
+  const requestHash = await stableRequestHash({ batchId })
+  const replay = await replayIdempotent(db, user.id, 'feedback.undo', key, requestHash)
+  if (replay.kind === 'conflict') return c.json({ error: 'idempotency conflict' }, 409)
+  if (replay.kind === 'replay') return c.json(replay.response, replay.statusCode as 200)
   const access = await resolveSiteForAccess(db, space, siteSlug, user)
   if (!access.site) return c.json({ error: 'not found' }, 404)
   if (!access.access.ok) return c.json({ error: 'forbidden' }, access.access.status)
@@ -246,7 +299,9 @@ feedback.post('/sites/:space/:site/feedback/:batchId/undo', async (c) => {
     targetId: batchId,
     idempotencyKey: key,
   })
-  return c.json((await loadBatch(db, batchId))!)
+  const response = (await loadBatch(db, batchId))!
+  await storeIdempotent(db, user.id, 'feedback.undo', key, requestHash, 200, response)
+  return c.json(response)
 })
 
 feedback.get('/feedback', async (c) => {
@@ -265,7 +320,9 @@ feedback.get('/feedback', async (c) => {
   for (const row of rows) {
     if (requestedSite && requestedSite !== `${row.space}/${row.slug}`) continue
     const access = await resolveSiteForAccess(db, row.space, row.slug, user)
-    if (!access.access.ok) continue
+    if (!access.site || !access.access.ok) continue
+    const role = access.site.ownerId === user.id ? null : await resolveShareRole(db, access.site.id, user.id)
+    if (!canReplace(user, access.site, role)) continue
     const view = await loadBatch(db, row.id)
     if (view) visible.push(view)
   }
@@ -277,10 +334,18 @@ feedback.post('/feedback/:batchId/claim', async (c) => {
   if (!key) return c.json({ error: 'Idempotency-Key required' }, 400)
   const db = c.get('db')
   const user = c.get('user')
-  const row = await batchSite(db, c.req.param('batchId'))
+  const batchId = c.req.param('batchId')
+  const requestHash = await stableRequestHash({ batchId })
+  const replay = await replayIdempotent(db, user.id, 'feedback.claim', key, requestHash)
+  if (replay.kind === 'conflict') return c.json({ error: 'idempotency conflict' }, 409)
+  if (replay.kind === 'replay') return c.json(replay.response, replay.statusCode as 200)
+  const row = await batchSite(db, batchId)
   if (!row) return c.json({ error: 'not found' }, 404)
   const access = await resolveSiteForAccess(db, row.space, row.slug, user)
+  if (!access.site) return c.json({ error: 'not found' }, 404)
   if (!access.access.ok) return c.json({ error: 'forbidden' }, access.access.status)
+  const role = access.site.ownerId === user.id ? null : await resolveShareRole(db, access.site.id, user.id)
+  if (!canReplace(user, access.site, role)) return c.json({ error: 'forbidden' }, 403)
   const now = new Date().toISOString()
   const changed = await db
     .update(feedbackBatches)
@@ -303,7 +368,9 @@ feedback.post('/feedback/:batchId/claim', async (c) => {
     targetId: row.batch.id,
     idempotencyKey: key,
   })
-  return c.json((await loadBatch(db, row.batch.id))!)
+  const response = (await loadBatch(db, row.batch.id))!
+  await storeIdempotent(db, user.id, 'feedback.claim', key, requestHash, 200, response)
+  return c.json(response)
 })
 
 feedback.post('/feedback/:batchId/complete', async (c) => {
@@ -314,10 +381,29 @@ feedback.post('/feedback/:batchId/complete', async (c) => {
     typeof body.version === 'number' && Number.isInteger(body.version) && body.version >= 0 ? body.version : null
   const db = c.get('db')
   const user = c.get('user')
-  const row = await batchSite(db, c.req.param('batchId'))
+  const batchId = c.req.param('batchId')
+  const requestHash = await stableRequestHash({ batchId, version })
+  const replay = await replayIdempotent(db, user.id, 'feedback.complete', key, requestHash)
+  if (replay.kind === 'conflict') return c.json({ error: 'idempotency conflict' }, 409)
+  if (replay.kind === 'replay') return c.json(replay.response, replay.statusCode as 200)
+  const row = await batchSite(db, batchId)
   if (!row) return c.json({ error: 'not found' }, 404)
   const access = await resolveSiteForAccess(db, row.space, row.slug, user)
   if (!access.access.ok) return c.json({ error: 'forbidden' }, access.access.status)
+  if (version !== null) {
+    const deployment = await db
+      .select({ id: siteVersions.id })
+      .from(siteVersions)
+      .where(
+        and(
+          eq(siteVersions.siteId, row.batch.siteId),
+          eq(siteVersions.version, version),
+          eq(siteVersions.feedbackBatchId, row.batch.id),
+        ),
+      )
+      .limit(1)
+    if (deployment.length === 0) return c.json({ error: 'version is not linked to this feedback batch' }, 409)
+  }
   const now = new Date().toISOString()
   const changed = await db
     .update(feedbackBatches)
@@ -340,5 +426,7 @@ feedback.post('/feedback/:batchId/complete', async (c) => {
     targetId: row.batch.id,
     idempotencyKey: key,
   })
-  return c.json((await loadBatch(db, row.batch.id))!)
+  const response = (await loadBatch(db, row.batch.id))!
+  await storeIdempotent(db, user.id, 'feedback.complete', key, requestHash, 200, response)
+  return c.json(response)
 })

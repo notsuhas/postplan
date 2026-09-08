@@ -369,9 +369,20 @@ export const feedbackBatchItems = sqliteTable(
     batchId: text('batchId')
       .notNull()
       .references(() => feedbackBatches.id, { onDelete: 'cascade' }),
-    commentId: text('commentId')
-      .notNull()
-      .references(() => comments.id, { onDelete: 'cascade' }),
+    commentId: text('commentId').notNull(),
+    threadId: text('threadId').notNull(),
+    page: text('page').notNull(),
+    selector: text('selector'),
+    sourceContext: text('sourceContext', { mode: 'json' }).$type<unknown>(),
+    anchorType: text('anchorType', { enum: ['text', 'page', 'element'] }).notNull(),
+    anchorStatus: text('anchorStatus', { enum: ['anchored', 'shifted', 'suggested', 'orphaned'] }).notNull(),
+    quote: text('quote'),
+    authorId: text('authorId'),
+    authorName: text('authorName').notNull(),
+    text: text('text').notNull(),
+    version: integer('version').notNull(),
+    anchorVersion: integer('anchorVersion').notNull(),
+    commentCreatedAt: text('commentCreatedAt').notNull(),
   },
   (t) => [primaryKey({ columns: [t.batchId, t.commentId] }), index('feedback_batch_items_comment').on(t.commentId)],
 )
@@ -410,22 +421,6 @@ export const actionLedger = sqliteTable(
     index('action_ledger_site_created').on(t.siteId, t.createdAt),
     index('action_ledger_actor_created').on(t.actorId, t.createdAt),
   ],
-)
-
-export const siteShareLinks = sqliteTable(
-  'site_share_links',
-  {
-    id: text('id').primaryKey(),
-    siteId: text('siteId')
-      .notNull()
-      .references(() => sites.id, { onDelete: 'cascade' }),
-    tokenHash: text('tokenHash').notNull().unique(),
-    createdBy: text('createdBy').references(() => users.id, { onDelete: 'set null' }),
-    expiresAt: text('expiresAt').notNull(),
-    revokedAt: text('revokedAt'),
-    createdAt: text('createdAt').notNull(),
-  },
-  (t) => [index('site_share_links_site_created').on(t.siteId, t.createdAt)],
 )
 
 // Emoji reactions on a comment. Like siteStars, the composite primary key is what makes the toggle

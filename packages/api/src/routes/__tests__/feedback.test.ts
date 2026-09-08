@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
-import { feedbackBatches } from '../../db/schema'
+import { actionLedger, comments, feedbackBatches, siteUserShares, siteVersions } from '../../db/schema'
 import { authHeaders, makeRouteApp, mintUser } from '../../test/route-fixtures'
 import { seedComment, seedMember, seedSite, seedSpace, seedThread } from '../../test/harness'
 
@@ -30,7 +30,7 @@ async function setup() {
     authorId: reviewer,
     body: 'This stays human-only.',
   })
-  return { ...s, reviewer, selected, unsent }
+  return { ...s, reviewer, siteId, selected, unsent }
 }
 
 describe('feedback batches', () => {
@@ -57,6 +57,33 @@ describe('feedback batches', () => {
       author: { id: s.reviewer },
       text: 'Please tighten this heading.',
       version: 4,
+    })
+    expect(await s.db.select().from(actionLedger)).toEqual([
+      expect.objectContaining({
+        actorId: s.reviewer,
+        action: 'feedback.send',
+        siteId: s.siteId,
+        siteVersion: 4,
+        authorization: 'cli',
+        targetId: batch.id,
+      }),
+    ])
+
+    // A sent batch is a durable snapshot, not a live join over mutable review text.
+    await s.db.delete(comments).where(eq(comments.id, s.selected))
+    const replay = await s.app.request(
+      '/api/sites/docs/guide/feedback',
+      {
+        method: 'POST',
+        headers: { ...authHeaders(s.reviewer), 'Idempotency-Key': 'send-1' },
+        body: JSON.stringify({ commentIds: [s.selected] }),
+      },
+      s.env,
+    )
+    expect(replay.status).toBe(200)
+    expect(await replay.json()).toMatchObject({
+      id: batch.id,
+      items: [{ commentId: s.selected, text: 'Please tighten this heading.' }],
     })
   })
 
@@ -87,6 +114,13 @@ describe('feedback batches', () => {
     )
     expect(undo.status).toBe(200)
     expect(await undo.json()).toMatchObject({ id: a.id, status: 'cancelled' })
+    const replayUndo = await s.app.request(
+      `/api/sites/docs/guide/feedback/${a.id}/undo`,
+      { method: 'POST', headers: { ...authHeaders(s.reviewer), 'Idempotency-Key': 'undo-1' } },
+      s.env,
+    )
+    expect(replayUndo.status).toBe(200)
+    expect(await replayUndo.json()).toMatchObject({ id: a.id, status: 'cancelled' })
   })
 
   test('one agent atomically claims a claimable batch', async () => {
@@ -116,6 +150,64 @@ describe('feedback batches', () => {
     const second = await claim('claim-2')
     expect(first.status).toBe(200)
     expect((await first.json()) as { status: string }).toMatchObject({ status: 'claimed' })
+    const replay = await claim('claim-1')
+    expect(replay.status).toBe(200)
+    expect((await replay.json()) as { status: string }).toMatchObject({ status: 'claimed' })
     expect(second.status).toBe(409)
+
+    await s.db.insert(siteVersions).values({
+      id: 'addressed-version',
+      siteId: s.siteId,
+      version: 5,
+      feedbackBatchId: batch.id,
+      createdBy: s.reviewer,
+      createdAt: new Date().toISOString(),
+    })
+    const complete = () =>
+      s.app.request(
+        `/api/feedback/${batch.id}/complete`,
+        {
+          method: 'POST',
+          headers: { ...authHeaders(s.reviewer), 'Idempotency-Key': 'complete-1' },
+          body: JSON.stringify({ version: 5 }),
+        },
+        s.env,
+      )
+    const completed = await complete()
+    expect(completed.status).toBe(200)
+    expect(await completed.json()).toMatchObject({ status: 'completed', completedVersion: 5 })
+    const completedReplay = await complete()
+    expect(completedReplay.status).toBe(200)
+    expect(await completedReplay.json()).toMatchObject({ status: 'completed', completedVersion: 5 })
+  })
+
+  test('read-only reviewers cannot consume an agent work batch', async () => {
+    const s = await setup()
+    const viewer = await mintUser(s.db, s.kv, 'viewer')
+    await s.db.insert(siteUserShares).values({ siteId: s.siteId, userId: viewer, role: 'viewer' })
+    const sent = await s.app.request(
+      '/api/sites/docs/guide/feedback',
+      {
+        method: 'POST',
+        headers: { ...authHeaders(s.reviewer), 'Idempotency-Key': 'send-viewer-check' },
+        body: JSON.stringify({ commentIds: [s.selected] }),
+      },
+      s.env,
+    )
+    const batch = (await sent.json()) as { id: string }
+    await s.db
+      .update(feedbackBatches)
+      .set({ claimableAt: new Date(0).toISOString() })
+      .where(eq(feedbackBatches.id, batch.id))
+
+    const list = await s.app.request('/api/feedback', { headers: authHeaders(viewer) }, s.env)
+    expect(list.status).toBe(200)
+    expect(await list.json()).toEqual([])
+    const claim = await s.app.request(
+      `/api/feedback/${batch.id}/claim`,
+      { method: 'POST', headers: { ...authHeaders(viewer), 'Idempotency-Key': 'viewer-claim' } },
+      s.env,
+    )
+    expect(claim.status).toBe(403)
   })
 })

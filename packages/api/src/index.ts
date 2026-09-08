@@ -80,7 +80,18 @@ app.get('/.well-known/agents.json', (c) => {
     documentation: `${origin}/llms.txt`,
     skill: `${origin}/skills/postplan-cli/SKILL.md`,
     health: `${origin}/api/health`,
-    capabilities: ['deploy', 'read', 'comments', 'reply', 'fork', 'versions', 'rollback', 'notifications'],
+    capabilities: [
+      'deploy',
+      'read',
+      'comments',
+      'feedback',
+      'reply',
+      'fork',
+      'versions',
+      'rollback',
+      'shares',
+      'notifications',
+    ],
   })
 })
 

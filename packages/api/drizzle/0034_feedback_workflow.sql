@@ -33,8 +33,20 @@ CREATE INDEX `feedback_batches_site_created` ON `feedback_batches` (`siteId`,`cr
 CREATE TABLE `feedback_batch_items` (
 	`batchId` text NOT NULL,
 	`commentId` text NOT NULL,
+	`threadId` text NOT NULL,
+	`page` text NOT NULL,
+	`selector` text,
+	`sourceContext` text,
+	`anchorType` text NOT NULL,
+	`anchorStatus` text NOT NULL,
+	`quote` text,
+	`authorId` text,
+	`authorName` text NOT NULL,
+	`text` text NOT NULL,
+	`version` integer NOT NULL,
+	`anchorVersion` integer NOT NULL,
+	`commentCreatedAt` text NOT NULL,
 	FOREIGN KEY (`batchId`) REFERENCES `feedback_batches`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`commentId`) REFERENCES `comments`(`id`) ON UPDATE no action ON DELETE cascade,
 	PRIMARY KEY (`batchId`,`commentId`)
 );
 --> statement-breakpoint
@@ -71,18 +83,3 @@ CREATE INDEX `action_ledger_site_created` ON `action_ledger` (`siteId`,`createdA
 --> statement-breakpoint
 CREATE INDEX `action_ledger_actor_created` ON `action_ledger` (`actorId`,`createdAt`);
 --> statement-breakpoint
-CREATE TABLE `site_share_links` (
-	`id` text PRIMARY KEY NOT NULL,
-	`siteId` text NOT NULL,
-	`tokenHash` text NOT NULL,
-	`createdBy` text,
-	`expiresAt` text NOT NULL,
-	`revokedAt` text,
-	`createdAt` text NOT NULL,
-	FOREIGN KEY (`siteId`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`createdBy`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `site_share_links_token_unq` ON `site_share_links` (`tokenHash`);
---> statement-breakpoint
-CREATE INDEX `site_share_links_site_created` ON `site_share_links` (`siteId`,`createdAt`);

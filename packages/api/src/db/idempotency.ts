@@ -2,10 +2,13 @@ import { and, eq } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { idempotencyRecords } from './schema'
 
-export async function stableRequestHash(value: unknown): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(value))
+export async function sha256Hex(bytes: BufferSource): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes)
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export async function stableRequestHash(value: unknown): Promise<string> {
+  return sha256Hex(new TextEncoder().encode(JSON.stringify(value)))
 }
 
 export async function replayIdempotent(

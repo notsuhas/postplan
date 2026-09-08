@@ -193,13 +193,13 @@ describe('upload — editor replace never derives a title', () => {
 })
 
 // Request-shape pin (perf): the editor-replace pre-write reads (space, site, share role, existing
-// file keys) ride ONE db.batch; loose = requireAuth's user read + the CAS claim update only.
+// file keys) ride ONE db.batch; loose = requireAuth's user read + the durable ledger write.
 describe('upload — editor replace request shape', () => {
-  test('editor replace: 1 loose auth + fused read batch + atomic CAS swap batch', async () => {
+  test('editor replace: auth + ledger writes surround the fused read and atomic swap batches', async () => {
     const { app, env, db } = await fx()
     db.resetCounters()
     expect((await post(app, env, 'ed', { replace: true, expectedVersion: 0 })).status).toBe(200)
-    expect(db.counters.loose).toBe(1)
+    expect(db.counters.loose).toBe(2)
     expect(db.counters.batches).toBe(2)
   })
 })
