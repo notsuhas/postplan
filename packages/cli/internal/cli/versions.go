@@ -13,11 +13,13 @@ type versionFile struct {
 }
 
 type siteVersion struct {
-	Version      int           `json:"version"`
-	CreatedAt    string        `json:"createdAt"`
-	RestoredFrom *int          `json:"restoredFrom"`
-	Current      bool          `json:"current"`
-	Files        []versionFile `json:"files"`
+	Version         int           `json:"version"`
+	CreatedAt       string        `json:"createdAt"`
+	RestoredFrom    *int          `json:"restoredFrom"`
+	Current         bool          `json:"current"`
+	Files           []versionFile `json:"files"`
+	ChangeNotes     *string       `json:"changeNotes"`
+	FeedbackBatchID *string       `json:"feedbackBatchId"`
 }
 
 func (c *client) versions(argv []string) error {
@@ -59,13 +61,19 @@ func (c *client) versions(argv []string) error {
 			label += fmt.Sprintf(" ← v%d", *row.RestoredFrom)
 		}
 		fmt.Fprintf(c.out, "%-18s %3d files  %s\n", label, len(row.Files), row.CreatedAt)
+		if row.ChangeNotes != nil {
+			fmt.Fprintf(c.out, "  %s\n", *row.ChangeNotes)
+		}
+		for _, file := range row.Files {
+			fmt.Fprintf(c.out, "    %s\n", file.Path)
+		}
 	}
 	return nil
 }
 
 func (c *client) rollback(argv []string) error {
 	positional, flags := argparse.ParseArgs(argv, map[string]bool{"yes": true, "json": true})
-	if err := argparse.ValidateFlags(flags, "yes", "json"); err != nil {
+	if err := argparse.ValidateFlags(flags, "yes", "json", "notes", "feedback-batch", "idempotency-key"); err != nil {
 		return err
 	}
 	if len(positional) != 2 {
@@ -90,8 +98,18 @@ func (c *client) rollback(argv []string) error {
 			return nil
 		}
 	}
-	payload, _ := json.Marshal(map[string]int{"expectedVersion": current})
-	resp, err := c.authed("POST", fmt.Sprintf("/api/sites/%s/%s/versions/%d/rollback", space, site, version), strings.NewReader(string(payload)), map[string]string{"Content-Type": "application/json"})
+	payloadBody := map[string]any{"expectedVersion": current}
+	if notes, ok := flags["notes"].(string); ok && strings.TrimSpace(notes) != "" {
+		payloadBody["changeNotes"] = strings.TrimSpace(notes)
+	}
+	if batch, ok := flags["feedback-batch"].(string); ok && strings.TrimSpace(batch) != "" {
+		payloadBody["feedbackBatchId"] = strings.TrimSpace(batch)
+	}
+	payload, _ := json.Marshal(payloadBody)
+	resp, err := c.authed("POST", fmt.Sprintf("/api/sites/%s/%s/versions/%d/rollback", space, site, version), strings.NewReader(string(payload)), map[string]string{
+		"Content-Type":    "application/json",
+		"Idempotency-Key": operationKey(flags, "rollback"),
+	})
 	if err != nil {
 		return err
 	}

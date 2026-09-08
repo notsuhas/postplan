@@ -22,6 +22,7 @@ Commands:
   versions       List a site's deployment history
   rollback       Restore an earlier deployment as a new version
   feedback       List, claim, and complete sent feedback
+  shares         List, grant, and revoke explicit site shares
   skill          Install the bundled agent skill
   upgrade        Install the latest CLI release
   version        Print the CLI version
@@ -42,6 +43,9 @@ Options:
   --name <slug>        Site name; defaults to the file or folder name
   --visibility <tier>  unlisted, private, members, or team
   --include-hidden     Include dotfiles; secrets may be published
+  --notes <text>       Record deployment change notes
+  --feedback-batch <id> Link the claimed feedback batch being addressed
+  --idempotency-key <key> Safely retry the same publish operation
   --yes                Replace an existing site without prompting
   --json               Print one machine-readable result
 
@@ -89,7 +93,7 @@ Example:
 
 Example:
   postplan versions team/report --json`,
-		"rollback": `Usage: postplan rollback <space/site> <version> [--yes] [--json]
+		"rollback": `Usage: postplan rollback <space/site> <version> [--yes] [--notes <text>] [--feedback-batch <id>] [--json]
 
 Example:
   postplan rollback team/report 2 --yes --json`,
@@ -99,6 +103,12 @@ Examples:
   postplan feedback list team/report --json
   postplan feedback claim <batch-id> --json
   postplan feedback complete <batch-id> --version 4 --json`,
+		"shares": `Usage: postplan shares <list|grant|revoke> [options]
+
+Examples:
+  postplan shares list team/report --json
+  postplan shares grant team/report <user-id> --role editor
+  postplan shares revoke team/report <user-id>`,
 		"upgrade": `Usage: postplan upgrade`,
 		"version": `Usage: postplan version`,
 		"logout":  `Usage: postplan logout`,
