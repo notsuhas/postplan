@@ -157,7 +157,13 @@ A revoked key stops authenticating immediately. One documented exception: a
 | `POST` | `/api/sites/:space/:site/move` ✱ | Move to another space |
 | `POST` | `/api/sites/:space/:site/fork` ✱ | Fork |
 | `GET` | `/api/sites/:space/:site/versions` | Deployment snapshots for owners and editors |
+| `GET` | `/api/sites/:space/:site/versions/:from/diff/:to` | Changed filenames and bounded text diffs |
 | `POST` | `/api/sites/:space/:site/versions/:version/rollback` ✱ | Restore a snapshot as a new version |
+| `POST` | `/api/sites/:space/:site/feedback` ✱ | Queue selected comments (requires `Idempotency-Key`) |
+| `POST` | `/api/sites/:space/:site/feedback/:batch/undo` ✱ | Cancel during the five-second undo window |
+| `GET` | `/api/feedback` | List explicitly sent, claimable batches |
+| `POST` | `/api/feedback/:batch/claim` ✱ | Atomically claim a batch |
+| `POST` | `/api/feedback/:batch/complete` ✱ | Complete a claimed batch |
 | `DELETE` | `/api/sites/:space/:site` | Delete — **always `403` for a key** |
 
 ```jsonc

@@ -33,6 +33,7 @@ export type CommentKeyIntent = { type: 'commentKey' }
  *  here: `id` is a thread id the parent looks up in its OWN loaded threads, so a forged one that
  *  matches nothing simply reveals nothing. */
 export type AnchorClickIntent = { type: 'anchorClick'; id: string }
+export type AnchorStatusIntent = { type: 'anchorStatus'; resolved: string[]; orphaned: string[] }
 /** `⌘/Ctrl+K`-style "ask" shortcut pressed on a live selection inside the frame. Fired liberally
  *  by the annotate client, which cannot see the parent's popover state; the reducer decides
  *  whether there is anything to open — same contract as `CommentKeyIntent`. */
@@ -45,6 +46,7 @@ export type Intent =
   | EscapeIntent
   | CommentKeyIntent
   | AnchorClickIntent
+  | AnchorStatusIntent
   | AskKeyIntent
 
 export type DOMRectLike = { top: number; left: number; width: number; height: number }
@@ -67,6 +69,8 @@ const clamp = (v: unknown, max = MAX_FIELD): string | null => (typeof v === 'str
 const clampTail = (v: unknown, max = MAX_FIELD): string | null => (typeof v === 'string' ? v.slice(-max) : null)
 
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+const ids = (v: unknown): string[] =>
+  Array.isArray(v) ? v.slice(0, 200).flatMap((item) => (str(item) ? [str(item) as string] : [])) : []
 
 /** Best-effort occurrence context. Each side is clamped, not rejected — an over-long side would
  *  still be truncated server-side, and dropping the whole message over it would cost the comment.
@@ -119,6 +123,10 @@ export function parseIntent(event: MessageEvent, expected: ExpectedSource): Inte
     case 'postplan:anchor-click': {
       const id = str((data as { id?: unknown }).id)
       return id ? { type: 'anchorClick', id } : null
+    }
+    case 'postplan:pinpoint-resolved': {
+      const d = data as { resolved?: unknown; orphaned?: unknown }
+      return { type: 'anchorStatus', resolved: ids(d.resolved), orphaned: ids(d.orphaned) }
     }
     case 'postplan:ready': {
       const filePath = str((data as { filePath?: unknown }).filePath)

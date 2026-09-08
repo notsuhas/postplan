@@ -7,6 +7,7 @@ import { isAudioFile } from '@/lib/audio'
 import { type CommentStream, type CommentStreamEvent, createCommentStream } from '@/lib/commentStream'
 import { attachDbBroker } from '@/lib/dbBroker'
 import { comments, paintAnchors, type PendingAnchor, pendingToInput, type Thread } from '@/lib/comments'
+import { feedback } from '@/lib/feedback'
 import { type Anchor, initialPopover, stepPopover } from '@/lib/commentPopover'
 import { askStream } from '@/lib/ask'
 import { type Intent, parseIntent } from '@/lib/parseIntent'
@@ -50,6 +51,8 @@ function Viewer() {
   // Optional in-site file path from the route splat (`/space/site/docs/page.html`). Appended to the
   // content URL so a deep link / the directory-listing fallback opens that specific file; '' = root.
   const sitePath = useParams()['*'] ?? ''
+  const [searchParams] = useSearchParams()
+  const wantRailOpen = railFromSearch(searchParams)
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -77,7 +80,8 @@ function Viewer() {
   // Is the comments rail on screen. It gates the on-page HIGHLIGHTS again (the rail is the panel
   // that explains them, so they live and die with it) but NOT commenting: selecting text still
   // composes in place with the panel closed.
-  const [railOpen, setRailOpen] = useState(false)
+  const [railOpen, setRailOpen] = useState(wantRailOpen)
+  const [mode, setMode] = useState<'experience' | 'comment'>(wantRailOpen ? 'comment' : 'experience')
   const [loaded, setLoaded] = useState(false)
   const [me, setMe] = useState<Me | null>(null)
   // The HTML iframe only learns its file path from the annotate client's 'ready' postMessage
@@ -115,8 +119,17 @@ function Viewer() {
   const paint = useCallback(() => {
     const win = iframeRef.current?.contentWindow
     if (!win || !loaded) return
-    win.postMessage({ type: 'postplan:paint', anchors: railOpen ? paintAnchors(threads) : [] }, contentOrigin)
-  }, [threads, railOpen, loaded, contentOrigin])
+    win.postMessage(
+      { type: 'postplan:paint', anchors: railOpen && mode === 'comment' ? paintAnchors(threads) : [] },
+      contentOrigin,
+    )
+  }, [threads, railOpen, mode, loaded, contentOrigin])
+
+  useEffect(() => {
+    if (!loaded || isAudio) return
+    iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:mode', mode }, contentOrigin)
+    if (mode === 'experience') dispatchPopover({ type: 'dismiss' })
+  }, [contentOrigin, isAudio, loaded, mode])
 
   // ── S11 comments-load arbitration ────────────────────────────────────────────────────────────
   // The loader fires a comments prefetch BEFORE the iframe mounts; this pure reducer
@@ -155,6 +168,31 @@ function Viewer() {
   const onAsk = useCallback(
     (question: string, anchor: Anchor, onToken: (text: string) => void, signal: AbortSignal) =>
       askStream(siteRef, { question, quote: anchor.quote, blockText: anchor.blockText }, onToken, signal),
+    [siteRef],
+  )
+
+  const sendFeedback = useCallback(
+    async (commentIds?: string[]) => {
+      try {
+        const batch = commentIds ? await feedback.send(siteRef, commentIds) : await feedback.sendAllOpen(siteRef)
+        toast.success(`${batch.items.length} comments queued`, {
+          duration: Math.max(0, Date.parse(batch.claimableAt) - Date.now()),
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              void feedback
+                .undo(siteRef, batch.id)
+                .catch((error: unknown) =>
+                  toast.error(error instanceof ApiError ? error.message : 'Could not undo feedback send'),
+                )
+            },
+          },
+        })
+      } catch (error) {
+        toast.error(error instanceof ApiError ? error.message : 'Could not queue feedback')
+        throw error
+      }
+    },
     [siteRef],
   )
 
@@ -352,7 +390,7 @@ function Viewer() {
       // UNCONDITIONAL (C2b): commenting is on for anyone with access, not just while the rail is
       // open — a text selection feeds the popover reducer (chip first, composer only on an
       // explicit click) whether or not the rail panel happens to be visible.
-      else if (!site.authenticated) return
+      else if (!site.authenticated || mode !== 'comment') return
       else if (intent.type === 'select')
         dispatchPopover({
           type: 'select',
@@ -382,6 +420,18 @@ function Viewer() {
       else if (intent.type === 'anchorClick') {
         const target = threads.find((t) => t.id === intent.id)
         if (target) revealThread(target)
+      } else if (intent.type === 'anchorStatus') {
+        const resolved = new Set(intent.resolved)
+        const orphaned = new Set(intent.orphaned)
+        setThreads((current) =>
+          current.map((thread) =>
+            orphaned.has(thread.id)
+              ? { ...thread, anchorStatus: 'orphaned' }
+              : resolved.has(thread.id)
+                ? { ...thread, anchorStatus: 'anchored' }
+                : thread,
+          ),
+        )
       }
     }
     window.addEventListener('message', onMsg)
@@ -404,6 +454,7 @@ function Viewer() {
     dispatch,
     loadThreads,
     revealThread,
+    mode,
   ])
 
   useEffect(() => {
@@ -462,7 +513,10 @@ function Viewer() {
   // step) — for every content type, not just audio (#112). Audio NEEDS it (there is no DOM to
   // select in); everywhere else it is how you say something about the page as a whole rather than
   // about one arbitrary sentence. Text selection still composes in the popover, untouched.
-  const startPageComment = useCallback(() => setComposing({ kind: 'page' }), [])
+  const startPageComment = useCallback(() => {
+    setMode('comment')
+    setComposing({ kind: 'page' })
+  }, [])
 
   // Read on demand (an event handler, not a subscription) — never causes a re-render, so the
   // timestamp button always inserts whatever the player's position is AT CLICK TIME with no
@@ -506,8 +560,6 @@ function Viewer() {
   // to its anchor + its rail card into view, once the frame is loaded and that file's threads are
   // in. `filePath` in the notification's URL path ensures the right file (and thus the thread) is
   // what loads. Fires at most once.
-  const [searchParams] = useSearchParams()
-  const wantRailOpen = railFromSearch(searchParams)
   const deepLinkThreadId = searchParams.get('thread')
   const deepLinkFocused = useRef(false)
 
@@ -650,7 +702,13 @@ function Viewer() {
     setComposing(null)
   }
 
-  const toggleRail = () => (railOpen ? closeRail() : setRailOpen(true))
+  const toggleRail = () => {
+    if (railOpen) closeRail()
+    else {
+      setMode('comment')
+      setRailOpen(true)
+    }
+  }
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
@@ -662,6 +720,8 @@ function Viewer() {
         onToggleRail={toggleRail}
         onToggleSidebar={() => setSidebarOpen((o) => !o)}
         onSearch={() => setCmdOpen(true)}
+        mode={mode}
+        onModeChange={setMode}
         // Print rides the annotate client's command channel; audio has no document to print.
         onPrint={
           isAudio
@@ -719,7 +779,7 @@ function Viewer() {
                 the frame reports needs no translation to position the chip/popover over it.
                 The POPOVER is unconditional on railOpen (C2b): anyone who can open the site can
                 comment without opening a panel first. */}
-            {site.authenticated && !isAudio && (
+            {site.authenticated && !isAudio && mode === 'comment' && (
               <CommentPopover
                 chip={popover.chip}
                 composer={popover.composer}
@@ -763,6 +823,7 @@ function Viewer() {
             // and no state of its own. With no live socket both are silent no-ops.
             onTyping={sendTyping}
             onTypingStop={sendTypingStop}
+            onSendFeedback={sendFeedback}
             onClose={closeRail}
             onStartComment={startPageComment}
             getCurrentTime={isAudio ? getCurrentTime : undefined}

@@ -1,12 +1,9 @@
 import type { Context } from 'hono'
-import { getCookie } from 'hono/cookie'
 import { createMiddleware } from 'hono/factory'
 import { API_KEY_PREFIX } from '../lib/api-key'
 import { fireAndForget, parseCliVersion, recordEvent } from '../lib/events'
-import { bearerToken, readSessionOrBearer } from '../lib/session'
+import { bearerToken, readSessionOrBearer, sessionCookiePresent } from '../lib/session'
 import type { AppEnv } from '../types'
-
-const SESSION_COOKIE = '__Host-postplan_session'
 
 // A request is a CLI call when it carries a Bearer token and NO session cookie — the exact rule
 // requireAuth uses to tag `authKind` (cookie wins, mirroring readSessionOrBearer). We DERIVE it
@@ -15,7 +12,7 @@ const SESSION_COOKIE = '__Host-postplan_session'
 // directly to shape its own 404/403 JSON, never running requireAuth) leave `authKind`/`user`
 // unset, so their CLI hits used to go unrecorded.
 function isCliRequest(c: Context<AppEnv>): boolean {
-  return bearerToken(c) !== null && getCookie(c, SESSION_COOKIE) === undefined
+  return bearerToken(c) !== null && !sessionCookiePresent(c)
 }
 
 // A `glk_`-prefixed Bearer is a D1 API key, not the CLI's own client — its User-Agent was never

@@ -16,6 +16,7 @@ import {
 } from '../db/repo'
 import type { Visibility } from '../db/schema'
 import {
+  feedbackBatches,
   files as filesTable,
   siteStars,
   siteVersionFiles,
@@ -25,9 +26,12 @@ import {
   spaces,
   users,
 } from '../db/schema'
+import { recordAction } from '../db/action-ledger'
+import { replayIdempotent, stableRequestHash, storeIdempotent } from '../db/idempotency'
 import { canDiscover, canReplace, checkAccess } from '../lib/access'
 import { batchAll, chunk, D1_MAX_IN, FEED_ID_CHUNK } from '../lib/d1'
 import { fireAndForget } from '../lib/events'
+import { cleanDisplayText } from '../lib/untrusted-text'
 import { resolveIndexPath } from '../lib/extract'
 import { parseShareGrants } from '../lib/share-grants'
 import { siteFeedColumns, toFeedRow } from '../lib/site-feed'
@@ -542,6 +546,14 @@ sites.put('/:spaceSlug/:siteSlug/shares', requireAuth, requireControlGrant, asyn
     site.id,
     validUsers.map((u) => u.userId).filter((id) => !prior.has(id) && id !== user.id),
   )
+  await recordAction(db, {
+    actorId: user.id,
+    action: 'share.update',
+    authorization: c.get('credential').kind,
+    siteId: site.id,
+    siteVersion: site.contentVersion,
+    metadata: { userCount: validUsers.length, groupCount: validGroups.length },
+  })
   return c.json({
     ok: true,
     groupIds: validGroups,
@@ -815,6 +827,8 @@ sites.get('/:spaceSlug/:siteSlug/versions', requireAuth, async (c) => {
     createdAt: version.createdAt,
     createdBy: version.createdBy,
     restoredFrom: version.restoredFrom,
+    changeNotes: version.changeNotes,
+    feedbackBatchId: version.feedbackBatchId,
     current: version.version === resolved.site.contentVersion,
     files: (grouped.get(version.id) ?? [])
       .map(({ path, size, etag }) => ({ path, size, etag }))
@@ -826,11 +840,92 @@ sites.get('/:spaceSlug/:siteSlug/versions', requireAuth, async (c) => {
       createdAt: resolved.site.updatedAt,
       createdBy: resolved.site.lastReplacedBy ?? resolved.site.ownerId,
       restoredFrom: null,
+      changeNotes: null,
+      feedbackBatchId: null,
       current: true,
       files: currentFiles.sort((a, b) => a.path.localeCompare(b.path)),
     })
   }
   return c.json(rows)
+})
+
+const TEXT_PATH = /\.(?:txt|md|mdx|html?|css|js|jsx|ts|tsx|json|jsonc|ya?ml|xml|svg|csv)$/i
+const MAX_DIFF_BYTES = 200_000
+
+function lineDiff(before: string, after: string): string {
+  const a = before.split('\n').slice(0, 400)
+  const b = after.split('\n').slice(0, 400)
+  const table = Array.from({ length: a.length + 1 }, () => new Uint16Array(b.length + 1))
+  for (let i = a.length - 1; i >= 0; i--)
+    for (let j = b.length - 1; j >= 0; j--)
+      table[i]![j] = a[i] === b[j] ? table[i + 1]![j + 1]! + 1 : Math.max(table[i + 1]![j]!, table[i]![j + 1]!)
+  const lines: string[] = []
+  let i = 0
+  let j = 0
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      lines.push(` ${a[i]}`)
+      i++
+      j++
+    } else if (j < b.length && (i === a.length || table[i]![j + 1]! > table[i + 1]![j]!)) {
+      lines.push(`+${b[j++]}`)
+    } else {
+      lines.push(`-${a[i++]}`)
+    }
+  }
+  return lines.join('\n').slice(0, MAX_DIFF_BYTES)
+}
+
+sites.get('/:spaceSlug/:siteSlug/versions/:from/diff/:to', requireAuth, async (c) => {
+  const resolved = await replaceableSite(c)
+  if (!resolved.site) return resolved.response
+  const from = Number(c.req.param('from'))
+  const to = Number(c.req.param('to'))
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0) {
+    return c.json({ error: 'invalid version' }, 400)
+  }
+  const db = c.get('db')
+  const versionRows = await db
+    .select({ id: siteVersions.id, version: siteVersions.version })
+    .from(siteVersions)
+    .where(and(eq(siteVersions.siteId, resolved.site.id), inArray(siteVersions.version, [from, to])))
+  if (versionRows.length !== 2) return c.json({ error: 'version not found' }, 404)
+  const ids = new Map(versionRows.map((row) => [row.version, row.id]))
+  const snapshots = await db
+    .select()
+    .from(siteVersionFiles)
+    .where(inArray(siteVersionFiles.versionId, [ids.get(from)!, ids.get(to)!]))
+  const left = new Map(snapshots.filter((row) => row.versionId === ids.get(from)).map((row) => [row.path, row]))
+  const right = new Map(snapshots.filter((row) => row.versionId === ids.get(to)).map((row) => [row.path, row]))
+  const paths = [...new Set([...left.keys(), ...right.keys()])].sort()
+  const changes = await Promise.all(
+    paths.flatMap((path) => {
+      const before = left.get(path)
+      const after = right.get(path)
+      if (before && after && before.etag === after.etag && before.size === after.size) return []
+      return [
+        (async () => {
+          const kind = before ? (after ? 'modified' : 'removed') : 'added'
+          let diff: string | null = null
+          if (
+            before &&
+            after &&
+            TEXT_PATH.test(path) &&
+            (before.size ?? 0) <= MAX_DIFF_BYTES &&
+            (after.size ?? 0) <= MAX_DIFF_BYTES
+          ) {
+            const [a, b] = await Promise.all([
+              c.env.POSTPLAN_FILES.get(before.storageKey),
+              c.env.POSTPLAN_FILES.get(after.storageKey),
+            ])
+            if (a && b) diff = lineDiff(await a.text(), await b.text())
+          }
+          return { path, kind, beforeSize: before?.size ?? null, afterSize: after?.size ?? null, diff }
+        })(),
+      ]
+    }),
+  )
+  return c.json({ from, to, changes })
 })
 
 sites.post('/:spaceSlug/:siteSlug/versions/:version/rollback', requireAuth, requireControlGrant, async (c) => {
@@ -839,15 +934,41 @@ sites.post('/:spaceSlug/:siteSlug/versions/:version/rollback', requireAuth, requ
   const db = c.get('db')
   const user = c.get('user')
   const targetVersion = Number(c.req.param('version'))
-  const body = (await c.req.json().catch(() => null)) as { expectedVersion?: unknown } | null
+  const body = (await c.req.json().catch(() => null)) as {
+    expectedVersion?: unknown
+    changeNotes?: unknown
+    feedbackBatchId?: unknown
+  } | null
   const expectedVersion = body?.expectedVersion
+  const changeNotes = typeof body?.changeNotes === 'string' ? cleanDisplayText(body.changeNotes, 2_000) : null
+  const feedbackBatchId =
+    typeof body?.feedbackBatchId === 'string' ? body.feedbackBatchId.trim().slice(0, 200) || null : null
   if (!Number.isInteger(targetVersion) || targetVersion < 0) return c.json({ error: 'invalid version' }, 400)
   if (!Number.isInteger(expectedVersion) || (expectedVersion as number) < 0) {
     return c.json({ error: 'expectedVersion required' }, 400)
   }
+  const idempotencyKey = c.req.header('Idempotency-Key')?.trim() || null
+  const requestHash = await stableRequestHash({ targetVersion, expectedVersion, changeNotes, feedbackBatchId })
+  if (idempotencyKey) {
+    const replay = await replayIdempotent(db, user.id, 'site.rollback', idempotencyKey, requestHash)
+    if (replay.kind === 'conflict') return c.json({ error: 'idempotency key reused with different request' }, 409)
+    if (replay.kind === 'replay') return c.json(replay.response, replay.statusCode as 200)
+  }
   if (expectedVersion !== resolved.site.contentVersion)
     return c.json({ error: 'version conflict', conflict: true }, 409)
   if (targetVersion === expectedVersion) return c.json({ error: 'version is already current' }, 400)
+
+  if (feedbackBatchId) {
+    const batch = await db
+      .select({ siteId: feedbackBatches.siteId, claimedBy: feedbackBatches.claimedBy, status: feedbackBatches.status })
+      .from(feedbackBatches)
+      .where(eq(feedbackBatches.id, feedbackBatchId))
+      .limit(1)
+      .then((rows) => rows[0])
+    if (!batch || batch.siteId !== resolved.site.id || batch.claimedBy !== user.id || batch.status !== 'claimed') {
+      return c.json({ error: 'feedback batch is not claimed by this actor for this site' }, 409)
+    }
+  }
 
   const target = (
     await db
@@ -877,7 +998,7 @@ sites.post('/:spaceSlug/:siteSlug/versions/:version/rollback', requireAuth, requ
     db
       .insert(siteVersions)
       .select(
-        sql`select ${nextVersionId}, ${resolved.site.id}, ${nextVersion}, ${target.description}, ${targetVersion}, ${user.id}, ${now} where ${matchesVersion()}`,
+        sql`select ${nextVersionId}, ${resolved.site.id}, ${nextVersion}, ${target.description}, ${changeNotes}, ${feedbackBatchId}, ${targetVersion}, ${user.id}, ${now} where ${matchesVersion()}`,
       ),
     ...targetFiles.map((file) =>
       db
@@ -899,12 +1020,24 @@ sites.post('/:spaceSlug/:siteSlug/versions/:version/rollback', requireAuth, requ
   ])
   const claimed = results[results.length - 1] as { id: string }[]
   if (claimed.length === 0) return c.json({ error: 'version conflict', conflict: true }, 409)
-  return c.json({
+  const response = {
     ok: true,
     version: nextVersion,
     restoredFrom: targetVersion,
     url: `${c.env.APP_URL}/${c.req.param('spaceSlug')}/${c.req.param('siteSlug')}`,
+  }
+  if (idempotencyKey) await storeIdempotent(db, user.id, 'site.rollback', idempotencyKey, requestHash, 200, response)
+  await recordAction(db, {
+    actorId: user.id,
+    action: 'site.rollback',
+    authorization: c.get('credential').kind,
+    siteId: resolved.site.id,
+    siteVersion: nextVersion,
+    targetId: feedbackBatchId,
+    idempotencyKey,
+    metadata: { restoredFrom: targetVersion, changeNotes },
   })
+  return c.json(response)
 })
 
 // DELETE /api/sites/:spaceSlug/:siteSlug — hard delete (owner or superadmin).

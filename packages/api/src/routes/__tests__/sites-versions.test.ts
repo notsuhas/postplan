@@ -20,7 +20,15 @@ async function setup() {
   await route.r2.put('v0/index.html', 'zero')
   await route.db.insert(siteVersions).values([
     { id: 'site:v0', siteId: site, version: 0, createdBy: owner, createdAt: '2026-01-01T00:00:00.000Z' },
-    { id: 'site:v1', siteId: site, version: 1, createdBy: owner, createdAt: '2026-01-02T00:00:00.000Z' },
+    {
+      id: 'site:v1',
+      siteId: site,
+      version: 1,
+      changeNotes: 'Tightened the intro',
+      feedbackBatchId: 'batch-1',
+      createdBy: owner,
+      createdAt: '2026-01-02T00:00:00.000Z',
+    },
   ])
   await route.db.insert(siteVersionFiles).values([
     { id: 'vf0', versionId: 'site:v0', path: 'index.html', storageKey: 'v0/index.html', size: 4, etag: 'zero' },
@@ -36,25 +44,47 @@ describe('site versions', () => {
     expect(res.status).toBe(200)
     const rows = (await res.json()) as { version: number; current: boolean; files: { path: string }[] }[]
     expect(rows.map(({ version }) => version)).toEqual([1, 0])
-    expect(rows[0]).toMatchObject({ current: true, files: [{ path: 'index.html' }] })
+    expect(rows[0]).toMatchObject({
+      current: true,
+      changeNotes: 'Tightened the intro',
+      feedbackBatchId: 'batch-1',
+      files: [{ path: 'index.html' }],
+    })
   })
 
   test('rollback restores files as a new head and keeps every snapshot', async () => {
     const { app, env, db } = await setup()
-    const res = await app.request(
-      '/api/sites/acme/demo/versions/0/rollback',
-      {
-        method: 'POST',
-        headers: authHeaders('owner'),
-        body: JSON.stringify({ expectedVersion: 1 }),
-      },
-      env,
-    )
+    const rollback = () =>
+      app.request(
+        '/api/sites/acme/demo/versions/0/rollback',
+        {
+          method: 'POST',
+          headers: { ...authHeaders('owner'), 'Idempotency-Key': 'rollback-once' },
+          body: JSON.stringify({ expectedVersion: 1 }),
+        },
+        env,
+      )
+    const res = await rollback()
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ version: 2, restoredFrom: 0 })
+    const result = await res.json()
+    expect(result).toMatchObject({ version: 2, restoredFrom: 0 })
+    const replay = await rollback()
+    expect(replay.status).toBe(200)
+    expect(await replay.json()).toEqual(result)
     expect((await db.select().from(sites).where(eq(sites.id, 'site')))[0].contentVersion).toBe(2)
     expect((await db.select().from(files).where(eq(files.siteId, 'site')))[0].storageKey).toBe('v0/index.html')
     expect(await db.select().from(siteVersions).where(eq(siteVersions.siteId, 'site'))).toHaveLength(3)
+  })
+
+  test('diff names changed files and includes a useful text patch', async () => {
+    const { app, env } = await setup()
+    const res = await app.request('/api/sites/acme/demo/versions/0/diff/1', { headers: authHeaders('owner') }, env)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      from: 0,
+      to: 1,
+      changes: [{ path: 'index.html', kind: 'modified', diff: '-zero\n+one' }],
+    })
   })
 
   test('stale rollback is rejected before changing files', async () => {

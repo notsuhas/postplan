@@ -68,6 +68,8 @@ export type ThreadView = {
   // occurrences of the same quote apart. Null on element/page rows and on text rows stored before
   // context existed — the client then falls back to first-occurrence matching.
   context: TextContext | null
+  anchorStatus: 'anchored' | 'shifted' | 'suggested' | 'orphaned'
+  createdVersion: number
   status: 'open' | 'resolved'
   resolvedBy: string | null
   resolvedByName: string | null
@@ -290,6 +292,8 @@ export function assembleThreadViews(
     quote: t.quote,
     anchor: readElementAnchor(t.anchorType, t.anchor),
     context: readTextContext(t.anchorType, t.anchor),
+    anchorStatus: t.anchorStatus,
+    createdVersion: t.createdVersion,
     status: t.status,
     resolvedBy: t.resolvedBy,
     resolvedByName: joinedDisplayName(t.resolvedBy, resolverName, resolverEmail),
@@ -346,6 +350,7 @@ function toCommentView(c: Comment, author: string | null, reactions: CommentReac
 
 export type CreateThreadInput = {
   siteId: string
+  createdVersion?: number
   filePath: string
   createdBy: string
   body: string
@@ -408,6 +413,7 @@ export async function createThread(
     anchor,
     contentHash: null,
     anchorStatus: 'anchored',
+    createdVersion: input.createdVersion ?? 0,
     start: null,
     end: null,
     status: 'open',

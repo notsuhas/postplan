@@ -86,7 +86,7 @@ func (c *client) personalSpace() (string, error) {
 
 func (c *client) deploy(argv []string) error {
 	positional, flags := argparse.ParseArgs(argv, map[string]bool{"include-hidden": true, "yes": true, "json": true})
-	if err := argparse.ValidateFlags(flags, "include-hidden", "yes", "json", "visibility", "space", "name"); err != nil {
+	if err := argparse.ValidateFlags(flags, "include-hidden", "yes", "json", "visibility", "space", "name", "notes", "feedback-batch", "idempotency-key"); err != nil {
 		return err
 	}
 	if len(positional) > 1 {
@@ -238,6 +238,12 @@ func (c *client) deploy(argv []string) error {
 	if replace && marker != nil {
 		_ = mw.WriteField("expectedVersion", strconv.Itoa(marker.ContentVersion))
 	}
+	if notes, ok := flags["notes"].(string); ok && strings.TrimSpace(notes) != "" {
+		_ = mw.WriteField("changeNotes", strings.TrimSpace(notes))
+	}
+	if batch, ok := flags["feedback-batch"].(string); ok && strings.TrimSpace(batch) != "" {
+		_ = mw.WriteField("feedbackBatchId", strings.TrimSpace(batch))
+	}
 	for _, e := range entries {
 		data, err := os.ReadFile(e.abs)
 		if err != nil {
@@ -265,7 +271,10 @@ func (c *client) deploy(argv []string) error {
 	if replace {
 		uploadPath += "?replace=true"
 	}
-	resp, err := c.authed("POST", uploadPath, &body, map[string]string{"Content-Type": mw.FormDataContentType()})
+	resp, err := c.authed("POST", uploadPath, &body, map[string]string{
+		"Content-Type":    mw.FormDataContentType(),
+		"Idempotency-Key": operationKey(flags, "publish"),
+	})
 	if err != nil {
 		return err
 	}

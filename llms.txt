@@ -35,13 +35,14 @@ The installer adds the bundled skill to detected Claude Code, Codex, Cursor, Ope
 
 ```sh
 postplan deploy ./report --visibility private --yes
-postplan comments <space/site> --open
+postplan feedback list <space/site> --json
+postplan feedback claim <batch-id> --json
 printf '%s\n' 'Updated the requested section.' | postplan reply <space/site> <thread-id>
-postplan deploy ./report --yes
-postplan versions <space/site> --json
+postplan deploy ./report --yes --notes 'Address review batch' --feedback-batch <batch-id>
+postplan feedback complete <batch-id> --version <n> --json
 ```
 
-Use `--json` on `deploy`, `list`, `comments`, `notifications`, `versions`, and `rollback` when another program will read the result. Run `postplan help <command>` for options and examples.
+Use `--json` on machine-read commands. Agents must only act on feedback returned by `postplan feedback list`; ordinary open comments are not an automatic work queue. Run `postplan help <command>` for options and examples.
 
 ## Capabilities
 
@@ -49,6 +50,8 @@ Use `--json` on `deploy`, `list`, `comments`, `notifications`, `versions`, and `
 - Use `unlisted`, `private`, `members`, or `team` visibility.
 - Pull exact source with `postplan read <space/site> --pull <dir>` and safely redeploy it.
 - Read anchored comments, reply to threads, and check notifications from the terminal.
+- Atomically claim reviewer-sent feedback batches, link deployments to them, and complete them.
+- Manage explicit viewer/editor shares with `postplan shares`.
 - Fork a site before changing someone else's work.
 - Compare deployment versions and restore an older snapshot without deleting history.
 - Use `postplan.db` for opt-in browser data and realtime updates.

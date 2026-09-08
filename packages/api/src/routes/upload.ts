@@ -3,10 +3,22 @@ import { and, eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { NewFileRow, Site } from '../db/schema'
-import { files, sites, siteVersionFiles, siteVersions, spaceMembers, spaces, siteUserShares } from '../db/schema'
+import {
+  feedbackBatches,
+  files,
+  sites,
+  siteVersionFiles,
+  siteVersions,
+  spaceMembers,
+  spaces,
+  siteUserShares,
+} from '../db/schema'
+import { recordAction } from '../db/action-ledger'
+import { replayIdempotent, sha256Hex, stableRequestHash, storeIdempotent } from '../db/idempotency'
 import { canReplace } from '../lib/access'
 import { batchAll } from '../lib/d1'
 import { capTitle, extractHtmlMeta, NO_META, pickEntry } from '../lib/extract'
+import { cleanDisplayText } from '../lib/untrusted-text'
 import { isValidSlug, slugForVisibility } from '../lib/slug'
 import { deleteKeys, MAX_FILE_BYTES, sanitizePath } from '../lib/storage'
 import { isVisibility } from '../lib/visibility'
@@ -38,6 +50,8 @@ type ParsedUpload = {
   visibility: unknown
   title: string | null
   expectedVersion: number | null
+  changeNotes: string | null
+  feedbackBatchId: string | null
   items: UploadItem[]
 }
 type UploadTarget = {
@@ -61,6 +75,8 @@ type PersistUpload = {
   derivedTitle: string | null
   description: string | null
   expectedVersion: number | null
+  changeNotes: string | null
+  feedbackBatchId: string | null
 }
 
 async function enforceRateLimit(c: UploadContext): Promise<Response | null> {
@@ -80,6 +96,8 @@ async function parseUpload(c: UploadContext): Promise<ParsedUpload | Response> {
   const rawVisibility = form.get('visibility')
   const rawTitle = form.get('title')
   const rawExpected = form.get('expectedVersion')
+  const rawChangeNotes = form.get('changeNotes')
+  const rawFeedbackBatchId = form.get('feedbackBatchId')
   const items: UploadItem[] = []
 
   for (const file of form.getAll('files').filter((value): value is File => value instanceof File)) {
@@ -101,6 +119,8 @@ async function parseUpload(c: UploadContext): Promise<ParsedUpload | Response> {
       typeof rawExpected === 'string' && rawExpected.trim() !== '' && Number.isInteger(Number(rawExpected))
         ? Number(rawExpected)
         : null,
+    changeNotes: typeof rawChangeNotes === 'string' ? cleanDisplayText(rawChangeNotes, 2_000) : null,
+    feedbackBatchId: typeof rawFeedbackBatchId === 'string' ? rawFeedbackBatchId.trim().slice(0, 200) || null : null,
     items,
   }
 }
@@ -273,7 +293,8 @@ async function writeObjects(bucket: R2Bucket, plan: UploadPlanItem[]): Promise<v
 
 async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Response | null> {
   const db = c.get('db')
-  const { target, plan, spaceId, user, visibility, title, derivedTitle, description } = input
+  const { target, plan, spaceId, user, visibility, title, derivedTitle, description, changeNotes, feedbackBatchId } =
+    input
   const newRows = plan.map(({ row }) => row)
   const insertRows = newRows.map((row) => db.insert(files).values(row))
   const newKeys = newRows.map(({ storageKey }) => storageKey)
@@ -297,6 +318,8 @@ async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Re
           siteId: target.siteId,
           version: 0,
           description,
+          changeNotes,
+          feedbackBatchId,
           createdBy: user.id,
         }),
         ...newRows.map((row) =>
@@ -343,7 +366,7 @@ async function replaceExisting(c: UploadContext, input: PersistUpload): Promise<
     db
       .insert(siteVersions)
       .select(
-        sql`select ${previousVersionId}, ${target.siteId}, ${version}, ${target.existingDescription}, ${null}, ${target.existingCreatedBy}, ${createdAt} where ${matchesVersion()}`,
+        sql`select ${previousVersionId}, ${target.siteId}, ${version}, ${target.existingDescription}, ${null}, ${null}, ${null}, ${target.existingCreatedBy}, ${createdAt} where ${matchesVersion()}`,
       )
       .onConflictDoNothing(),
     ...target.oldFiles.map((row) =>
@@ -359,7 +382,7 @@ async function replaceExisting(c: UploadContext, input: PersistUpload): Promise<
     db
       .insert(siteVersions)
       .select(
-        sql`select ${nextVersionId}, ${target.siteId}, ${nextVersion}, ${description}, ${null}, ${user.id}, ${createdAt} where ${matchesVersion()}`,
+        sql`select ${nextVersionId}, ${target.siteId}, ${nextVersion}, ${description}, ${input.changeNotes}, ${input.feedbackBatchId}, ${null}, ${user.id}, ${createdAt} where ${matchesVersion()}`,
       ),
     ...input.plan.map(({ row }) =>
       db
@@ -405,6 +428,26 @@ async function handleUpload(c: UploadContext): Promise<Response> {
   const user = c.get('user')
   const db = c.get('db')
   const { spaceSlug, siteSlug } = c.req.param()
+  const idempotencyKey = c.req.header('Idempotency-Key')?.trim() || null
+  let requestHash: string | null = null
+  if (idempotencyKey) {
+    const files = []
+    for (const { path, file } of parsed.items) {
+      files.push({ path, size: file.size, type: file.type, contentHash: await sha256Hex(await file.arrayBuffer()) })
+    }
+    requestHash = await stableRequestHash({
+      spaceSlug,
+      siteSlug,
+      expectedVersion: parsed.expectedVersion,
+      visibility: parsed.hasVisibility ? parsed.visibility : null,
+      changeNotes: parsed.changeNotes,
+      feedbackBatchId: parsed.feedbackBatchId,
+      files,
+    })
+    const replay = await replayIdempotent(db, user.id, 'site.publish', idempotencyKey, requestHash)
+    if (replay.kind === 'conflict') return c.json({ error: 'idempotency key reused with different request' }, 409)
+    if (replay.kind === 'replay') return c.json(replay.response, replay.statusCode as 200)
+  }
   const facts = await readUploadFacts(db, spaceSlug, siteSlug, user.id)
   const target = resolveTarget(
     c,
@@ -416,6 +459,18 @@ async function handleUpload(c: UploadContext): Promise<Response> {
     parsed.expectedVersion,
   )
   if (target instanceof Response) return target
+
+  if (parsed.feedbackBatchId) {
+    const batch = await db
+      .select({ siteId: feedbackBatches.siteId, claimedBy: feedbackBatches.claimedBy, status: feedbackBatches.status })
+      .from(feedbackBatches)
+      .where(eq(feedbackBatches.id, parsed.feedbackBatchId))
+      .limit(1)
+      .then((rows) => rows[0])
+    if (!batch || batch.siteId !== target.siteId || batch.claimedBy !== user.id || batch.status !== 'claimed') {
+      return c.json({ error: 'feedback batch is not claimed by this actor for this site' }, 409)
+    }
+  }
 
   const plan = buildPlan(c, parsed.items, target.siteId)
   if (plan instanceof Response) return plan
@@ -435,15 +490,31 @@ async function handleUpload(c: UploadContext): Promise<Response> {
     derivedTitle: target.actingAsEditor ? null : meta.title,
     description: meta.description,
     expectedVersion: parsed.expectedVersion,
+    changeNotes: parsed.changeNotes,
+    feedbackBatchId: parsed.feedbackBatchId,
   })
   if (persistError) return persistError
 
-  return c.json({
+  const response = {
     url: `${c.env.APP_URL}/${spaceSlug}/${target.storedSlug}`,
     siteSlug: target.storedSlug,
     fileCount: plan.length,
     contentVersion: target.existingVersion === null ? 0 : target.existingVersion + 1,
+  }
+  if (idempotencyKey && requestHash) {
+    await storeIdempotent(db, user.id, 'site.publish', idempotencyKey, requestHash, 200, response)
+  }
+  await recordAction(db, {
+    actorId: user.id,
+    action: 'site.publish',
+    authorization: c.get('credential').kind,
+    siteId: target.siteId,
+    siteVersion: response.contentVersion,
+    targetId: parsed.feedbackBatchId,
+    idempotencyKey,
+    metadata: { fileCount: plan.length, changeNotes: parsed.changeNotes },
   })
+  return c.json(response)
 }
 
 export const upload = new Hono<AppEnv>()

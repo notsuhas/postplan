@@ -10,6 +10,7 @@ import { apiKeys } from '../routes/api-keys'
 import { ask } from '../routes/ask'
 import { commentFeed } from '../routes/comment-feed'
 import { comments } from '../routes/comments'
+import { feedback } from '../routes/feedback'
 import { notifications } from '../routes/notifications'
 import { summary } from '../routes/summary'
 import { whatsNew } from '../routes/whats-new'
@@ -45,6 +46,7 @@ export function makeRouteApp() {
     await next()
   })
   app.route('/api/sites', sites)
+  app.route('/api', feedback)
   // Before comments/summary — see index.ts: their wildcard requireAuth would otherwise run first.
   app.route('/api/sites', stars)
   app.route('/api/spaces', spaces)

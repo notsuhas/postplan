@@ -51,4 +51,30 @@ describe('requireSameOrigin', () => {
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: 'csrf' })
   })
+
+  test('remote-preview dev cookie receives the same CSRF protection in localhost development', async () => {
+    const devEnv = { APP_URL: 'http://localhost:5173' } as AppEnv['Bindings']
+    const res = await app.request(
+      '/api/thing',
+      {
+        method: 'POST',
+        headers: { cookie: 'postplan_dev_session=signed-token', Origin: 'https://evil.example' },
+      },
+      devEnv,
+    )
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'csrf' })
+  })
+
+  test('remote-preview dev cookie is inert outside localhost development', async () => {
+    const res = await app.request(
+      '/api/thing',
+      {
+        method: 'POST',
+        headers: { cookie: 'postplan_dev_session=signed-token', Origin: 'https://evil.example' },
+      },
+      env,
+    )
+    expect(res.status).toBe(200)
+  })
 })

@@ -594,6 +594,7 @@ comments.post('/:space/:site/comments', async (c) => {
 
   const out = await createThread(c.get('db'), {
     siteId: site.id,
+    createdVersion: site.contentVersion,
     filePath: fields.filePath,
     createdBy: c.get('user').id,
     body,
@@ -649,6 +650,7 @@ async function createVoiceThread(c: Context<AppEnv>, site: ResolvedSite): Promis
   try {
     out = await createThread(c.get('db'), {
       siteId: site.id,
+      createdVersion: site.contentVersion,
       filePath: fields.filePath,
       createdBy: c.get('user').id,
       body,

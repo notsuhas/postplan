@@ -4,6 +4,13 @@ import type { Release } from './bake'
 
 export const RELEASES: Release[] = [
   {
+    "slug": "feedback-bundles",
+    "title": "Send review feedback to an agent",
+    "date": "2026-09-08T10:00:00.000Z",
+    "featured": true,
+    "bodyHtml": "<p>Review comments stay human conversation until you decide they are ready for an agent.</p>\n<ul>\n<li>Select individual comments or send every open comment from the review rail</li>\n<li>Undo a send for five seconds before an agent can claim it</li>\n<li>Follow each batch from queued to claimed, completed, or cancelled</li>\n<li>Keep replies in the original review threads</li>\n<li>Link the deployment that addresses a batch and add concise change notes</li>\n</ul>\n<p>Interactive pages now open in <strong>Experience</strong> mode, where their controls behave normally. Switch to <strong>Comment</strong> mode when you want to select text or open anchored feedback.</p>\n"
+  },
+  {
     "slug": "api-keys",
     "title": "API keys for scripts and CI",
     "image": "api-keys.png",
@@ -101,4 +108,4 @@ export const RELEASES: Release[] = [
   }
 ]
 
-export const NEWEST_RELEASE_DATE: string | null = "2026-08-01T12:00:00.000Z"
+export const NEWEST_RELEASE_DATE: string | null = "2026-09-08T10:00:00.000Z"

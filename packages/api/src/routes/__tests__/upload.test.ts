@@ -55,7 +55,7 @@ function postUpload(
   env: AppEnv['Bindings'],
   slug: string,
   parts: File[],
-  opts: { visibility?: string; replace?: boolean; title?: string } = {},
+  opts: { visibility?: string; replace?: boolean; title?: string; idempotencyKey?: string } = {},
 ) {
   const fd = new FormData()
   for (const f of parts) fd.append('files', f)
@@ -64,12 +64,35 @@ function postUpload(
   const query = opts.replace ? '?replace=true' : ''
   return app.request(
     `/api/upload/acme/${slug}${query}`,
-    { method: 'POST', headers: { Authorization: 'Bearer tok' }, body: fd },
+    {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer tok',
+        ...(opts.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}),
+      },
+      body: fd,
+    },
     env,
   )
 }
 
 const html = (s: string, name: string) => new File([s], name, { type: 'text/html' })
+
+describe('upload — idempotency', () => {
+  test('a retry replays the first publish, while changed bytes under the same key conflict', async () => {
+    const { app, env, db } = await setup()
+    const opts = { idempotencyKey: 'publish-once' }
+    const first = await postUpload(app, env, 'once', [html('alpha', 'index.html')], opts)
+    const replay = await postUpload(app, env, 'once', [html('alpha', 'index.html')], opts)
+    const conflict = await postUpload(app, env, 'once', [html('bravo', 'index.html')], opts)
+
+    expect(first.status).toBe(200)
+    expect(replay.status).toBe(200)
+    expect(await replay.json()).toEqual(await first.json())
+    expect(conflict.status).toBe(409)
+    expect(await db.select().from(sites).where(eq(sites.slug, 'once'))).toHaveLength(1)
+  })
+})
 
 // A superadmin is not a content author on someone else's site: replace would let it plant bytes
 // the owner then opens, and create would let it publish into a space it doesn't belong to. Its
@@ -432,7 +455,8 @@ describe('upload — pre-write request shape', () => {
     const { app, env, db } = await setup()
     db.resetCounters()
     expect((await postFiles(app, env, 'shape-new', [html('<html>hi</html>', 'index.html')])).status).toBe(200)
-    expect(db.counters.loose).toBe(1)
+    // Auth plus the durable action-ledger append after the publish commits.
+    expect(db.counters.loose).toBe(2)
     expect(db.counters.batches).toBe(2)
   })
 })

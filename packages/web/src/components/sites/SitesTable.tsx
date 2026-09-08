@@ -51,7 +51,7 @@ import { Label } from '@/components/ui/label'
 import { MountSensor } from '@/components/ui/mount-sensor'
 import { api } from '@/lib/api'
 import type { SiteSummary, SpaceSummary, Visibility } from '@/lib/types'
-import { type ISiteVersion, versionDiff } from '@/lib/siteVersions'
+import { type ISiteVersion, type IVersionTextDiff, versionDiff } from '@/lib/siteVersions'
 
 const visibilityLabel = (v: Visibility): string => v.charAt(0).toUpperCase() + v.slice(1)
 
@@ -222,6 +222,7 @@ function VersionHistoryDialog(props: IVersionHistoryDialog) {
   const [versions, setVersions] = useState<ISiteVersion[]>([])
   const [busy, setBusy] = useState(false)
   const [restoring, setRestoring] = useState<number | null>(null)
+  const [expanded, setExpanded] = useState<Record<number, IVersionTextDiff>>({})
 
   const load = useCallback(() => {
     setBusy(true)
@@ -253,6 +254,18 @@ function VersionHistoryDialog(props: IVersionHistoryDialog) {
     }
   }
 
+  async function showDiff(version: number) {
+    if (!current || expanded[version]) return
+    try {
+      const result = await api.get<IVersionTextDiff>(
+        `/api/sites/${site.spaceSlug}/${site.siteSlug}/versions/${version}/diff/${current.version}`,
+      )
+      setExpanded((value) => ({ ...value, [version]: result }))
+    } catch (err) {
+      toast.error('Could not load version diff', { description: err instanceof Error ? err.message : undefined })
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(value) => !restoring && onOpenChange(value)}>
       <DialogContent className="sm:max-w-xl">
@@ -275,32 +288,65 @@ function VersionHistoryDialog(props: IVersionHistoryDialog) {
                 ? `${diff.added.length} added · ${diff.changed.length} changed · ${diff.removed.length} removed`
                 : `${version.files.length} files`
               return (
-                <div key={version.version} className="flex items-center gap-3 rounded-lg border p-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 font-mono text-sm">
-                      <span>v{version.version}</span>
-                      {version.current && (
-                        <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">current</span>
-                      )}
-                      {version.restoredFrom !== null && (
-                        <span className="text-xs text-muted-foreground">from v{version.restoredFrom}</span>
+                <div key={version.version} className="rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 font-mono text-sm">
+                        <span>v{version.version}</span>
+                        {version.current && (
+                          <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">current</span>
+                        )}
+                        {version.restoredFrom !== null && (
+                          <span className="text-xs text-muted-foreground">from v{version.restoredFrom}</span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {summary} · {new Date(version.createdAt).toLocaleString()}
+                      </p>
+                      {version.changeNotes && <p className="mt-1 text-sm">{version.changeNotes}</p>}
+                      {diff && (
+                        <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                          {[
+                            ...diff.added.map((p) => `+ ${p}`),
+                            ...diff.changed.map((p) => `~ ${p}`),
+                            ...diff.removed.map((p) => `− ${p}`),
+                          ].join(' · ')}
+                        </p>
                       )}
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {summary} · {new Date(version.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                  {!version.current && current && (
-                    <ConfirmDialog
-                      title={`Restore version ${version.version}?`}
-                      description={`This creates version ${current.version + 1}. Nothing in the history is deleted.`}
-                      confirmLabel="Restore"
-                      onConfirm={() => rollback(version.version)}
-                    >
-                      <Button variant="outline" size="sm" disabled={restoring !== null}>
-                        <RotateCcw /> Restore
+                    {diff && (
+                      <Button variant="ghost" size="sm" onClick={() => void showDiff(version.version)}>
+                        View diff
                       </Button>
-                    </ConfirmDialog>
+                    )}
+                    {!version.current && current && (
+                      <ConfirmDialog
+                        title={`Restore version ${version.version}?`}
+                        description={`This creates version ${current.version + 1}. Nothing in the history is deleted.`}
+                        confirmLabel="Restore"
+                        onConfirm={() => rollback(version.version)}
+                      >
+                        <Button variant="outline" size="sm" disabled={restoring !== null}>
+                          <RotateCcw /> Restore
+                        </Button>
+                      </ConfirmDialog>
+                    )}
+                  </div>
+                  {expanded[version.version] && (
+                    <div className="mt-3 space-y-2 border-t pt-3">
+                      {expanded[version.version].changes.map((change) => (
+                        <div key={change.path}>
+                          <p className="font-mono text-xs">
+                            {change.kind} {change.path}
+                          </p>
+                          {change.diff && (
+                            <pre className="mt-1 max-h-48 overflow-auto rounded bg-muted p-2 text-[11px]">
+                              {change.diff}
+                            </pre>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )

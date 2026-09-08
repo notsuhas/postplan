@@ -1,17 +1,15 @@
 import type { Context } from 'hono'
-import { getCookie } from 'hono/cookie'
 import { createMiddleware } from 'hono/factory'
 import { getUserById } from '../db/repo'
-import { bearerToken, readCredential } from '../lib/session'
+import { bearerToken, readCredential, sessionCookiePresent } from '../lib/session'
 import type { AppEnv } from '../types'
 
-const SESSION_COOKIE = '__Host-postplan_session'
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 /** True when the request's cookie jar carries a session cookie AT ALL — presence, not validity,
  *  is the signal: a stale/tampered cookie still proves "this came from a browser that has this
  *  app's origin in its jar" which is exactly the context CSWSH/CSRF need to worry about. */
-export const cookieAuthed = (c: Context<AppEnv>): boolean => getCookie(c, SESSION_COOKIE) !== undefined
+export const cookieAuthed = (c: Context<AppEnv>): boolean => sessionCookiePresent(c)
 
 /** Origin matches APP_URL, or Sec-Fetch-Site is 'same-origin' — the one predicate every
  *  same-origin gate in this file shares. Intentionally strict and fail-closed: 'same-site' is

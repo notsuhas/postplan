@@ -60,13 +60,27 @@ function mkComment(overrides: Partial<CommentItem> & { id: string }): CommentIte
 }
 
 function renderCard(
-  overrides: { onFocusAnchor?: (t: Thread) => void; comments?: CommentItem[]; onChanged?: () => void } = {},
+  overrides: {
+    onFocusAnchor?: (t: Thread) => void
+    comments?: CommentItem[]
+    onChanged?: () => void
+    selectedCommentIds?: ReadonlySet<string>
+    onSelectComment?: (id: string, selected: boolean) => void
+  } = {},
 ) {
   const onFocusAnchor = overrides.onFocusAnchor ?? mock((_t: Thread) => {})
   const onChanged = overrides.onChanged ?? mock(() => {})
   const thread = mkThread({ id: 't1', ...(overrides.comments ? { comments: overrides.comments } : {}) })
   const view = render(
-    <ThreadCard site={SITE} me={ME} thread={thread} onChanged={onChanged} onFocusAnchor={onFocusAnchor} />,
+    <ThreadCard
+      site={SITE}
+      me={ME}
+      thread={thread}
+      onChanged={onChanged}
+      onFocusAnchor={onFocusAnchor}
+      selectedCommentIds={overrides.selectedCommentIds}
+      onSelectComment={overrides.onSelectComment}
+    />,
   )
   // What a refetch looks like from this component's side: same thread id, brand-new objects and
   // arrays (they came off a fresh `comments.list` response, so nothing is identity-shared).
@@ -85,6 +99,13 @@ function renderCard(
   const card = document.getElementById(`thread-${thread.id}`) as HTMLElement
   return { onFocusAnchor, onChanged, thread, card, refetch }
 }
+
+test('reviewers can explicitly select an individual live comment for agent handoff', () => {
+  const selected = mock((_id: string, _checked: boolean) => {})
+  renderCard({ comments: [mkComment({ id: 'c1' })], selectedCommentIds: new Set(), onSelectComment: selected })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select comment from Riya' }))
+  expect(selected).toHaveBeenCalledWith('c1', true)
+})
 
 describe('ThreadCard — a click scrolls, and the card has no hover behaviour', () => {
   test('clicking the quote calls onFocusAnchor with the thread (scroll)', () => {

@@ -1,11 +1,12 @@
 import type { Context } from 'hono'
-import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
+import { deleteCookie, getCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
 import { getUserById } from '../db/repo'
 import type { AppEnv, Credential, SessionUser } from '../types'
 import { API_KEY_PREFIX, apiKeyDb, resolveApiKey, touchApiKeyLastUsed } from './api-key'
 import { fireAndForget } from './events'
 
 const SESSION_COOKIE = '__Host-postplan_session'
+const DEV_SESSION_COOKIE = 'postplan_dev_session'
 // Browser and CLI both 30d. The session payload is a cached snapshot — readCredential returns
 // it without re-reading `users` — so this is also how stale a demoted role or a deleted user can
 // be, and 24h was the bound on that. On a single-operator instance the demotion it protects
@@ -24,14 +25,59 @@ function cookieOpts() {
   return { httpOnly: true, secure: true, sameSite: 'Lax' as const, path: '/' }
 }
 
-export async function createSession(c: Context<AppEnv>, user: SessionUser): Promise<void> {
+const devCookieOpts = { httpOnly: true, secure: false, sameSite: 'Lax' as const, path: '/' }
+
+export function isLocalAppUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' && url.hostname === 'localhost'
+  } catch {
+    return false
+  }
+}
+
+function useInsecureDevCookie(c: Context<AppEnv>): boolean {
+  if (!isLocalAppUrl(c.env.APP_URL)) return false
+  const origin = c.req.header('Origin')
+  if (!origin) return false
+  try {
+    const url = new URL(origin)
+    return url.protocol === 'http:' && url.hostname !== 'localhost'
+  } catch {
+    return false
+  }
+}
+
+async function persistSession(
+  c: Context<AppEnv>,
+  user: SessionUser,
+  cookieName: string,
+  options: ReturnType<typeof cookieOpts>,
+): Promise<void> {
   const token = crypto.randomUUID()
   await c.env.POSTPLAN_SESSIONS.put(`session:${token}`, JSON.stringify(user), { expirationTtl: SESSION_TTL })
-  await setSignedCookie(c, SESSION_COOKIE, token, c.env.SESSION_SECRET, { ...cookieOpts(), maxAge: SESSION_TTL })
+  await setSignedCookie(c, cookieName, token, c.env.SESSION_SECRET, { ...options, maxAge: SESSION_TTL })
+}
+
+export async function createSession(c: Context<AppEnv>, user: SessionUser): Promise<void> {
+  await persistSession(c, user, SESSION_COOKIE, cookieOpts())
+}
+
+/** Passwordless local-development login may be viewed through an HTTP remote-workspace address.
+ * Such browsers reject the normal Secure __Host- cookie, so use a separately named cookie only
+ * for that request shape. Production and localhost browser sessions stay on createSession. */
+export async function createDevLoginSession(c: Context<AppEnv>, user: SessionUser): Promise<void> {
+  if (useInsecureDevCookie(c)) {
+    await persistSession(c, user, DEV_SESSION_COOKIE, devCookieOpts)
+    return
+  }
+  await createSession(c, user)
 }
 
 async function readSession(c: Context<AppEnv>): Promise<SessionUser | null> {
-  const token = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE)
+  let token = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE)
+  if (typeof token !== 'string' && isLocalAppUrl(c.env.APP_URL))
+    token = await getSignedCookie(c, c.env.SESSION_SECRET, DEV_SESSION_COOKIE)
   if (typeof token !== 'string') return null // false = tampered, undefined = missing
   const raw = await c.env.POSTPLAN_SESSIONS.get(`session:${token}`)
   if (!raw) return null
@@ -43,9 +89,19 @@ async function readSession(c: Context<AppEnv>): Promise<SessionUser | null> {
 }
 
 export async function destroySession(c: Context<AppEnv>): Promise<void> {
-  const token = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE)
-  if (typeof token === 'string') await c.env.POSTPLAN_SESSIONS.delete(`session:${token}`)
+  const tokens = [await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE)]
+  if (isLocalAppUrl(c.env.APP_URL)) tokens.push(await getSignedCookie(c, c.env.SESSION_SECRET, DEV_SESSION_COOKIE))
+  for (const token of tokens) {
+    if (typeof token === 'string') await c.env.POSTPLAN_SESSIONS.delete(`session:${token}`)
+  }
   deleteCookie(c, SESSION_COOKIE, { path: '/', secure: true })
+  if (isLocalAppUrl(c.env.APP_URL)) deleteCookie(c, DEV_SESSION_COOKIE, { path: '/' })
+}
+
+/** Cookie presence, not validity, is the browser-auth signal used by CSRF and analytics. */
+export function sessionCookiePresent(c: Context<AppEnv>): boolean {
+  if (getCookie(c, SESSION_COOKIE) !== undefined) return true
+  return isLocalAppUrl(c.env.APP_URL) && getCookie(c, DEV_SESSION_COOKIE) !== undefined
 }
 
 // --- CLI tokens (opaque, long-lived, stored in KV; sent as Bearer by the CLI) ---

@@ -64,6 +64,10 @@ function jsonInit(method: string, body?: unknown): RequestInit {
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) => request<T>(path, jsonInit('POST', body)),
+  postWithHeaders: <T>(path: string, body: unknown, headers: Record<string, string>) => {
+    const init = jsonInit('POST', body)
+    return request<T>(path, { ...init, headers: { ...init.headers, ...headers } })
+  },
   // Multipart POST (voice comments): never set content-type — the browser adds the multipart
   // boundary itself. The session cookie still rides along via request()'s credentials: 'include'.
   postForm: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),

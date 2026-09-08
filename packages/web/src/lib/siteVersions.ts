@@ -9,8 +9,22 @@ export interface ISiteVersion {
   createdAt: string
   createdBy: string | null
   restoredFrom: number | null
+  changeNotes: string | null
+  feedbackBatchId: string | null
   current: boolean
   files: IVersionFile[]
+}
+
+export interface IVersionTextDiff {
+  from: number
+  to: number
+  changes: Array<{
+    path: string
+    kind: 'added' | 'modified' | 'removed'
+    beforeSize: number | null
+    afterSize: number | null
+    diff: string | null
+  }>
 }
 
 export function versionDiff(from: IVersionFile[], to: IVersionFile[]) {

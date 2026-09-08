@@ -64,16 +64,20 @@ function terminalSteps(installCmd: string, host: string) {
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const next = safeNext(new URL(request.url).searchParams.get('next'))
-  try {
-    await api.get<Me>('/api/auth/me')
-    return redirect(next ?? '/dashboard') // already signed in — honor the return URL
-  } catch {
+  const url = new URL(request.url)
+  const next = safeNext(url.searchParams.get('next'))
+  if (url.pathname === '/login') {
     try {
-      return await api.get<PublicConfig>('/api/config')
+      await api.get<Me>('/api/auth/me')
+      return redirect(next ?? '/dashboard') // already signed in — honor the return URL
     } catch {
-      return { googleEnabled: false, bootstrapAvailable: false } satisfies PublicConfig
+      // The public config below also supplies the login methods when there is no session.
     }
+  }
+  try {
+    return await api.get<PublicConfig>('/api/config')
+  } catch {
+    return { googleEnabled: false, bootstrapAvailable: false } satisfies PublicConfig
   }
 }
 
