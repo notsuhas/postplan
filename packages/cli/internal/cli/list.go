@@ -3,9 +3,17 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"postplan/internal/argparse"
 )
 
-func (c *client) list() error {
+func (c *client) list(argv []string) error {
+	positional, flags := argparse.ParseArgs(argv, map[string]bool{"json": true})
+	if err := argparse.ValidateFlags(flags, "json"); err != nil {
+		return err
+	}
+	if len(positional) != 0 {
+		return fmt.Errorf("Usage: postplan list [--json]")
+	}
 	if err := c.requireAuth(); err != nil {
 		return err
 	}
@@ -25,6 +33,9 @@ func (c *client) list() error {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&sites); err != nil {
 		return err
+	}
+	if flags["json"] == true {
+		return json.NewEncoder(c.out).Encode(sites)
 	}
 	if len(sites) == 0 {
 		fmt.Fprintln(c.out, "No sites yet.")

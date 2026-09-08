@@ -15,7 +15,16 @@ import {
   sharedSiteRoles,
 } from '../db/repo'
 import type { Visibility } from '../db/schema'
-import { files as filesTable, siteStars, sites as sitesTable, spaceMembers, spaces, users } from '../db/schema'
+import {
+  files as filesTable,
+  siteStars,
+  siteVersionFiles,
+  siteVersions,
+  sites as sitesTable,
+  spaceMembers,
+  spaces,
+  users,
+} from '../db/schema'
 import { canDiscover, canReplace, checkAccess } from '../lib/access'
 import { batchAll, chunk, D1_MAX_IN, FEED_ID_CHUNK } from '../lib/d1'
 import { fireAndForget } from '../lib/events'
@@ -763,6 +772,138 @@ sites.post('/:spaceSlug/:siteSlug/fork', requireAuth, requireControlGrant, async
     fileCount: copied.length,
     forkedFrom: `${spaceSlug}/${siteSlug}`,
     url: `${c.env.APP_URL}/${dest.slug}/${slug}`,
+  })
+})
+
+async function replaceableSite(c: Context<AppEnv>) {
+  const user = c.get('user')
+  const { spaceSlug, siteSlug } = c.req.param()
+  const site = await resolveSite(c.get('db'), spaceSlug, siteSlug)
+  if (!site) return { response: c.json({ error: 'not found' }, 404) }
+  const role = site.ownerId === user.id ? null : await resolveShareRole(c.get('db'), site.id, user.id)
+  if (!canReplace(user, site, role)) return { response: c.json({ error: 'forbidden' }, 403) }
+  return { site }
+}
+
+sites.get('/:spaceSlug/:siteSlug/versions', requireAuth, async (c) => {
+  const resolved = await replaceableSite(c)
+  if (!resolved.site) return resolved.response
+  const db = c.get('db')
+  const versions = await db
+    .select()
+    .from(siteVersions)
+    .where(eq(siteVersions.siteId, resolved.site.id))
+    .orderBy(desc(siteVersions.version))
+  const currentFiles = await db
+    .select({ path: filesTable.path, size: filesTable.size, etag: filesTable.etag })
+    .from(filesTable)
+    .where(eq(filesTable.siteId, resolved.site.id))
+  const versionFiles = await db
+    .select({
+      versionId: siteVersionFiles.versionId,
+      path: siteVersionFiles.path,
+      size: siteVersionFiles.size,
+      etag: siteVersionFiles.etag,
+    })
+    .from(siteVersionFiles)
+    .innerJoin(siteVersions, eq(siteVersionFiles.versionId, siteVersions.id))
+    .where(eq(siteVersions.siteId, resolved.site.id))
+  const grouped = new Map<string, typeof versionFiles>()
+  for (const file of versionFiles) grouped.set(file.versionId, [...(grouped.get(file.versionId) ?? []), file])
+  const rows = versions.map((version) => ({
+    version: version.version,
+    createdAt: version.createdAt,
+    createdBy: version.createdBy,
+    restoredFrom: version.restoredFrom,
+    current: version.version === resolved.site.contentVersion,
+    files: (grouped.get(version.id) ?? [])
+      .map(({ path, size, etag }) => ({ path, size, etag }))
+      .sort((a, b) => a.path.localeCompare(b.path)),
+  }))
+  if (!rows.some((version) => version.current)) {
+    rows.unshift({
+      version: resolved.site.contentVersion,
+      createdAt: resolved.site.updatedAt,
+      createdBy: resolved.site.lastReplacedBy ?? resolved.site.ownerId,
+      restoredFrom: null,
+      current: true,
+      files: currentFiles.sort((a, b) => a.path.localeCompare(b.path)),
+    })
+  }
+  return c.json(rows)
+})
+
+sites.post('/:spaceSlug/:siteSlug/versions/:version/rollback', requireAuth, requireControlGrant, async (c) => {
+  const resolved = await replaceableSite(c)
+  if (!resolved.site) return resolved.response
+  const db = c.get('db')
+  const user = c.get('user')
+  const targetVersion = Number(c.req.param('version'))
+  const body = (await c.req.json().catch(() => null)) as { expectedVersion?: unknown } | null
+  const expectedVersion = body?.expectedVersion
+  if (!Number.isInteger(targetVersion) || targetVersion < 0) return c.json({ error: 'invalid version' }, 400)
+  if (!Number.isInteger(expectedVersion) || (expectedVersion as number) < 0) {
+    return c.json({ error: 'expectedVersion required' }, 400)
+  }
+  if (expectedVersion !== resolved.site.contentVersion)
+    return c.json({ error: 'version conflict', conflict: true }, 409)
+  if (targetVersion === expectedVersion) return c.json({ error: 'version is already current' }, 400)
+
+  const target = (
+    await db
+      .select()
+      .from(siteVersions)
+      .where(and(eq(siteVersions.siteId, resolved.site.id), eq(siteVersions.version, targetVersion)))
+      .limit(1)
+  )[0]
+  if (!target) return c.json({ error: 'version not found' }, 404)
+  const targetFiles = await db.select().from(siteVersionFiles).where(eq(siteVersionFiles.versionId, target.id))
+  if (targetFiles.length === 0) return c.json({ error: 'version has no files' }, 409)
+
+  const now = new Date().toISOString()
+  const nextVersion = (expectedVersion as number) + 1
+  const nextVersionId = `${resolved.site.id}:v${nextVersion}`
+  const matchesVersion = () =>
+    sql`exists (select 1 from ${sitesTable} where ${sitesTable.id} = ${resolved.site.id} and ${sitesTable.contentVersion} = ${expectedVersion})`
+  const results = await db.batch([
+    db.delete(filesTable).where(and(eq(filesTable.siteId, resolved.site.id), matchesVersion())),
+    ...targetFiles.map((file) =>
+      db
+        .insert(filesTable)
+        .select(
+          sql`select ${crypto.randomUUID()}, ${resolved.site.id}, ${file.path}, ${file.storageKey}, ${file.mimeType}, ${file.size}, ${file.etag}, null, ${now} where ${matchesVersion()}`,
+        ),
+    ),
+    db
+      .insert(siteVersions)
+      .select(
+        sql`select ${nextVersionId}, ${resolved.site.id}, ${nextVersion}, ${target.description}, ${targetVersion}, ${user.id}, ${now} where ${matchesVersion()}`,
+      ),
+    ...targetFiles.map((file) =>
+      db
+        .insert(siteVersionFiles)
+        .select(
+          sql`select ${crypto.randomUUID()}, ${nextVersionId}, ${file.path}, ${file.storageKey}, ${file.mimeType}, ${file.size}, ${file.etag} where ${matchesVersion()}`,
+        ),
+    ),
+    db
+      .update(sitesTable)
+      .set({
+        contentVersion: sql`${sitesTable.contentVersion} + 1`,
+        description: target.description,
+        lastReplacedBy: user.id,
+        updatedAt: now,
+      })
+      .where(and(eq(sitesTable.id, resolved.site.id), eq(sitesTable.contentVersion, expectedVersion as number)))
+      .returning({ id: sitesTable.id }),
+  ])
+  const claimed = results[results.length - 1] as { id: string }[]
+  if (claimed.length === 0) return c.json({ error: 'version conflict', conflict: true }, 409)
+  return c.json({
+    ok: true,
+    version: nextVersion,
+    restoredFrom: targetVersion,
+    url: `${c.env.APP_URL}/${c.req.param('spaceSlug')}/${c.req.param('siteSlug')}`,
   })
 })
 

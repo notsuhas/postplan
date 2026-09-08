@@ -15,13 +15,19 @@ import (
 // the content fetch itself is UNauthenticated (the path carries the auth, as the iframe does).
 func (c *client) read(argv []string) error {
 	positional, flags := argparse.ParseArgs(argv, nil)
+	if err := argparse.ValidateFlags(flags, "file", "pull"); err != nil {
+		return err
+	}
+	if len(positional) != 1 {
+		return fmt.Errorf("Usage: postplan read <space/slug> [--file <path>] [--pull <dir>]")
+	}
 	target := ""
 	if len(positional) > 0 {
 		target = positional[0]
 	}
 	space, name, err := splitSpaceSlug(target)
 	if err != nil {
-		return fmt.Errorf("Usage: postplan read <space/slug> [--file <path>]")
+		return fmt.Errorf("Usage: postplan read <space/slug> [--file <path>] [--pull <dir>]")
 	}
 	file, _ := flags["file"].(string)
 	pullDir, doPull := flags["pull"].(string)

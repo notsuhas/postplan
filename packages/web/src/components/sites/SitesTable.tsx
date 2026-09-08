@@ -1,6 +1,17 @@
 import { useCallback, useState } from 'react'
 import { useRevalidator } from 'react-router'
-import { Copy, FolderInput, GitFork, MoreVertical, Pencil, Share2, Sparkles, Trash2 } from 'lucide-react'
+import {
+  Copy,
+  FolderInput,
+  GitFork,
+  History,
+  MoreVertical,
+  Pencil,
+  RotateCcw,
+  Share2,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ForkDialog } from '@/components/sites/ForkDialog'
@@ -40,6 +51,7 @@ import { Label } from '@/components/ui/label'
 import { MountSensor } from '@/components/ui/mount-sensor'
 import { api } from '@/lib/api'
 import type { SiteSummary, SpaceSummary, Visibility } from '@/lib/types'
+import { type ISiteVersion, versionDiff } from '@/lib/siteVersions'
 
 const visibilityLabel = (v: Visibility): string => v.charAt(0).toUpperCase() + v.slice(1)
 
@@ -92,7 +104,7 @@ function OwnerVisibilityCell({ site }: { site: SiteSummary }) {
   return <VisibilityMenu trigger="chip" value={visibility} onChange={changeVisibility} />
 }
 
-type RowDialog = 'rename' | 'move' | 'share' | 'summary' | 'fork' | 'delete' | null
+type RowDialog = 'rename' | 'move' | 'share' | 'summary' | 'fork' | 'history' | 'delete' | null
 
 // Open + a kebab that collapses Rename / Move / Share / Copy link / Fork / Delete.
 function OwnerActions({ site }: { site: SiteSummary }) {
@@ -104,7 +116,7 @@ function OwnerActions({ site }: { site: SiteSummary }) {
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(site.url)
-      toast.success('Link copied', { description: site.url })
+      toast.success('Link copied')
     } catch {
       toast.error("Couldn't copy to clipboard")
     }
@@ -144,6 +156,10 @@ function OwnerActions({ site }: { site: SiteSummary }) {
             <GitFork />
             Fork
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setDialog('history')}>
+            <History />
+            Version history
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={() => setDialog('delete')}>
             <Trash2 />
@@ -164,6 +180,12 @@ function OwnerActions({ site }: { site: SiteSummary }) {
         onOpenChange={(o) => !o && close()}
       />
       <ForkDialog site={site} open={dialog === 'fork'} onOpenChange={(o) => !o && close()} />
+      <VersionHistoryDialog
+        site={site}
+        open={dialog === 'history'}
+        onOpenChange={(o) => !o && close()}
+        onDone={refresh}
+      />
       <SummarySheet
         spaceSlug={site.spaceSlug}
         siteSlug={site.siteSlug}
@@ -185,6 +207,108 @@ function OwnerActions({ site }: { site: SiteSummary }) {
         }}
       />
     </div>
+  )
+}
+
+interface IVersionHistoryDialog {
+  site: SiteSummary
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onDone: () => void
+}
+
+function VersionHistoryDialog(props: IVersionHistoryDialog) {
+  const { site, open, onOpenChange, onDone } = props
+  const [versions, setVersions] = useState<ISiteVersion[]>([])
+  const [busy, setBusy] = useState(false)
+  const [restoring, setRestoring] = useState<number | null>(null)
+
+  const load = useCallback(() => {
+    setBusy(true)
+    api
+      .get<ISiteVersion[]>(`/api/sites/${site.spaceSlug}/${site.siteSlug}/versions`)
+      .then(setVersions)
+      .catch((err) =>
+        toast.error('Could not load versions', { description: err instanceof Error ? err.message : undefined }),
+      )
+      .finally(() => setBusy(false))
+  }, [site.spaceSlug, site.siteSlug])
+
+  const current = versions.find((version) => version.current)
+
+  async function rollback(version: number) {
+    if (!current) return
+    setRestoring(version)
+    try {
+      await api.post(`/api/sites/${site.spaceSlug}/${site.siteSlug}/versions/${version}/rollback`, {
+        expectedVersion: current.version,
+      })
+      toast.success(`Restored version ${version}`)
+      load()
+      onDone()
+    } catch (err) {
+      toast.error('Could not restore version', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setRestoring(null)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => !restoring && onOpenChange(value)}>
+      <DialogContent className="sm:max-w-xl">
+        <MountSensor onMount={load} />
+        <DialogHeader>
+          <DialogTitle>Version history</DialogTitle>
+          <DialogDescription>
+            Compare deployments and restore any earlier version as a new deployment.
+          </DialogDescription>
+        </DialogHeader>
+        {busy && versions.length === 0 ? (
+          <div className="flex justify-center py-10">
+            <Spinner className="size-5" />
+          </div>
+        ) : (
+          <div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+            {versions.map((version) => {
+              const diff = current && !version.current ? versionDiff(version.files, current.files) : null
+              const summary = diff
+                ? `${diff.added.length} added · ${diff.changed.length} changed · ${diff.removed.length} removed`
+                : `${version.files.length} files`
+              return (
+                <div key={version.version} className="flex items-center gap-3 rounded-lg border p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 font-mono text-sm">
+                      <span>v{version.version}</span>
+                      {version.current && (
+                        <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">current</span>
+                      )}
+                      {version.restoredFrom !== null && (
+                        <span className="text-xs text-muted-foreground">from v{version.restoredFrom}</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {summary} · {new Date(version.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  {!version.current && current && (
+                    <ConfirmDialog
+                      title={`Restore version ${version.version}?`}
+                      description={`This creates version ${current.version + 1}. Nothing in the history is deleted.`}
+                      confirmLabel="Restore"
+                      onConfirm={() => rollback(version.version)}
+                    >
+                      <Button variant="outline" size="sm" disabled={restoring !== null}>
+                        <RotateCcw /> Restore
+                      </Button>
+                    </ConfirmDialog>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 

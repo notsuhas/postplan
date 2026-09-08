@@ -14,7 +14,7 @@ func TestListCommand(t *testing.T) {
 			]`
 		})
 		c, out := newTestClient(srv.URL, "tok123")
-		if err := c.list(); err != nil {
+		if err := c.list(nil); err != nil {
 			t.Fatalf("list: %v", err)
 		}
 		got := out.String()
@@ -32,7 +32,7 @@ func TestListCommand(t *testing.T) {
 	t.Run("empty-friendly", func(t *testing.T) {
 		srv, _ := recordingServer(t, func(r *capturedReq) (int, string) { return 200, `[]` })
 		c, out := newTestClient(srv.URL, "tok")
-		if err := c.list(); err != nil {
+		if err := c.list(nil); err != nil {
 			t.Fatalf("list: %v", err)
 		}
 		if strings.TrimSpace(out.String()) != "No sites yet." {
@@ -43,8 +43,28 @@ func TestListCommand(t *testing.T) {
 	t.Run("server-error-surfaces", func(t *testing.T) {
 		srv, _ := recordingServer(t, func(r *capturedReq) (int, string) { return 500, `boom` })
 		c, _ := newTestClient(srv.URL, "tok")
-		if err := c.list(); err == nil {
+		if err := c.list(nil); err == nil {
 			t.Fatal("want error on 500")
+		}
+	})
+
+	t.Run("json-output", func(t *testing.T) {
+		srv, _ := recordingServer(t, func(r *capturedReq) (int, string) {
+			return 200, `[{"siteSlug":"api","spaceSlug":"docs","visibility":"team","url":"https://g/docs/api"}]`
+		})
+		c, out := newTestClient(srv.URL, "tok")
+		if err := c.list([]string{"--json"}); err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		if strings.TrimSpace(out.String()) != `[{"siteSlug":"api","spaceSlug":"docs","visibility":"team","url":"https://g/docs/api"}]` {
+			t.Fatalf("json = %q", out.String())
+		}
+	})
+
+	t.Run("unknown-flag-rejected", func(t *testing.T) {
+		c, _ := newTestClient("http://unused", "tok")
+		if err := c.list([]string{"--jsno"}); err == nil {
+			t.Fatal("want unknown flag error")
 		}
 	})
 }

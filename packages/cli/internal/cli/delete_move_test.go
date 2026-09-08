@@ -55,6 +55,27 @@ func TestDeleteCommand(t *testing.T) {
 			t.Fatalf("must not send a request for a malformed target, got %+v", *reqs)
 		}
 	})
+
+	t.Run("yes-skips-prompt", func(t *testing.T) {
+		srv, reqs := recordingServer(t, func(r *capturedReq) (int, string) { return 200, `{}` })
+		c, _ := newTestClient(srv.URL, "tok")
+		if err := c.del([]string{"docs/api", "--yes"}); err != nil {
+			t.Fatalf("del: %v", err)
+		}
+		if len(*reqs) != 1 || (*reqs)[0].method != "DELETE" {
+			t.Fatalf("request = %+v", *reqs)
+		}
+	})
+
+	t.Run("dry-run-needs-no-auth", func(t *testing.T) {
+		c, out := newTestClient("http://unused", "")
+		if err := c.del([]string{"docs/api", "--dry-run"}); err != nil {
+			t.Fatalf("del: %v", err)
+		}
+		if strings.TrimSpace(out.String()) != "Would delete docs/api." {
+			t.Fatalf("out = %q", out.String())
+		}
+	})
 }
 
 func TestMoveCommand(t *testing.T) {

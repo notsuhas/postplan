@@ -156,6 +156,8 @@ A revoked key stops authenticating immediately. One documented exception: a
 | `PATCH` | `/api/sites/:space/:site` ✱ | Rename / change visibility |
 | `POST` | `/api/sites/:space/:site/move` ✱ | Move to another space |
 | `POST` | `/api/sites/:space/:site/fork` ✱ | Fork |
+| `GET` | `/api/sites/:space/:site/versions` | Deployment snapshots for owners and editors |
+| `POST` | `/api/sites/:space/:site/versions/:version/rollback` ✱ | Restore a snapshot as a new version |
 | `DELETE` | `/api/sites/:space/:site` | Delete — **always `403` for a key** |
 
 ```jsonc
@@ -167,7 +169,10 @@ A revoked key stops authenticating immediately. One documented exception: a
 
 `siteSlug` must be a valid slug and not a reserved word (`docs` among them, which is broader than
 the space-level collision that motivated it — a site literally named `docs` is rejected `400`).
-Visibility is `private`, `team`, or a share list; there is no public tier — every viewer needs a login.
+Visibility is `unlisted`, `private`, `members`, or `team`. Unlisted links are anonymous possession grants; every other tier requires a login.
+
+Version history stores immutable file manifests for every deployment. `rollback` accepts
+`{"expectedVersion": 4}` and restores the selected snapshot as version 5; old snapshots remain intact.
 
 ## Deploy files
 

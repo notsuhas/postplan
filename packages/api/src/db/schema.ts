@@ -157,6 +157,40 @@ export const files = sqliteTable(
   (t) => [unique('files_site_path_unq').on(t.siteId, t.path)],
 )
 
+export const siteVersions = sqliteTable(
+  'site_versions',
+  {
+    id: text('id').primaryKey(),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    description: text('description'),
+    restoredFrom: integer('restoredFrom'),
+    createdBy: text('createdBy').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: text('createdAt')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [unique('site_versions_site_version_unq').on(t.siteId, t.version), index('site_versions_site').on(t.siteId)],
+)
+
+export const siteVersionFiles = sqliteTable(
+  'site_version_files',
+  {
+    id: text('id').primaryKey(),
+    versionId: text('versionId')
+      .notNull()
+      .references(() => siteVersions.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    storageKey: text('storageKey').notNull(),
+    mimeType: text('mimeType'),
+    size: integer('size'),
+    etag: text('etag'),
+  },
+  (t) => [unique('site_version_files_version_path_unq').on(t.versionId, t.path)],
+)
+
 // Explicit per-user sharing: grant a specific user access to a site, on top of its
 // visibility tier (additive — most useful for `private`). Composite PK = idempotent.
 export const siteUserShares = sqliteTable(
@@ -551,6 +585,8 @@ export type NewSpace = typeof spaces.$inferInsert
 export type Site = typeof sites.$inferSelect
 export type NewSite = typeof sites.$inferInsert
 export type NewFileRow = typeof files.$inferInsert
+export type NewSiteVersion = typeof siteVersions.$inferInsert
+export type NewSiteVersionFile = typeof siteVersionFiles.$inferInsert
 /** Row type. The WIRE shape the API returns is the aggregated `CommentReaction` in db/comments.ts. */
 export type CommentReactionRow = typeof commentReactions.$inferSelect
 

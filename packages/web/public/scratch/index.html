@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Three public sample sites published with Postplan." />
+    <title>Scratch — Postplan sample workspace</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: rgba(7, 11, 22, 1); color: rgba(244, 247, 252, 1); font: 16px/1.6 ui-monospace, monospace; }
+      main { width: min(1080px, calc(100% - 40px)); margin: 0 auto; padding: 72px 0; }
+      a { color: inherit; }
+      .back { color: rgba(245, 158, 11, 1); font-size: 13px; }
+      h1 { max-width: 760px; margin: 42px 0 12px; font-size: clamp(38px, 8vw, 80px); line-height: .96; letter-spacing: -.07em; }
+      .intro { max-width: 620px; color: rgba(168, 177, 196, 1); }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 56px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .12); }
+      .card { min-height: 280px; padding: 28px; background: rgba(10, 17, 32, 1); text-decoration: none; transition: background .18s ease; }
+      .card:hover { background: rgba(18, 28, 49, 1); }
+      .number { color: rgba(245, 158, 11, 1); font-size: 12px; }
+      h2 { margin: 96px 0 8px; font-size: 20px; }
+      p { margin: 0; }
+      .card p { color: rgba(168, 177, 196, 1); font-family: system-ui, sans-serif; font-size: 14px; }
+      @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .card { min-height: 220px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="back" href="/login">← Postplan</a>
+      <h1>Scratch space.</h1>
+      <p class="intro">A few small, real sites for exploring what an agent can publish. No account needed.</p>
+      <div class="grid">
+        <a class="card" href="./launch/index.html"><span class="number">01 / LAUNCH</span><h2>Orbit Notes</h2><p>A product launch page with a sharp editorial rhythm.</p></a>
+        <a class="card" href="./dashboard/index.html"><span class="number">02 / DASHBOARD</span><h2>Signal Room</h2><p>A compact operational dashboard for a fictional network.</p></a>
+        <a class="card" href="./docs/index.html"><span class="number">03 / DOCS</span><h2>Tiny API</h2><p>A focused documentation page with copyable examples.</p></a>
+      </div>
+    </main>
+  </body>
+</html>

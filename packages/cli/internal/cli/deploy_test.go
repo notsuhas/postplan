@@ -141,6 +141,46 @@ func TestDeployCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("yes-flag-skips-replace-prompt", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "report.html")
+		writeFile(t, file, "x")
+		srv, st := newDeployServer(t)
+		st.existsBody = `{"exists":true,"canReplace":true}`
+		c, _ := newTestClient(srv.URL, "tok")
+		if err := c.deploy([]string{file, "--yes"}); err != nil {
+			t.Fatalf("deploy: %v", err)
+		}
+		if st.uploadQuery != "replace=true" {
+			t.Fatalf("uploadQuery = %q", st.uploadQuery)
+		}
+	})
+
+	t.Run("json-output-is-machine-readable", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "report.html")
+		writeFile(t, file, "x")
+		srv, _ := newDeployServer(t)
+		c, out := newTestClient(srv.URL, "tok")
+		if err := c.deploy([]string{file, "--json"}); err != nil {
+			t.Fatalf("deploy: %v", err)
+		}
+		if !strings.HasPrefix(out.String(), `{"files":1,`) || strings.Contains(out.String(), "Uploading") {
+			t.Fatalf("out = %q", out.String())
+		}
+	})
+
+	t.Run("misspelled-flag-is-rejected", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "report.html")
+		writeFile(t, file, "x")
+		srv, st := newDeployServer(t)
+		c, _ := newTestClient(srv.URL, "tok")
+		if err := c.deploy([]string{file, "--visibilty", "private"}); err == nil {
+			t.Fatal("want unknown flag error")
+		}
+		if st.uploadPath != "" {
+			t.Fatal("unknown flag must stop before upload")
+		}
+	})
+
 	t.Run("replace-without-visibility-omits-field", func(t *testing.T) {
 		// Regression: sending the default "team" on every replace silently re-tiers (e.g. widens a
 		// private site) on a routine content update. Without --visibility the field must be omitted.

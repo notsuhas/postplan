@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { api } from '@/lib/api'
 import type { SiteSummary, SpaceSummary } from '@/lib/types'
@@ -62,6 +62,43 @@ describe('MoveDialog audience changes', () => {
         space: 'destination',
         confirmAudienceChange: true,
       }),
+    )
+  })
+})
+
+describe('VersionHistoryDialog', () => {
+  test('shows a file diff and rolls back from the current version', async () => {
+    const get = spyOn(api, 'get').mockResolvedValue([
+      {
+        version: 2,
+        createdAt: '2026-09-05T00:00:00.000Z',
+        createdBy: 'owner',
+        restoredFrom: null,
+        current: true,
+        files: [{ path: 'index.html', size: 20, etag: 'new' }],
+      },
+      {
+        version: 1,
+        createdAt: '2026-09-04T00:00:00.000Z',
+        createdBy: 'owner',
+        restoredFrom: null,
+        current: false,
+        files: [{ path: 'index.html', size: 10, etag: 'old' }],
+      },
+    ])
+    const post = spyOn(api, 'post').mockResolvedValue({ version: 3, restoredFrom: 1 })
+    spies.push(get, post)
+    renderTable()
+
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'More actions' }), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Version history' }))
+    expect(await screen.findByText(/0 added · 1 changed · 0 removed/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }))
+    const confirmation = await screen.findByRole('alertdialog')
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Restore' }))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/api/sites/source/demo/versions/1/rollback', { expectedVersion: 2 }),
     )
   })
 })

@@ -15,6 +15,13 @@ curl -fsSL <your-postplan-instance>/api/install | sh
 
 This drops the `postplan` binary on your PATH (pre-pointed at that instance) and it keeps itself up to date. Run `postplan` with no arguments to list every command.
 
+The installer also adds this bundled skill to every detected Claude Code, Codex, Cursor, OpenCode, or shared Agent Skills directory. To control that separately:
+
+```bash
+postplan skill install --target auto
+postplan skill install --target codex --dry-run
+```
+
 ## Target instance
 
 The CLI talks to `POSTPLAN_API_URL` (default `http://localhost:8787`). It's read on **every** command. For a self-hosted deploy:
@@ -30,15 +37,17 @@ Put it in your shell profile to make it permanent. Token + URL are saved to `~/.
 | command | what it does |
 |---|---|
 | `postplan login` | device-code flow: prints a URL + code, opens a browser, polls until you approve, saves the token |
-| `postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team\|private\|members\|unlisted]` | uploads a file or a folder |
-| `postplan list` | lists your sites — `space/slug  visibility  url` |
-| `postplan delete <space/slug>` | confirms (y/N), then deletes |
+| `postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team\|private\|members\|unlisted] [--yes] [--json]` | uploads a file or a folder |
+| `postplan list [--json]` | lists your sites — `space/slug  visibility  url` |
+| `postplan delete <space/slug> [--yes] [--dry-run]` | previews, confirms, or deletes a site |
 | `postplan move <space/slug> <new-space>` | moves a site to another space you belong to (keeps its files, comments, shares) |
 | `postplan fork <space/slug> [--space <slug>] [--name <slug>]` | copies a site you can open into your own space — your copy, to edit freely |
 | `postplan comments <space/slug> [--file <path>] [--open] [--json]` | prints a site's review comments as a markdown digest (or raw JSON) |
 | `postplan reply <space/slug> <threadId> [message] [--tag <label>\|--no-tag]` | posts a reply to a comment thread (get the `threadId` from `postplan comments`) |
 | `postplan read <space/slug> [--file <path>] [--pull <dir>]` | prints a file to stdout, or `--pull` downloads the whole site's source into a folder to edit + redeploy |
 | `postplan notifications [--read] [--json]` | shows your notifications — mentions and comments on your sites (or raw JSON); `--read` marks them all read |
+| `postplan versions <space/slug> [--json]` | lists immutable deployment snapshots and marks the current version |
+| `postplan rollback <space/slug> <version> [--yes] [--json]` | restores an older snapshot as a new version without deleting history |
 | `postplan logout` | revokes the server session and removes the local token |
 
 ### login
@@ -61,6 +70,9 @@ A key can deploy, create, fork and move, but **never deletes a site** and never 
 - `--name` defaults to the **file name (sans extension)** or **folder name**, slugified. Pass `--name` to override (required if the derived name isn't a valid slug — lowercase, 3–40 chars).
 - `--space` defaults to your **personal space**. Pass `--space` to target a team/group space.
 - `--visibility` defaults to `team`.
+- `--yes` replaces an existing site without prompting. Use it only when the target is already known.
+- `--json` prints one machine-readable result and suppresses progress output.
+- `--include-hidden` includes dotfiles. Review the upload first because these can contain credentials.
 - If the site already exists and you own it, prompts `Replace? (y/N)`. If owned by someone else, it aborts.
 - Prints `✓ Deployed → <url>`.
 
@@ -87,6 +99,9 @@ The web app deploys the same way — drop a folder (or loose files, including a 
 
 ### delete
 Argument must be `space/slug` (with the slash), e.g. `postplan delete docs/api-reference`.
+
+- `--dry-run` prints the target without authenticating or deleting it.
+- `--yes` deletes without prompting. API keys still cannot delete sites.
 
 ### move
 Move an existing site into another space you belong to: `postplan move <space/slug> <new-space>`, e.g. `postplan move my-handle/api-reference docs`. The site keeps its files, comments and shares — only its URL changes to `/<new-space>/<slug>`. Owner-only. Fails if a site with the same slug already exists in the target space.
@@ -173,6 +188,10 @@ $ postplan notifications
 - `--read` marks everything read and prints a confirmation.
 - `--json` prints the raw server response instead — for piping into `jq` or an agent loop.
 - Follow up from the same terminal: `postplan comments <space/slug>` to read the full thread, `postplan reply <space/slug> <threadId>` to answer.
+
+### versions and rollback
+
+Use `postplan versions <space/slug> --json` to compare each snapshot's file paths, sizes, and etags. Restore with `postplan rollback <space/slug> <version> --yes --json`. A restore creates a new head version; it never rewrites or deletes old history.
 
 ### read
 Prints a deployed file's contents to stdout.

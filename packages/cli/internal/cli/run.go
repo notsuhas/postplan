@@ -21,6 +21,20 @@ func Run(args []string) {
 	if len(args) > 1 {
 		rest = args[1:]
 	}
+	if cmd == "help" || cmd == "--help" || cmd == "-h" {
+		if len(rest) == 0 || !printCommandHelp(rest[0]) {
+			printHelp()
+		}
+		return
+	}
+	for _, arg := range rest {
+		if arg == "--help" || arg == "-h" {
+			if !printCommandHelp(cmd) {
+				printHelp()
+			}
+			return
+		}
+	}
 
 	// Self-update hooks, skipped for machine-invoked commands: `upgrade` IS the updater, and `skill`
 	// is run by install.sh and by the post-swap refresh child - which would otherwise consume the
@@ -38,7 +52,7 @@ func Run(args []string) {
 
 var authedCmds = map[string]func(*client, []string) error{
 	"deploy":        (*client).deploy,
-	"list":          func(c *client, _ []string) error { return c.list() },
+	"list":          (*client).list,
 	"delete":        (*client).del,
 	"move":          (*client).move,
 	"fork":          (*client).fork,
@@ -46,13 +60,21 @@ var authedCmds = map[string]func(*client, []string) error{
 	"read":          (*client).read,
 	"reply":         (*client).reply,
 	"notifications": (*client).notifications,
+	"versions":      (*client).versions,
+	"rollback":      (*client).rollback,
 }
 
 func dispatch(cmd string, rest []string) error {
 	switch cmd {
 	case "login":
+		if len(rest) != 0 {
+			return fmt.Errorf("Usage: postplan login")
+		}
 		return newClient(config.APIBase(), "", os.Stdout).login()
 	case "version":
+		if len(rest) != 0 {
+			return fmt.Errorf("Usage: postplan version")
+		}
 		fmt.Println(Version)
 		return nil
 	case "upgrade":
@@ -60,6 +82,9 @@ func dispatch(cmd string, rest []string) error {
 	case "skill":
 		return newClient("", "", os.Stdout).skillCmd(rest)
 	case "logout":
+		if len(rest) != 0 {
+			return fmt.Errorf("Usage: postplan logout")
+		}
 		// Deliberately NOT config.APIToken(): logout is a session verb and must act on the credential
 		// `postplan login` stored. Letting POSTPLAN_TOKEN shadow it means an exported API key gets
 		// POSTed to /api/auth/logout, which answers 400 (a key is revoked from the keys screen,
@@ -88,23 +113,4 @@ func dispatch(cmd string, rest []string) error {
 	}
 	os.Exit(0)
 	return nil
-}
-
-func printHelp() {
-	fmt.Println("postplan — deploy folders to Postplan")
-	fmt.Println()
-	fmt.Println("  postplan login")
-	fmt.Println("  postplan deploy <path> [--space <slug>] [--name <slug>] [--visibility team|private|members]")
-	fmt.Println("  postplan list")
-	fmt.Println("  postplan delete <space/slug>")
-	fmt.Println("  postplan move <space/slug> <new-space>")
-	fmt.Println("  postplan fork <space/slug> [--space <slug>] [--name <slug>]")
-	fmt.Println("  postplan comments <space/slug> [--file <path>] [--open] [--json]")
-	fmt.Println("  postplan reply <space/slug> <threadId> [message] [--tag <label> | --no-tag]")
-	fmt.Println("  postplan read <space/slug> [--file <path>] [--pull <dir>]")
-	fmt.Println("  postplan notifications [--read] [--json]")
-	fmt.Println("  postplan skill install")
-	fmt.Println("  postplan upgrade")
-	fmt.Println("  postplan version")
-	fmt.Println("  postplan logout")
 }

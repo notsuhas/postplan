@@ -12,6 +12,33 @@ const ENV = {
   POSTPLAN_DB: { withSession: () => ({ prepare: () => ({}), getBookmark: () => null }) },
 } as never
 
+describe('public agent discovery', () => {
+  test('/llms.txt uses the current instance origin', async () => {
+    const res = await worker.fetch(new Request('http://localhost/llms.txt'), ENV)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/plain')
+    const body = await res.text()
+    expect(body).toContain('curl -fsSL https://postplan.example.com/api/install | sh')
+    expect(body).not.toContain('{{POSTPLAN_ORIGIN}}')
+  })
+
+  test('/skills/postplan-cli/SKILL.md serves the canonical skill', async () => {
+    const res = await worker.fetch(new Request('https://postplan.example.com/skills/postplan-cli/SKILL.md'), ENV)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('name: postplan-cli')
+  })
+
+  test('/.well-known/agents.json advertises machine-readable entry points', async () => {
+    const res = await worker.fetch(new Request('http://localhost/.well-known/agents.json'), ENV)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      homepage: 'https://postplan.example.com',
+      documentation: 'https://postplan.example.com/llms.txt',
+      skill: 'https://postplan.example.com/skills/postplan-cli/SKILL.md',
+    })
+  })
+})
+
 describe('shared-backend routes on the root app', () => {
   test('/api/postplan.js serves the built SDK with the global CSP applied', async () => {
     const res = await worker.fetch(new Request('https://postplan.example.com/api/postplan.js'), ENV)

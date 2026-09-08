@@ -10,6 +10,12 @@ import (
 
 func (c *client) comments(argv []string) error {
 	positional, flags := argparse.ParseArgs(argv, map[string]bool{"open": true, "json": true})
+	if err := argparse.ValidateFlags(flags, "file", "open", "json"); err != nil {
+		return err
+	}
+	if len(positional) != 1 {
+		return fmt.Errorf("Usage: postplan comments <space/slug> [--file <path>] [--open] [--json]")
+	}
 	target := ""
 	if len(positional) > 0 {
 		target = positional[0]

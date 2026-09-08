@@ -58,3 +58,13 @@ func TestParseArgs(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateFlags(t *testing.T) {
+	if err := ValidateFlags(map[string]any{"json": true}, "json"); err != nil {
+		t.Fatalf("known flag: %v", err)
+	}
+	err := ValidateFlags(map[string]any{"visibilty": "private"}, "visibility")
+	if err == nil || err.Error() != "Unknown flag: --visibilty" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

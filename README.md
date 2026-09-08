@@ -1,8 +1,6 @@
 # Postplan
 
-> A fork of [Glance](https://github.com/plivo-labs/glance) by Plivo Inc. (MIT) — auth moved to
-> WorkOS, plus an `unlisted` visibility tier. Bugs and security reports in the shared code
-> belong upstream.
+> Built from [Glance](https://github.com/plivo-labs/glance) by Plivo Inc. (MIT), then expanded into an independent product.
 
 
 **Artifacts for every agent — open-source and self-hosted.** Your agent builds a self-contained page, dashboard, or app and ships it to a live URL with one command — from Claude Code, Cursor, Codex, Cline, Aider, or any harness that runs a shell command. Then you review it in the browser and drop comments like a Google Doc, and the agent reads your comments and fixes it.
@@ -56,6 +54,8 @@ Postplan is also a home for **audio** — and the review loop works by voice.
 
 Audio sites carry a mic badge across the dashboard, and `postplan comments` prefixes voice comments with `[voice]` in the digest.
 
+The hosted app also ships a public `/scratch/` workspace with three no-login sample sites, so visitors can inspect real output before installing anything.
+
 ## CLI
 
 ```bash
@@ -74,17 +74,19 @@ The bundled skill teaches your agent to drive Postplan. Install it into **any** 
 npx skills add notsuhas/postplan   # installs the postplan-cli skill universally (Codex, Cursor, OpenCode, Claude Code …)
 ```
 
-The `curl … /api/install | sh` line above already installs the skill for Claude Code alongside the binary. The skill only wraps the `postplan` CLI, so any shell-capable agent works with or without it.
+The `curl … /api/install | sh` line already installs the skill into detected Claude Code, Codex, Cursor, OpenCode, and shared Agent Skills directories. The skill only wraps the `postplan` CLI, so any shell-capable agent works with or without it.
 
 | command | what it does |
 |---|---|
 | `login` | device-code flow, saves token to `~/.postplan/config.json` |
-| `deploy <path> [--space <slug>] [--name <slug>] [--visibility <v>]` | uploads a file or folder (folders recurse, skip `.git`/`node_modules`) |
-| `list` | your sites, with visibility + URL |
+| `deploy <path> [--space <slug>] [--name <slug>] [--visibility <v>] [--yes] [--json]` | uploads a file or folder (folders recurse, skip `.git`/`node_modules`) |
+| `list [--json]` | your sites, with visibility + URL |
 | `comments <space/slug>` | pull a site's review comments (voice comments show as `[voice]`) |
 | `reply <thread>` | reply to a comment thread from the terminal |
-| `delete <space/slug>` | confirms, then deletes |
+| `delete <space/slug> [--yes] [--dry-run]` | previews, confirms, or deletes |
 | `move <space/slug> <new-space>` | moves a site (keeps files/comments/shares; URL changes) |
+| `versions <space/slug> [--json]` | lists deployment snapshots and file-level changes |
+| `rollback <space/slug> <version> [--yes] [--json]` | restores an old snapshot as a new version |
 | `upgrade` / `version` / `logout` | self-update · print version · revoke session |
 
 Defaults: `--space` = your personal space · `--name` = file/folder name slugified · `--visibility` = `team` (`unlisted` · `private` · `members` also available). Point at another instance with `POSTPLAN_API_URL=https://… postplan <cmd>`.
@@ -131,3 +133,5 @@ packages/cli   `postplan` CLI (Go) — `cmd/postplan` is the binary, `internal/c
 ```
 
 Local dev: `bun install && bun run db:migrate:local && bun run dev` (main :8787 + content :8788 + vite :5173), then open http://localhost:5173. CI auto-deploys both workers on push to `main`.
+
+Agent-facing setup and safety guidance is also published at `/llms.txt`. Run `postplan help <command>` for CLI examples.

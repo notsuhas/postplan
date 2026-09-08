@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { files, sites } from '../../db/schema'
+import { files, siteVersionFiles, siteVersions, sites } from '../../db/schema'
 import { makeDb, makeKv, makeR2, seedMember, seedSite, seedSpace, seedUser } from '../../test/harness'
 import { mintKey } from '../../test/route-fixtures'
 import type { AppEnv } from '../../types'
@@ -176,6 +176,19 @@ describe('upload — visibility on replace', () => {
     const replaced = await postUpload(app, env, 'keep', [html('<html>2</html>', 'index.html')], { replace: true })
     expect(replaced.status).toBe(200)
     expect((await db.select().from(sites).where(eq(sites.slug, 'keep')))[0].visibility).toBe('members')
+  })
+})
+
+describe('upload — immutable deployment history', () => {
+  test('create and replace retain both manifests and both object sets', async () => {
+    const { app, env, db, r2 } = await setup()
+    await postUpload(app, env, 'history', [html('<html>v0</html>', 'index.html')])
+    await postUpload(app, env, 'history', [html('<html>v1</html>', 'index.html')], { replace: true })
+
+    const versions = await db.select().from(siteVersions)
+    expect(versions.map(({ version }) => version).sort()).toEqual([0, 1])
+    expect(await db.select().from(siteVersionFiles)).toHaveLength(2)
+    expect(r2.store.size).toBe(2)
   })
 })
 

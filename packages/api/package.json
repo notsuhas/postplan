@@ -7,6 +7,7 @@
     "test": "bun test",
     "build:annotate": "bun scripts/build-annotate.ts",
     "build:db": "bun scripts/build-db.ts",
+    "build:agent-docs": "bun scripts/build-agent-docs.ts",
     "build:install": "bun scripts/build-install.ts",
     "build:whatsnew": "bun scripts/build-whatsnew.ts",
     "deploy": "wrangler deploy",

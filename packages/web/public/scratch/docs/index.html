@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tiny API</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:rgba(249,250,252,1);color:rgba(32,39,51,1);font:16px/1.65 system-ui,sans-serif}main{width:min(820px,calc(100% - 40px));margin:auto;padding:50px 0 100px}nav{display:flex;justify-content:space-between;font:13px ui-monospace,monospace}a{color:rgba(67,82,224,1)}h1{font-size:clamp(44px,9vw,82px);letter-spacing:-.065em;line-height:1;margin:100px 0 20px}h2{margin-top:60px}.lead{font-size:20px;color:rgba(87,96,113,1);max-width:620px}code,pre{font-family:ui-monospace,monospace}pre{padding:22px;border-radius:12px;background:rgba(20,24,33,1);color:rgba(211,218,255,1);overflow:auto}.verb{color:rgba(38,145,98,1);font-weight:700}.path{font-family:ui-monospace,monospace}.rule{height:1px;background:rgba(32,39,51,.12);margin:52px 0}
+</style></head>
+<body><main><nav><strong>TINY API</strong><a href="../index.html">Back to scratch</a></nav><h1>One endpoint.<br>Useful forever.</h1><p class="lead">Store a note, get a permanent URL, and move on. No SDK and no ceremony.</p><div class="rule"></div><h2><span class="verb">POST</span> <span class="path">/notes</span></h2><pre><code>curl -X POST https://tiny.example/notes
+  -d '{"text":"ship the small thing"}'</code></pre><h2>Response</h2><pre><code>{ "url": "https://tiny.example/n/7kf2" }</code></pre></main></body>
+</html>

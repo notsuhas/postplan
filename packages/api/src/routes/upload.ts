@@ -3,10 +3,9 @@ import { and, eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { NewFileRow, Site } from '../db/schema'
-import { files, sites, spaceMembers, spaces, siteUserShares } from '../db/schema'
+import { files, sites, siteVersionFiles, siteVersions, spaceMembers, spaces, siteUserShares } from '../db/schema'
 import { canReplace } from '../lib/access'
 import { batchAll } from '../lib/d1'
-import { fireAndForget } from '../lib/events'
 import { capTitle, extractHtmlMeta, NO_META, pickEntry } from '../lib/extract'
 import { isValidSlug, slugForVisibility } from '../lib/slug'
 import { deleteKeys, MAX_FILE_BYTES, sanitizePath } from '../lib/storage'
@@ -23,13 +22,16 @@ const UPLOAD_CONCURRENCY = 10
 type UploadContext = Context<AppEnv>
 type UploadItem = { path: string; file: File }
 type UploadPlanItem = { file: File; row: NewFileRow }
-type ExistingSite = Pick<Site, 'id' | 'ownerId' | 'contentVersion' | 'status' | 'visibility'>
+type ExistingSite = Pick<
+  Site,
+  'id' | 'ownerId' | 'contentVersion' | 'status' | 'visibility' | 'description' | 'lastReplacedBy'
+>
 type UploadFacts = {
   spaceId: string | null
   existing: ExistingSite | undefined
   isMember: boolean
   shareRole: 'viewer' | 'editor' | null
-  oldKeys: string[]
+  oldFiles: NewFileRow[]
 }
 type ParsedUpload = {
   hasVisibility: boolean
@@ -43,8 +45,10 @@ type UploadTarget = {
   storedSlug: string
   isCreate: boolean
   actingAsEditor: boolean
-  oldKeys: string[]
+  oldFiles: NewFileRow[]
   existingVersion: number | null
+  existingDescription: string | null
+  existingCreatedBy: string | null
 }
 type PersistUpload = {
   target: UploadTarget
@@ -132,6 +136,8 @@ async function readUploadFacts(
         contentVersion: sites.contentVersion,
         status: sites.status,
         visibility: sites.visibility,
+        description: sites.description,
+        lastReplacedBy: sites.lastReplacedBy,
       })
       .from(sites)
       .innerJoin(spaces, eq(sites.spaceId, spaces.id))
@@ -151,7 +157,17 @@ async function readUploadFacts(
       .where(and(slugKey(), eq(siteUserShares.userId, userId)))
       .limit(1),
     db
-      .select({ storageKey: files.storageKey })
+      .select({
+        id: files.id,
+        siteId: files.siteId,
+        path: files.path,
+        storageKey: files.storageKey,
+        mimeType: files.mimeType,
+        size: files.size,
+        etag: files.etag,
+        contentHash: files.contentHash,
+        createdAt: files.createdAt,
+      })
       .from(files)
       .innerJoin(sites, eq(files.siteId, sites.id))
       .innerJoin(spaces, eq(sites.spaceId, spaces.id))
@@ -163,7 +179,7 @@ async function readUploadFacts(
     existing: existingRows[0],
     isMember: memberRows.length > 0,
     shareRole: shareRoleRows[0]?.role ?? null,
-    oldKeys: existingFileRows.map(({ storageKey }) => storageKey),
+    oldFiles: existingFileRows,
   }
 }
 
@@ -185,8 +201,10 @@ function resolveTarget(
       storedSlug: slugForVisibility(siteSlug, visibility),
       isCreate: true,
       actingAsEditor: false,
-      oldKeys: [],
+      oldFiles: [],
       existingVersion: null,
+      existingDescription: null,
+      existingCreatedBy: null,
     }
   }
 
@@ -197,7 +215,7 @@ function resolveTarget(
   const actingAsEditor = !isOwner
   if (actingAsEditor && facts.existing.status === 'archived') return c.json({ error: 'site archived' }, 403)
   if (actingAsEditor && expectedVersion === null) return c.json({ error: 'expectedVersion required' }, 400)
-  if (facts.oldKeys.length > 0 && c.req.query('replace') !== 'true') {
+  if (facts.oldFiles.length > 0 && c.req.query('replace') !== 'true') {
     return c.json({ error: 'site exists', conflict: true }, 409)
   }
 
@@ -209,8 +227,10 @@ function resolveTarget(
         : siteSlug,
     isCreate: false,
     actingAsEditor,
-    oldKeys: facts.oldKeys,
+    oldFiles: facts.oldFiles,
     existingVersion: facts.existing.contentVersion,
+    existingDescription: facts.existing.description,
+    existingCreatedBy: facts.existing.lastReplacedBy ?? facts.existing.ownerId,
   }
 }
 
@@ -260,6 +280,7 @@ async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Re
 
   try {
     if (target.isCreate) {
+      const versionId = `${target.siteId}:v0`
       await db.batch([
         db.insert(sites).values({
           id: target.siteId,
@@ -271,6 +292,24 @@ async function persistUpload(c: UploadContext, input: PersistUpload): Promise<Re
           ownerId: user.id,
         }),
         ...insertRows,
+        db.insert(siteVersions).values({
+          id: versionId,
+          siteId: target.siteId,
+          version: 0,
+          description,
+          createdBy: user.id,
+        }),
+        ...newRows.map((row) =>
+          db.insert(siteVersionFiles).values({
+            id: crypto.randomUUID(),
+            versionId,
+            path: row.path,
+            storageKey: row.storageKey,
+            mimeType: row.mimeType,
+            size: row.size,
+            etag: row.etag,
+          }),
+        ),
       ])
     } else {
       const conflict = await replaceExisting(c, input)
@@ -290,6 +329,9 @@ async function replaceExisting(c: UploadContext, input: PersistUpload): Promise<
   const matchesVersion = () =>
     sql`exists (select 1 from ${sites} where ${sites.id} = ${target.siteId} and ${sites.contentVersion} = ${version})`
   const createdAt = new Date().toISOString()
+  const previousVersionId = `${target.siteId}:v${version}`
+  const nextVersion = version + 1
+  const nextVersionId = `${target.siteId}:v${nextVersion}`
   const conditionalInserts = input.plan.map(({ row }) =>
     db
       .insert(files)
@@ -298,8 +340,34 @@ async function replaceExisting(c: UploadContext, input: PersistUpload): Promise<
       ),
   )
   const results = await db.batch([
+    db
+      .insert(siteVersions)
+      .select(
+        sql`select ${previousVersionId}, ${target.siteId}, ${version}, ${target.existingDescription}, ${null}, ${target.existingCreatedBy}, ${createdAt} where ${matchesVersion()}`,
+      )
+      .onConflictDoNothing(),
+    ...target.oldFiles.map((row) =>
+      db
+        .insert(siteVersionFiles)
+        .select(
+          sql`select ${crypto.randomUUID()}, ${previousVersionId}, ${row.path}, ${row.storageKey}, ${row.mimeType}, ${row.size}, ${row.etag} where ${matchesVersion()}`,
+        )
+        .onConflictDoNothing(),
+    ),
     db.delete(files).where(and(eq(files.siteId, target.siteId), matchesVersion())),
     ...conditionalInserts,
+    db
+      .insert(siteVersions)
+      .select(
+        sql`select ${nextVersionId}, ${target.siteId}, ${nextVersion}, ${description}, ${null}, ${user.id}, ${createdAt} where ${matchesVersion()}`,
+      ),
+    ...input.plan.map(({ row }) =>
+      db
+        .insert(siteVersionFiles)
+        .select(
+          sql`select ${crypto.randomUUID()}, ${nextVersionId}, ${row.path}, ${row.storageKey}, ${row.mimeType}, ${row.size}, ${row.etag} where ${matchesVersion()}`,
+        ),
+    ),
     db
       .update(sites)
       .set({
@@ -370,9 +438,6 @@ async function handleUpload(c: UploadContext): Promise<Response> {
   })
   if (persistError) return persistError
 
-  if (!target.isCreate && target.oldKeys.length > 0) {
-    await fireAndForget(c, deleteKeys(c.env.POSTPLAN_FILES, target.oldKeys))
-  }
   return c.json({
     url: `${c.env.APP_URL}/${spaceSlug}/${target.storedSlug}`,
     siteSlug: target.storedSlug,
