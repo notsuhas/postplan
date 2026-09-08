@@ -38,11 +38,14 @@ postplan deploy ./report --visibility private --yes
 postplan feedback list <space/site> --json
 postplan feedback claim <batch-id> --json
 printf '%s\n' 'Updated the requested section.' | postplan reply <space/site> <thread-id>
+# --feedback-batch locks the deploy to the reviewed site and version, even if the local folder was renamed
 postplan deploy ./report --yes --notes 'Address review batch' --feedback-batch <batch-id>
 postplan feedback complete <batch-id> --version <n> --json
 ```
 
 Use `--json` on machine-read commands. Agents must only act on feedback returned by `postplan feedback list`; ordinary open comments are not an automatic work queue. Run `postplan help <command>` for options and examples.
+
+For any other update, first run `postplan read <space/site> --pull <dir>` and deploy that directory. The pull marker preserves the canonical URL and rejects stale updates. Deploying an unrelated path without a pull marker intentionally creates or targets a site from that path's name. If upload returns `cli_upgrade_required` (HTTP 426), run `postplan upgrade` and retry the exact deploy; no bytes were published by the rejected request.
 
 ## Capabilities
 

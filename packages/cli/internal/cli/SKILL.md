@@ -77,9 +77,16 @@ A key can deploy, create, fork and move, but **never deletes a site** and never 
 - `--yes` replaces an existing site without prompting. Use it only when the target is already known.
 - `--json` prints one machine-readable result and suppresses progress output.
 - `--include-hidden` includes dotfiles. Review the upload first because these can contain credentials.
-- `--notes <text>` records a concise deployment change note. `--feedback-batch <id>` links the deployment to the claimed batch it addresses.
+- `--notes <text>` records a concise deployment change note. `--feedback-batch <id>` resolves the claimed batch, locks the deploy to its original site and reviewed version, and links the resulting deployment. A conflicting `--space` or `--name` is refused instead of creating a stray site.
 - If the site already exists and you own it, prompts `Replace? (y/N)`. If owned by someone else, it aborts.
 - Prints `✓ Deployed → <url>`.
+- If the server returns `cli_upgrade_required` (HTTP 426), **no upload happened**. Run `postplan upgrade`, then retry the exact deploy command. Do not work around the version gate with curl or a different credential.
+
+**Existing site vs new site.** Treat these as separate, explicit workflows:
+
+- Update an existing URL: `postplan read <space/site> --pull <dir>`, edit that directory, then deploy it. Keep its `.postplan/pull.json` marker.
+- Address a claimed review batch: pass `--feedback-batch <id>`; the CLI targets the reviewed site/version even if the local folder has a different name.
+- Create a new URL: deploy a path with no pull marker and no feedback batch. Its file/folder name (or explicit `--name`) intentionally becomes the new site slug.
 
 ```bash
 postplan deploy report.html                                  # → /<you>/report in your personal space
@@ -165,6 +172,7 @@ postplan feedback claim <batch-id> --json
 # edit only what the batch asks for; each item includes commentId, threadId, page,
 # selector/source context, author, text, reviewed version, and anchor status
 printf '%s\n' 'Addressed in v4.' | postplan reply team/report <thread-id>
+# This targets team/report from the batch itself; the local directory name is never used as the site target.
 postplan deploy ./report --yes --notes 'Address review batch' --feedback-batch <batch-id> --json
 postplan feedback complete <batch-id> --version 4 --json
 ```
