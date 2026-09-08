@@ -66,6 +66,21 @@ describe('MoveDialog audience changes', () => {
   })
 })
 
+describe('mobile site cards', () => {
+  test('promotes the title and path while pinning star and actions to card edges', () => {
+    renderTable()
+
+    const nameCell = screen.getByText('Demo').closest('td')
+    const starCell = screen.getByRole('button', { name: 'Star this page' }).closest('td')
+    const actionsCell = screen.getByRole('button', { name: 'More actions' }).closest('td')
+
+    expect(nameCell?.className).toContain('max-sm:before:hidden')
+    expect(starCell?.className).toContain('max-sm:absolute')
+    expect(actionsCell?.className).toContain('max-sm:border-t')
+    expect(screen.getByText('/source/demo').className).toContain('sm:hidden')
+  })
+})
+
 describe('VersionHistoryDialog', () => {
   test('shows a file diff and rolls back from the current version', async () => {
     const get = spyOn(api, 'get').mockResolvedValue([

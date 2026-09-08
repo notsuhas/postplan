@@ -20,13 +20,24 @@ export type Column<T> = {
   defaultDir?: SortDir
   headClassName?: string
   cellClassName?: string
+  // Mobile tables become cards. These roles let a column opt into a deliberate card position
+  // instead of every value being rendered as the same label/value row.
+  mobile?: 'primary' | 'secondary' | 'corner' | 'actions'
 }
 
 // Below `sm` the table reflows into stacked label/value rows so actions are reachable without a
 // horizontal scroll; each cell's column label rides in via `data-label`. At `sm`+ it's a table.
-const mobileRow = 'max-sm:block max-sm:py-2'
+const mobileRow = 'max-sm:relative max-sm:block max-sm:py-2'
 const mobileCell =
   'max-sm:flex max-sm:items-center max-sm:justify-between max-sm:gap-4 max-sm:max-w-none max-sm:whitespace-normal max-sm:px-4 max-sm:py-1.5 max-sm:before:font-medium max-sm:before:text-sm max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-label)]'
+const mobileCellRole = {
+  primary:
+    'max-sm:block max-sm:pb-1 max-sm:pl-4 max-sm:pr-14 max-sm:pt-3 max-sm:before:hidden',
+  secondary: 'max-sm:block max-sm:px-4 max-sm:pb-2 max-sm:pt-0 max-sm:before:hidden',
+  corner: 'max-sm:absolute max-sm:right-3 max-sm:top-3 max-sm:z-10 max-sm:w-auto max-sm:p-0 max-sm:before:hidden',
+  actions:
+    'max-sm:mt-2 max-sm:flex max-sm:justify-end max-sm:border-t max-sm:border-border/70 max-sm:px-3 max-sm:pb-1 max-sm:pt-3 max-sm:before:hidden',
+} as const
 
 // One sortable table shell shared by every site-collection (Your sites / Shared / Team activity)
 // so they stay visually identical — columns and per-cell rendering are the only differences.
@@ -87,7 +98,11 @@ export function SortableTable<T>({
           {sorted.map((row) => (
             <TableRow key={getRowKey(row)} className={mobileRow}>
               {columns.map((c) => (
-                <TableCell key={c.key} data-label={c.label} className={cn(mobileCell, c.cellClassName)}>
+                <TableCell
+                  key={c.key}
+                  data-label={c.label}
+                  className={cn(mobileCell, c.mobile && mobileCellRole[c.mobile], c.cellClassName)}
+                >
                   {c.render(row)}
                 </TableCell>
               ))}
