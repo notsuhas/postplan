@@ -62,6 +62,16 @@ test('switches explicitly between Experience and Comment modes', () => {
   expect(onModeChange).toHaveBeenCalledWith('comment')
 })
 
+test('makes the selected review mode visually unmistakable in dark mode', () => {
+  renderTopBar({ mode: 'comment', onModeChange: () => {} })
+  const selected = screen.getByRole('button', { name: 'Comment mode' })
+  const inactive = screen.getByRole('button', { name: 'Experience mode' })
+
+  expect(selected.className).toContain('bg-primary')
+  expect(selected.className).toContain('text-primary-foreground')
+  expect(inactive.className).toContain('text-muted-foreground')
+})
+
 describe('ViewerTopBar — Comments is an always-present toggle (C2b: Done is gone)', () => {
   test('the Comments button renders with the rail CLOSED, and clicking it toggles', () => {
     const { onToggleRail } = renderTopBar({ railOpen: false })

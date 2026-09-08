@@ -329,6 +329,24 @@ feedback.get('/feedback', async (c) => {
   return c.json(visible)
 })
 
+// A claimed batch is no longer returned by the queue listing, but deploy still needs its durable
+// site/version identity. Expose only the claimant's own live claim; this is not a second work queue.
+feedback.get('/feedback/:batchId', async (c) => {
+  const db = c.get('db')
+  const user = c.get('user')
+  const row = await batchSite(db, c.req.param('batchId'))
+  if (!row) return c.json({ error: 'not found' }, 404)
+  if (row.batch.status !== 'claimed' || row.batch.claimedBy !== user.id) {
+    return c.json({ error: 'feedback batch is not claimed by this actor' }, 409)
+  }
+  const access = await resolveSiteForAccess(db, row.space, row.slug, user)
+  if (!access.site) return c.json({ error: 'not found' }, 404)
+  if (!access.access.ok) return c.json({ error: 'forbidden' }, access.access.status)
+  const role = access.site.ownerId === user.id ? null : await resolveShareRole(db, access.site.id, user.id)
+  if (!canReplace(user, access.site, role)) return c.json({ error: 'forbidden' }, 403)
+  return c.json((await loadBatch(db, row.batch.id))!)
+})
+
 feedback.post('/feedback/:batchId/claim', async (c) => {
   const key = keyFrom(c.req.raw)
   if (!key) return c.json({ error: 'Idempotency-Key required' }, 400)

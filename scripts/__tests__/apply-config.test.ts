@@ -51,14 +51,21 @@ describe('apply-config.sh', () => {
     expect(main).toContain('"name": "postplan"')
     expect(main).toContain('"APP_URL": "https://app.example.com"')
     expect(main).toContain('"ORG_EMAIL_DOMAINS": "example.com"')
+    expect(main).toContain('"MIN_CLI_VERSION": ""')
     expect(main).toContain('"database_name": "postplan-db"')
     expect(main).toContain('"bucket_name": "files"')
     expect(main).toContain('"pattern": "app.example.com"')
-    expect(main).toContain('"run_worker_first": ["/api/*", "/llms.txt", "/skills/*", "/.well-known/*"]')
+    expect(main).toContain('"run_worker_first": ["/api/*", "/llms.txt", "/skills/*", "/.well-known/*", "/*/*"]')
     expect(content).toContain('"name": "postplan-content"')
     expect(content).toContain('"pattern": "content.example.com"')
     expect(headers).toContain('https://content.example.com')
     expect(main).toContain('"name": "UPLOAD_LIMITER"')
+  })
+
+  test('renders an optional minimum CLI upload version', () => {
+    const root = fixture({ MIN_CLI_VERSION: '1.2.0' })
+    expect(Bun.spawnSync(['bash', 'scripts/apply-config.sh'], { cwd: root }).exitCode).toBe(0)
+    expect(readFileSync(join(root, 'wrangler.jsonc'), 'utf8')).toContain('"MIN_CLI_VERSION": "1.2.0"')
   })
 
   test('rejects shared or non-origin URLs', () => {

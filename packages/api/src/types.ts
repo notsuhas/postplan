@@ -50,6 +50,9 @@ export interface Bindings {
   SITE_ROOM?: DurableObjectNamespace
   APP_URL: string
   CONTENT_URL: string
+  // Optional release floor for CLI-token uploads. Empty/unset preserves compatibility; when set,
+  // older or unversioned CLI binaries receive 426 before any multipart bytes are processed.
+  MIN_CLI_VERSION?: string
   // Comma-separated domains whose signed-in users can access organization-wide sites.
   ORG_EMAIL_DOMAINS: string
   // Comma-separated superadmins. The first address is the bootstrap/dev-login identity.

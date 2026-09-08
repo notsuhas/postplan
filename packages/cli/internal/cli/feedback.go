@@ -108,6 +108,25 @@ func (c *client) feedbackList(argv []string) error {
 	return nil
 }
 
+func (c *client) feedbackBatchByID(id string) (*feedbackBatch, error) {
+	resp, err := c.authed("GET", "/api/feedback/"+url.PathEscape(id), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if !ok(resp) {
+		return nil, fmt.Errorf("Could not resolve feedback batch (%d): %s", resp.StatusCode, bodySlice(resp))
+	}
+	var batch feedbackBatch
+	if err := json.NewDecoder(resp.Body).Decode(&batch); err != nil {
+		return nil, err
+	}
+	if batch.Status != "claimed" {
+		return nil, fmt.Errorf("Feedback batch %s is not claimed.", id)
+	}
+	return &batch, nil
+}
+
 func (c *client) feedbackClaim(argv []string) error {
 	positional, flags := argparse.ParseArgs(argv, map[string]bool{"json": true})
 	if err := argparse.ValidateFlags(flags, "json", "idempotency-key"); err != nil || len(positional) != 1 {

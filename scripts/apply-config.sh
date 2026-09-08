@@ -20,14 +20,15 @@ fi
 : "${APP_URL:?}" "${CONTENT_URL:?}" "${SUPERADMIN_EMAILS:?}" "${ORG_EMAIL_DOMAINS:?}" "${D1_DATABASE_ID:?}" "${KV_NAMESPACE_ID:?}"
 : "${WORKER_NAME:=postplan}" "${CONTENT_WORKER_NAME:=postplan-content}" "${D1_DATABASE_NAME:=postplan-db}"
 : "${R2_BUCKET:=postplan-files}"
+: "${MIN_CLI_VERSION:=}"
 [[ "$APP_URL" != "$CONTENT_URL" ]] || { echo "APP_URL and CONTENT_URL must use separate origins"; exit 1; }
 
 python3 - "$APP_URL" "$CONTENT_URL" "$SUPERADMIN_EMAILS" "$ORG_EMAIL_DOMAINS" "$D1_DATABASE_ID" "$KV_NAMESPACE_ID" \
-  "$WORKER_NAME" "$CONTENT_WORKER_NAME" "$D1_DATABASE_NAME" "$R2_BUCKET" <<'PY'
+  "$WORKER_NAME" "$CONTENT_WORKER_NAME" "$D1_DATABASE_NAME" "$R2_BUCKET" "$MIN_CLI_VERSION" <<'PY'
 import json, re, sys
 from urllib.parse import urlsplit
 
-app, content, admins, org_domains, d1, kv, worker, content_worker, d1_name, bucket = sys.argv[1:11]
+app, content, admins, org_domains, d1, kv, worker, content_worker, d1_name, bucket, min_cli = sys.argv[1:12]
 
 def host(origin):
     parsed = urlsplit(origin)
@@ -52,6 +53,7 @@ def render(example, real, host, name):
     s = replace_value(s, 'CONTENT_URL', content)
     s = replace_value(s, 'SUPERADMIN_EMAILS', admins)
     s = replace_value(s, 'ORG_EMAIL_DOMAINS', org_domains)
+    s = replace_value(s, 'MIN_CLI_VERSION', min_cli)
     s = replace_value(s, 'database_id', d1)
     s = re.sub(r'("binding": "POSTPLAN_SESSIONS", "id": )"[^"]*"', lambda m: m.group(1) + json.dumps(kv), s)
     s = re.sub(r'("routes": \[\{ "pattern": )"[^"]*"', lambda m: m.group(1) + json.dumps(host), s)

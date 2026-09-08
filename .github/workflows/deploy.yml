@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -30,6 +31,7 @@ jobs:
           CONTENT_URL: ${{ vars.CF_CONTENT_URL }}
           SUPERADMIN_EMAILS: ${{ vars.CF_SUPERADMIN_EMAILS }}
           ORG_EMAIL_DOMAINS: ${{ vars.CF_ORG_EMAIL_DOMAINS }}
+          MIN_CLI_VERSION: ${{ vars.CF_MIN_CLI_VERSION }}
           D1_DATABASE_ID: ${{ vars.CF_D1_DATABASE_ID }}
           KV_NAMESPACE_ID: ${{ vars.CF_KV_NAMESPACE_ID }}
           WORKER_NAME: ${{ vars.CF_WORKER_NAME }}

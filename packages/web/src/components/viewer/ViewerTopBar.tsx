@@ -105,12 +105,12 @@ export function ViewerTopBar({
         {site.authenticated ? (
           <>
             {onModeChange && (
-              <fieldset className="flex items-center rounded-lg border bg-muted/50 p-0.5">
+              <fieldset className="flex items-center rounded-lg border border-border bg-muted p-0.5">
                 <legend className="sr-only">Review mode</legend>
                 <Button
                   size="sm"
-                  variant={mode === 'experience' ? 'secondary' : 'ghost'}
-                  className="h-7 rounded-md px-2.5 text-xs"
+                  variant={mode === 'experience' ? 'default' : 'ghost'}
+                  className="h-7 rounded-md px-2.5 text-xs aria-[pressed=false]:text-muted-foreground"
                   aria-label="Experience mode"
                   aria-pressed={mode === 'experience'}
                   onClick={() => onModeChange('experience')}
@@ -120,8 +120,8 @@ export function ViewerTopBar({
                 </Button>
                 <Button
                   size="sm"
-                  variant={mode === 'comment' ? 'secondary' : 'ghost'}
-                  className="h-7 rounded-md px-2.5 text-xs"
+                  variant={mode === 'comment' ? 'default' : 'ghost'}
+                  className="h-7 rounded-md px-2.5 text-xs aria-[pressed=false]:text-muted-foreground"
                   aria-label="Comment mode"
                   aria-pressed={mode === 'comment'}
                   onClick={() => onModeChange('comment')}

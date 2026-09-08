@@ -4,6 +4,13 @@ import type { Release } from './bake'
 
 export const RELEASES: Release[] = [
   {
+    "slug": "safer-updates",
+    "title": "Safer updates and clearer review controls",
+    "date": "2026-09-08T19:50:00.000Z",
+    "featured": true,
+    "bodyHtml": "<p>Postplan now keeps agent updates on the site you were already reviewing.</p>\n<ul>\n<li>Feedback-linked deploys automatically target the batch&#39;s original site and reviewed version</li>\n<li>Outdated CLI releases can be blocked before any upload bytes are accepted</li>\n<li>Shared unlisted links show the artifact&#39;s title, description, and branded preview</li>\n<li>Experience / Comment mode has a high-contrast selected state in dark mode</li>\n<li>Your light or dark theme now survives a refresh</li>\n</ul>\n<p>Creating a new artifact is still available: deploy a path without a pull marker or feedback batch when you intentionally want a new URL.</p>\n"
+  },
+  {
     "slug": "feedback-bundles",
     "title": "Send review feedback to an agent",
     "date": "2026-09-08T10:00:00.000Z",
@@ -108,4 +115,4 @@ export const RELEASES: Release[] = [
   }
 ]
 
-export const NEWEST_RELEASE_DATE: string | null = "2026-09-08T10:00:00.000Z"
+export const NEWEST_RELEASE_DATE: string | null = "2026-09-08T19:50:00.000Z"

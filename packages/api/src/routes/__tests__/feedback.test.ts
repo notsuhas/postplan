@@ -155,6 +155,15 @@ describe('feedback batches', () => {
     expect((await replay.json()) as { status: string }).toMatchObject({ status: 'claimed' })
     expect(second.status).toBe(409)
 
+    const target = await s.app.request(`/api/feedback/${batch.id}`, { headers: authHeaders(s.reviewer) }, s.env)
+    expect(target.status).toBe(200)
+    expect(await target.json()).toMatchObject({
+      id: batch.id,
+      status: 'claimed',
+      site: { space: 'docs', slug: 'guide' },
+      siteVersion: 4,
+    })
+
     await s.db.insert(siteVersions).values({
       id: 'addressed-version',
       siteId: s.siteId,
@@ -209,5 +218,7 @@ describe('feedback batches', () => {
       s.env,
     )
     expect(claim.status).toBe(403)
+    const target = await s.app.request(`/api/feedback/${batch.id}`, { headers: authHeaders(viewer) }, s.env)
+    expect(target.status).toBe(409)
   })
 })

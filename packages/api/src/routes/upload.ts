@@ -16,6 +16,7 @@ import {
 import { recordAction } from '../db/action-ledger'
 import { replayIdempotent, sha256Hex, stableRequestHash, storeIdempotent } from '../db/idempotency'
 import { canReplace } from '../lib/access'
+import { cliNeedsUpgrade } from '../lib/cli-version'
 import { batchAll } from '../lib/d1'
 import { capTitle, extractHtmlMeta, NO_META, pickEntry } from '../lib/extract'
 import { cleanDisplayText } from '../lib/untrusted-text'
@@ -519,4 +520,26 @@ async function handleUpload(c: UploadContext): Promise<Response> {
 
 export const upload = new Hono<AppEnv>()
 
-upload.post('/:spaceSlug/:siteSlug', requireAuth, requireControlGrant, handleUpload)
+upload.post(
+  '/:spaceSlug/:siteSlug',
+  requireAuth,
+  requireControlGrant,
+  async (c, next) => {
+    const minimum = c.env.MIN_CLI_VERSION?.trim()
+    const userAgent = c.req.header('User-Agent')
+    const isCliRequest = c.get('credential').kind === 'cli' || userAgent?.startsWith('postplan-cli/')
+    if (minimum && isCliRequest && cliNeedsUpgrade(userAgent, minimum)) {
+      return c.json(
+        {
+          error: 'cli_upgrade_required',
+          minimumVersion: minimum,
+          message: `Postplan CLI ${minimum} or newer is required. Run \`postplan upgrade\`, then retry this deploy.`,
+        },
+        426,
+        { 'X-Postplan-Min-CLI-Version': minimum },
+      )
+    }
+    await next()
+  },
+  handleUpload,
+)
