@@ -22,7 +22,14 @@ const SITE: ViewerSite = {
 // A DATA router, not MemoryRouter: the star control (useStar) calls useRevalidator, which throws
 // outside one — the top bar cannot be rendered bare any more.
 function renderTopBar(
-  overrides: Partial<{ railOpen: boolean; commentCount: number; onToggleRail: () => void; site: ViewerSite }> = {},
+  overrides: Partial<{
+    railOpen: boolean
+    commentCount: number
+    onToggleRail: () => void
+    site: ViewerSite
+    mode: 'experience' | 'comment'
+    onModeChange: (mode: 'experience' | 'comment') => void
+  }> = {},
 ) {
   const onToggleRail = overrides.onToggleRail ?? mock(() => {})
   const router = createMemoryRouter([
@@ -37,6 +44,8 @@ function renderTopBar(
           onToggleRail={onToggleRail}
           onToggleSidebar={() => {}}
           onSearch={() => {}}
+          mode={overrides.mode}
+          onModeChange={overrides.onModeChange}
         />
       ),
     },
@@ -44,6 +53,14 @@ function renderTopBar(
   render(<RouterProvider router={router} />)
   return { onToggleRail }
 }
+
+test('switches explicitly between Experience and Comment modes', () => {
+  const onModeChange = mock(() => {})
+  renderTopBar({ mode: 'experience', onModeChange })
+  expect(screen.getByRole('button', { name: 'Experience mode' }).getAttribute('aria-pressed')).toBe('true')
+  fireEvent.click(screen.getByRole('button', { name: 'Comment mode' }))
+  expect(onModeChange).toHaveBeenCalledWith('comment')
+})
 
 describe('ViewerTopBar — Comments is an always-present toggle (C2b: Done is gone)', () => {
   test('the Comments button renders with the rail CLOSED, and clicking it toggles', () => {

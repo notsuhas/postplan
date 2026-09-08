@@ -1,4 +1,4 @@
-import { MessageSquarePlus, X } from 'lucide-react'
+import { MessageSquarePlus, Send, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { comments, type PendingAnchor, type Thread, type ThreadStatus } from '@/lib/comments'
 import { timestampPrefix } from '@/lib/audio'
@@ -43,6 +43,7 @@ export function ReviewRail({
   typing = [],
   onTyping,
   onTypingStop,
+  onSendFeedback,
 }: {
   site: ViewerSite
   me: Me | null
@@ -75,11 +76,14 @@ export function ReviewRail({
   // socket behind the rail there is nowhere to send, and no component test has to care.
   onTyping?: (threadId: string) => void
   onTypingStop?: (threadId: string) => void
+  onSendFeedback?: (commentIds?: string[]) => void | Promise<void>
   // Set only for the audio view — lets the composer's timestamp button read the player's
   // current position (via a ref, at click time) without any state/effect wiring.
   getCurrentTime?: () => number
 }) {
   const [filter, setFilter] = useState<ThreadStatus>('open')
+  const [selectedCommentIds, setSelectedCommentIds] = useState<ReadonlySet<string>>(new Set())
+  const [sending, setSending] = useState(false)
 
   // Desktop rail width, drag-resizable via the left-edge handle: starts at the classic 360px and
   // clamps to [360, half the viewport]. Applied through a CSS var consumed only at md+ so the
@@ -115,6 +119,33 @@ export function ReviewRail({
   }
 
   const active = useMemo(() => threads.filter((t) => t.status === filter).sort(byUpdatedDesc), [threads, filter])
+  const openCommentIds = useMemo(
+    () =>
+      threads
+        .filter((thread) => thread.status === 'open')
+        .flatMap((thread) => thread.comments.filter((comment) => !comment.deleted).map((comment) => comment.id)),
+    [threads],
+  )
+
+  const selectComment = (commentId: string, selected: boolean) => {
+    setSelectedCommentIds((current) => {
+      const next = new Set(current)
+      if (selected) next.add(commentId)
+      else next.delete(commentId)
+      return next
+    })
+  }
+
+  const sendFeedback = async (commentIds?: string[]) => {
+    if (!onSendFeedback || commentIds?.length === 0 || sending) return
+    setSending(true)
+    try {
+      await onSendFeedback(commentIds)
+      setSelectedCommentIds(new Set())
+    } finally {
+      setSending(false)
+    }
+  }
 
   // C22 — an indicator dies on a LOCAL clock. Nothing retracts a ping: a closed laptop just stops
   // sending, and the room schedules nothing (it would pay for a timer per typist). So the receiver
@@ -238,7 +269,7 @@ export function ReviewRail({
         </div>
       )}
 
-      <div className="flex gap-1 px-4 py-2">
+      <div className="flex items-center gap-1 px-4 py-2">
         {(['open', 'resolved'] as const).map((f) => (
           <button
             key={f}
@@ -254,6 +285,33 @@ export function ReviewRail({
             {f}
           </button>
         ))}
+        {onSendFeedback && openCommentIds.length > 0 && (
+          <div className="ml-auto flex items-center gap-1">
+            {selectedCommentIds.size > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={sending}
+                onClick={() => void sendFeedback([...selectedCommentIds])}
+              >
+                <Send className="size-3" />
+                Send {selectedCommentIds.size}
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              disabled={sending}
+              aria-label="Send all open to agent"
+              onClick={() => void sendFeedback()}
+            >
+              Send all
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
@@ -280,6 +338,8 @@ export function ReviewRail({
             typing={typistOn(t)}
             onTyping={onTyping && (() => onTyping(t.id))}
             onTypingStop={onTypingStop && (() => onTypingStop(t.id))}
+            selectedCommentIds={selectedCommentIds}
+            onSelectComment={onSendFeedback ? selectComment : undefined}
           />
         ))}
       </div>

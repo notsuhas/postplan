@@ -222,6 +222,7 @@ describe('client.ts — clicking a painted anchor posts postplan:anchor-click', 
   const clicks = () => posted.filter((m) => (m as AnyRecord).type === 'postplan:anchor-click') as AnyRecord[]
 
   test('a click inside a painted text anchor posts its id and swallows the click', () => {
+    send({ type: 'postplan:mode', mode: 'comment' })
     send({ type: 'postplan:paint', anchors: [{ id: 't1', anchorType: 'text', quote: 'alpha sentence.' }] })
     const before = clicks().length
     const chart = document.getElementById('chart') as Element
@@ -242,6 +243,7 @@ describe('client.ts — clicking a painted anchor posts postplan:anchor-click', 
   })
 
   test('a click inside a painted element anchor posts its id', () => {
+    send({ type: 'postplan:mode', mode: 'comment' })
     send({ type: 'postplan:paint', anchors: [{ id: 'e1', anchorType: 'element', selector: '#chart' }] })
     const before = clicks().length
     fireDom('click', document.getElementById('chart') as Element, IN_ELEMENT)

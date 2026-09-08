@@ -302,6 +302,7 @@ describe('viewer wiring — adding a comment opens the rail', () => {
       loadIframe(iframe)
       act(() => send({ type: 'postplan:ready', filePath: 'index.html' })) // gives submitThread its filePath
       expect(container.querySelector('aside')).toBeNull() // rail closed
+      fireEvent.click(screen.getByRole('button', { name: 'Comment mode' }))
 
       // Select text in the page → chip → composer, the real in-place comment path.
       act(() =>
@@ -341,6 +342,7 @@ describe('viewer wiring — C on a selection opens the composer (#117)', () => {
       const { iframe, send } = armIframe(container)
       loadIframe(iframe)
       act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Comment mode' }))
 
       act(() =>
         send({
@@ -438,6 +440,7 @@ describe('viewer wiring — rail toggle (C2b: the rail is just a panel, not a re
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
     const { send } = armIframe(container)
     act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Comment mode' }))
 
     act(() => send({ type: 'postplan:select', quote: 'hello', rect: { top: 5, left: 5, width: 10, height: 10 } }))
     const chip = await screen.findByRole('button', { name: 'Comment on selection' })

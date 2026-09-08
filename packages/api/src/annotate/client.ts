@@ -41,6 +41,7 @@ type PaintAnchor = {
 }
 
 const boot = (window as unknown as { __POSTPLAN__?: Boot }).__POSTPLAN__
+let mode: 'experience' | 'comment' = 'experience'
 
 function toParent(msg: unknown): void {
   if (!boot) return
@@ -61,7 +62,13 @@ const rectOf = (el: Element): Rect => {
 // selection.ts so it is testable; this is only the wiring. The intent always fires; the parent
 // decides (review-gated) what to do with it.
 
-installSelectionCapture({ doc: document, getSelection: () => window.getSelection(), emit: toParent })
+installSelectionCapture({
+  doc: document,
+  getSelection: () => window.getSelection(),
+  emit: (message) => {
+    if (mode === 'comment') toParent(message)
+  },
+})
 
 // --- link navigation: propagate ?postplan_annotate=1 across in-iframe navigation -----------
 // content.ts only injects this client when the request carries ?postplan_annotate=1 — relative links
@@ -232,7 +239,19 @@ function applyRanges(ranges: Range[]): void {
  *  page is marked up exactly as long as the panel that explains the markup is on screen. */
 function paintTexts(anchors: PaintAnchor[]): void {
   textAnchors = anchors.filter((a) => a.quote)
-  applyRanges(anchorRanges(textAnchors, document))
+  const ranges = anchorRanges(textAnchors, document)
+  applyRanges(ranges)
+  if (textAnchors.length > 0) {
+    const resolved = textAnchors
+      .filter((anchor) => !!findRange(anchor.quote, document, anchor.context))
+      .map((a) => a.id)
+    const resolvedSet = new Set(resolved)
+    toParent({
+      type: 'postplan:pinpoint-resolved',
+      resolved,
+      orphaned: textAnchors.filter((anchor) => !resolvedSet.has(anchor.id)).map((anchor) => anchor.id),
+    })
+  }
 }
 
 // --- clicking a painted anchor -----------------------------------------------------------
@@ -246,6 +265,7 @@ function paintTexts(anchors: PaintAnchor[]): void {
 document.addEventListener(
   'click',
   (e) => {
+    if (mode !== 'comment') return
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return
     if (textAnchors.length === 0 && elementAnchors.length === 0) return
     const id = anchorIdAtPoint(textAnchors, elementAnchors, { x: e.clientX, y: e.clientY }, document)
@@ -290,10 +310,15 @@ window.addEventListener('message', (e: MessageEvent) => {
     quote?: string
     selector?: string
     context?: TextContext
+    mode?: unknown
   }
   if (d?.type === 'postplan:paint' && Array.isArray(d.anchors)) paint(d.anchors)
   else if (d?.type === 'postplan:focus') focus({ quote: d.quote, selector: d.selector, context: d.context })
   else if (d?.type === 'postplan:pending') setPending(typeof d.selector === 'string' ? d.selector : null)
+  else if (d?.type === 'postplan:mode' && (d.mode === 'experience' || d.mode === 'comment')) {
+    mode = d.mode
+    if (mode === 'experience') paint([])
+  }
   // Print/Save-as-PDF: the viewer iframe is cross-origin, so the parent can't call
   // iframe.contentWindow.print() itself (SecurityError) — it asks, and the page prints in its own
   // realm with the browser's native dialog (the user picks "Save as PDF" there).

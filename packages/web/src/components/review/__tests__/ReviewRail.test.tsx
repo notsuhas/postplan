@@ -90,6 +90,73 @@ describe('ReviewRail — the header ✕ closes the panel (C2b: replaces the View
   })
 })
 
+test('Send all open asks the server to snapshot every currently open comment', async () => {
+  const send = jest.fn((_ids?: string[]) => Promise.resolve())
+  render(
+    <ReviewRail
+      site={SITE}
+      me={ME}
+      threads={[
+        mkThread({
+          id: 'open',
+          comments: [
+            {
+              id: 'c1',
+              authorId: 'u2',
+              author: 'Riya',
+              body: 'one',
+              deleted: false,
+              reactions: [],
+              createdAt: '2024-01-01',
+              editedAt: null,
+            },
+            {
+              id: 'deleted',
+              authorId: 'u2',
+              author: 'Riya',
+              body: null,
+              deleted: true,
+              reactions: [],
+              createdAt: '2024-01-01',
+              editedAt: null,
+            },
+          ],
+        }),
+        mkThread({
+          id: 'resolved',
+          status: 'resolved',
+          comments: [
+            {
+              id: 'c2',
+              authorId: 'u2',
+              author: 'Riya',
+              body: 'two',
+              deleted: false,
+              reactions: [],
+              createdAt: '2024-01-01',
+              editedAt: null,
+            },
+          ],
+        }),
+      ]}
+      composing={null}
+      onCancelComposer={() => {}}
+      onCreate={() => {}}
+      onCreateVoice={() => {}}
+      onChanged={() => {}}
+      onFocusAnchor={() => {}}
+      onClose={() => {}}
+      onStartComment={() => {}}
+      onSendFeedback={send}
+      focusRequest={null}
+    />,
+  )
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Send all open to agent' }))
+  })
+  expect(send).toHaveBeenCalledWith(undefined)
+})
+
 describe('ReviewRail — responsive resize bounds', () => {
   test('re-clamps an open rail when the viewport shrinks and exposes the current maximum', () => {
     const originalWidth = window.innerWidth

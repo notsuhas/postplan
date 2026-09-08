@@ -23,6 +23,8 @@ export function ThreadCard({
   typing,
   onTyping,
   onTypingStop,
+  selectedCommentIds,
+  onSelectComment,
 }: {
   site: ViewerSite
   me: Me | null
@@ -43,6 +45,8 @@ export function ThreadCard({
   // Scroll only: a click jumps the iframe to the anchor. It doesn't light anything — every anchor
   // on the page is already highlighted for as long as the rail is open.
   onFocusAnchor: (thread: Thread) => void
+  selectedCommentIds?: ReadonlySet<string>
+  onSelectComment?: (commentId: string, selected: boolean) => void
 }) {
   const [replying, setReplying] = useState(false)
   // Comment id under inline edit, or null. One at a time: starting an edit on another message
@@ -159,6 +163,12 @@ export function ThreadCard({
           ))}
       </div>
 
+      {thread.anchorStatus === 'orphaned' && (
+        <p className="mb-2 rounded-md bg-destructive/10 px-2 py-1 text-destructive text-xs">
+          Anchor missing in this version
+        </p>
+      )}
+
       <ul className="flex flex-col">
         {thread.comments.map((c, i) => {
           // Consecutive messages from one author collapse into a group: only the first carries the
@@ -178,6 +188,17 @@ export function ThreadCard({
                   deal touch users get today, minus the desktop clutter. */}
               {!c.deleted && (
                 <div className="absolute -top-2 right-1 z-10 flex items-center gap-0.5 rounded-md border bg-popover p-0.5 opacity-0 shadow-sm transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100 [@media(hover:none)]:opacity-100">
+                  {onSelectComment && (
+                    <label className="flex size-6 cursor-pointer items-center justify-center rounded-sm hover:bg-muted">
+                      <input
+                        type="checkbox"
+                        className="size-3.5 accent-primary"
+                        aria-label={`Select comment from ${c.authorId === me?.id ? 'You' : (c.author ?? 'Reviewer')}`}
+                        checked={selectedCommentIds?.has(c.id) ?? false}
+                        onChange={(event) => onSelectComment(c.id, event.currentTarget.checked)}
+                      />
+                    </label>
+                  )}
                   {/* rounded-sm, not the default `rounded`: the bar's own corner is rounded-md and
                       it holds its buttons 2px in, so a flat 4px child reads as a square in a round
                       box. The scale's next step down is what CONCENTRIC corners want here. */}

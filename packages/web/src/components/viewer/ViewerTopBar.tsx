@@ -47,6 +47,8 @@ export function ViewerTopBar({
   onToggleSidebar,
   onSearch,
   onPrint,
+  mode = 'experience',
+  onModeChange,
 }: {
   site: ViewerSite
   sitePath: string
@@ -55,6 +57,8 @@ export function ViewerTopBar({
   onToggleRail: () => void
   onToggleSidebar: () => void
   onSearch: () => void
+  mode?: 'experience' | 'comment'
+  onModeChange?: (mode: 'experience' | 'comment') => void
   // Posts postplan:print into the content iframe (HTML sites only — absent hides the item). The
   // frame prints itself; the browser's print dialog is where the user picks "Save as PDF".
   onPrint?: () => void
@@ -100,6 +104,33 @@ export function ViewerTopBar({
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         {site.authenticated ? (
           <>
+            {onModeChange && (
+              <fieldset className="flex items-center rounded-lg border bg-muted/50 p-0.5">
+                <legend className="sr-only">Review mode</legend>
+                <Button
+                  size="sm"
+                  variant={mode === 'experience' ? 'secondary' : 'ghost'}
+                  className="h-7 rounded-md px-2.5 text-xs"
+                  aria-label="Experience mode"
+                  aria-pressed={mode === 'experience'}
+                  onClick={() => onModeChange('experience')}
+                >
+                  <span className="hidden md:inline">Experience</span>
+                  <span className="md:hidden">View</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant={mode === 'comment' ? 'secondary' : 'ghost'}
+                  className="h-7 rounded-md px-2.5 text-xs"
+                  aria-label="Comment mode"
+                  aria-pressed={mode === 'comment'}
+                  onClick={() => onModeChange('comment')}
+                >
+                  <span className="hidden md:inline">Comment</span>
+                  <span className="md:hidden">Mark</span>
+                </Button>
+              </fieldset>
+            )}
             <Button
               variant="ghost"
               size="icon"

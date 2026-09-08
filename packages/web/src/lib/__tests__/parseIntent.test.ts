@@ -198,6 +198,15 @@ describe('parseIntent', () => {
     expect(parseIntent(ev({ origin: 'https://evil.com', data: anchorClick() }), expected)).toBeNull()
   })
 
+  test('accepts bounded anchor resolution reports', () => {
+    expect(
+      parseIntent(
+        ev({ data: { type: 'postplan:pinpoint-resolved', resolved: ['t1'], orphaned: ['t2', 42] } }),
+        expected,
+      ),
+    ).toEqual({ type: 'anchorStatus', resolved: ['t1'], orphaned: ['t2'] })
+  })
+
   test('accepts a ready handshake; missing source check is skippable', () => {
     expect(parseIntent(ev({ data: { type: 'postplan:ready', filePath: 'index.html' } }), expected)).toEqual({
       type: 'ready',

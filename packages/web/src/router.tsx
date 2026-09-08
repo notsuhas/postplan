@@ -1,4 +1,4 @@
-import { Link, type RouteObject, redirect, useLocation, useRouteError } from 'react-router'
+import { Link, type RouteObject, useLocation, useRouteError } from 'react-router'
 import { AppShell } from './components/layout/AppShell'
 import { Button } from './components/ui/button'
 import { api, ApiError } from './lib/api'
@@ -53,6 +53,9 @@ function RootError() {
 // Split out from the entry file (main.tsx) so a test can assert on route ORDER without importing
 // the createRoot/render side effect. See router.test.ts.
 export const routeConfig: RouteObject[] = [
+  // The marketing page is public even for an existing session. Going to the bare host should not
+  // unexpectedly teleport a signed-in visitor into the dashboard; /login retains that shortcut.
+  { path: '/', lazy: () => import('./routes/login') },
   // Login is a standalone, full-bleed route (its own dark Blueprint hero) outside the shell.
   { path: '/login', lazy: () => import('./routes/login') },
   // Site preview is full-bleed too — a chrome-less, full-screen iframe (opened in a new tab).
@@ -61,7 +64,6 @@ export const routeConfig: RouteObject[] = [
   // deep link / the directory-listing fallback points the iframe at that file and the URL reflects it.
   { path: '/:space/:site/*', lazy: () => import('./routes/viewer'), ErrorBoundary: RootError },
   {
-    path: '/',
     id: 'root',
     Component: AppShell,
     loader: rootLoader,
@@ -70,7 +72,6 @@ export const routeConfig: RouteObject[] = [
     shouldRevalidate: skipSearchOnlyRevalidation,
     ErrorBoundary: RootError,
     children: [
-      { index: true, loader: () => redirect('/dashboard') },
       { path: 'dashboard', lazy: () => import('./routes/dashboard') },
       { path: 'admin', lazy: () => import('./routes/admin') },
       { path: 'cli', lazy: () => import('./routes/cli') },

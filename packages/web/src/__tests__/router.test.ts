@@ -16,6 +16,9 @@ import { routeConfig } from '../router'
 const resolves = (path: string) => matchRoutes(routeConfig, path)?.at(-1)?.route.path
 
 describe('router — reserved paths win over the space/site catch-alls', () => {
+  test('the public landing page owns / instead of redirecting through the app shell', () => {
+    expect(resolves('/')).toBe('/')
+  })
   test('/settings/keys resolves to the keys screen, not a space or site lookup', () => {
     expect(resolves('/settings/keys')).toBe('settings/keys')
   })

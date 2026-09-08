@@ -51,6 +51,8 @@ export interface Thread {
   // Text threads only: the text around the selection, which tells REPEATED occurrences of the same
   // quote apart when painting. Null on threads stored before context existed → first-match painting.
   context: TextContext | null
+  anchorStatus?: 'anchored' | 'shifted' | 'suggested' | 'orphaned'
+  createdVersion?: number
   status: ThreadStatus
   resolvedBy: string | null
   resolvedByName: string | null
