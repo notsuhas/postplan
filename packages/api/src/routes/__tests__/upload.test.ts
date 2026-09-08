@@ -76,6 +76,30 @@ function postUpload(
   )
 }
 
+describe('upload — minimum CLI version', () => {
+  test('blocks an outdated CLI before parsing or storing upload bytes', async () => {
+    const { app, env, db, r2 } = await setup()
+    env.MIN_CLI_VERSION = '1.2.0'
+    const fd = new FormData()
+    fd.append('files', html('should-not-land', 'index.html'))
+    const res = await app.request(
+      '/api/upload/acme/outdated',
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer tok', 'User-Agent': 'postplan-cli/1.1.9' },
+        body: fd,
+      },
+      env,
+    )
+
+    expect(res.status).toBe(426)
+    expect(res.headers.get('X-Postplan-Min-CLI-Version')).toBe('1.2.0')
+    expect(await res.json()).toMatchObject({ error: 'cli_upgrade_required', minimumVersion: '1.2.0' })
+    expect(await db.select().from(sites)).toHaveLength(0)
+    expect(r2.store.size).toBe(0)
+  })
+})
+
 const html = (s: string, name: string) => new File([s], name, { type: 'text/html' })
 
 describe('upload — idempotency', () => {

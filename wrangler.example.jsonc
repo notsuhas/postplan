@@ -18,7 +18,8 @@
     "APP_URL": "https://postplan.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
     "CONTENT_URL": "https://postplan-content.YOUR-SUBDOMAIN.workers.dev", // EDIT: replace with your own (see README)
     "SUPERADMIN_EMAILS": "you@yourcompany.com", // EDIT: first address owns bootstrap; extras are comma-separated
-    "ORG_EMAIL_DOMAINS": "yourcompany.com" // EDIT: signed-in users from these domains can open Team sites
+    "ORG_EMAIL_DOMAINS": "yourcompany.com", // EDIT: signed-in users from these domains can open Team sites
+    "MIN_CLI_VERSION": "" // OPTIONAL: block older CLI-token uploads with 426; set only after publishing that release
   },
   // Main worker serves the React SPA as static assets. run_worker_first forces
   // /api/* to Hono BEFORE the asset layer (otherwise SPA fallback returns index.html
@@ -28,7 +29,7 @@
     "directory": "packages/web/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/llms.txt", "/skills/*", "/.well-known/*"]
+    "run_worker_first": ["/api/*", "/llms.txt", "/skills/*", "/.well-known/*", "/*/*"]
   },
   "d1_databases": [
     {
