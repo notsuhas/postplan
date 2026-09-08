@@ -22,7 +22,7 @@ const MAX_BATCH_ITEMS = 100
 const UNDO_MS = 5_000
 const MAX_KEY = 160
 
-export type FeedbackItemView = {
+type FeedbackItemView = {
   commentId: string
   threadId: string
   page: string
@@ -38,7 +38,7 @@ export type FeedbackItemView = {
   createdAt: string
 }
 
-export type FeedbackBatchView = {
+type FeedbackBatchView = {
   id: string
   site: { space: string; slug: string }
   siteVersion: number

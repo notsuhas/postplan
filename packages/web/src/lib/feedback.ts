@@ -1,9 +1,9 @@
 import { api } from '@/lib/api'
 import type { ViewerSite } from '@/lib/types'
 
-export type FeedbackStatus = 'queued' | 'claimed' | 'completed' | 'cancelled'
+type FeedbackStatus = 'queued' | 'claimed' | 'completed' | 'cancelled'
 
-export interface FeedbackBatch {
+interface FeedbackBatch {
   id: string
   site: { space: string; slug: string }
   siteVersion: number
