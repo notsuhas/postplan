@@ -22,6 +22,7 @@ type deployState struct {
 	visibility      string
 	expectedVersion string            // the expectedVersion form field, if sent
 	files           map[string]string // rel filename -> contents (unstripped)
+	feedbackBatch   string
 }
 
 func newDeployServer(t *testing.T) (*httptest.Server, *deployState) {
@@ -29,6 +30,8 @@ func newDeployServer(t *testing.T) (*httptest.Server, *deployState) {
 	st := &deployState{existsBody: `{"exists":false}`, files: map[string]string{}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/api/feedback/batch-1":
+			io.WriteString(w, `{"id":"batch-1","site":{"space":"docs","slug":"guide"},"siteVersion":4,"status":"claimed","items":[]}`)
 		case r.URL.Path == "/api/spaces/mine":
 			st.spacesMineHit = true
 			io.WriteString(w, `[{"slug":"me","type":"personal"},{"slug":"docs","type":"group"}]`)
@@ -57,6 +60,8 @@ func newDeployServer(t *testing.T) (*httptest.Server, *deployState) {
 					st.visibility = string(data)
 				} else if p.FormName() == "expectedVersion" {
 					st.expectedVersion = string(data)
+				} else if p.FormName() == "feedbackBatchId" {
+					st.feedbackBatch = string(data)
 				}
 			}
 			io.WriteString(w, `{"url":"https://g`+strings.TrimPrefix(r.URL.Path, "/api/upload")+`"}`)
@@ -79,6 +84,39 @@ func writeFile(t *testing.T, path, content string) {
 }
 
 func TestDeployCommand(t *testing.T) {
+	t.Run("feedback-batch-locks-deploy-to-reviewed-site", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "renamed-local-folder")
+		writeFile(t, filepath.Join(dir, "index.html"), "updated")
+		srv, st := newDeployServer(t)
+		st.existsBody = `{"exists":true,"canReplace":true}`
+		c, _ := newTestClient(srv.URL, "tok")
+		if err := c.deploy([]string{dir, "--feedback-batch", "batch-1", "--yes"}); err != nil {
+			t.Fatalf("deploy: %v", err)
+		}
+		if st.spacesMineHit {
+			t.Fatal("feedback deploy must not fall back to the personal space")
+		}
+		if st.uploadPath != "/api/upload/docs/guide" || st.uploadQuery != "replace=true" {
+			t.Fatalf("upload target = %s?%s", st.uploadPath, st.uploadQuery)
+		}
+		if st.expectedVersion != "4" || st.feedbackBatch != "batch-1" {
+			t.Fatalf("version/batch = %q/%q", st.expectedVersion, st.feedbackBatch)
+		}
+	})
+
+	t.Run("feedback-batch-rejects-conflicting-explicit-target", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "report.html")
+		writeFile(t, file, "updated")
+		srv, st := newDeployServer(t)
+		c, _ := newTestClient(srv.URL, "tok")
+		err := c.deploy([]string{file, "--feedback-batch", "batch-1", "--space", "other", "--name", "report"})
+		if err == nil || !strings.Contains(err.Error(), "belongs to docs/guide") {
+			t.Fatalf("error = %v", err)
+		}
+		if st.uploadPath != "" {
+			t.Fatal("conflicting feedback target must stop before upload")
+		}
+	})
 	t.Run("folder-walks-defaults-space-and-name", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "myfolder")
 		writeFile(t, filepath.Join(dir, "a.txt"), "AAA")

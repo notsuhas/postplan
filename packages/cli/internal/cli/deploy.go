@@ -137,6 +137,18 @@ func (c *client) deploy(argv []string) error {
 		}
 	}
 
+	feedbackBatchID := ""
+	var targetBatch *feedbackBatch
+	if raw, ok := flags["feedback-batch"].(string); ok {
+		feedbackBatchID = strings.TrimSpace(raw)
+	}
+	if feedbackBatchID != "" {
+		targetBatch, err = c.feedbackBatchByID(feedbackBatchID)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Accept a single file OR a folder. A lone file uploads under its own name and is served at
 	// the site root (the content worker falls back to the only file).
 	var entries []deployEntry
@@ -167,6 +179,11 @@ func (c *client) deploy(argv []string) error {
 	name := ""
 	if raw, present := flags["name"]; present {
 		name = raw.(string)
+		if targetBatch != nil && name != targetBatch.Site.Slug {
+			return fmt.Errorf("Feedback batch %s belongs to %s/%s; refusing conflicting --name %s.", feedbackBatchID, targetBatch.Site.Space, targetBatch.Site.Slug, name)
+		}
+	} else if targetBatch != nil {
+		name = targetBatch.Site.Slug
 	} else if marker != nil {
 		name = marker.Name
 	} else {
@@ -179,6 +196,11 @@ func (c *client) deploy(argv []string) error {
 	space := ""
 	if raw, present := flags["space"]; present {
 		space = raw.(string)
+		if targetBatch != nil && space != targetBatch.Site.Space {
+			return fmt.Errorf("Feedback batch %s belongs to %s/%s; refusing conflicting --space %s.", feedbackBatchID, targetBatch.Site.Space, targetBatch.Site.Slug, space)
+		}
+	} else if targetBatch != nil {
+		space = targetBatch.Site.Space
 	} else if marker != nil {
 		space = marker.Space
 	} else {
@@ -235,14 +257,16 @@ func (c *client) deploy(argv []string) error {
 	}
 	// Pulled redeploy: send the version we pulled as the CAS token. The server REQUIRES it for an
 	// editor replace (409 on a stale one) and treats it as advisory for an owner.
-	if replace && marker != nil {
+	if replace && targetBatch != nil {
+		_ = mw.WriteField("expectedVersion", strconv.Itoa(targetBatch.SiteVersion))
+	} else if replace && marker != nil {
 		_ = mw.WriteField("expectedVersion", strconv.Itoa(marker.ContentVersion))
 	}
 	if notes, ok := flags["notes"].(string); ok && strings.TrimSpace(notes) != "" {
 		_ = mw.WriteField("changeNotes", strings.TrimSpace(notes))
 	}
-	if batch, ok := flags["feedback-batch"].(string); ok && strings.TrimSpace(batch) != "" {
-		_ = mw.WriteField("feedbackBatchId", strings.TrimSpace(batch))
+	if feedbackBatchID != "" {
+		_ = mw.WriteField("feedbackBatchId", feedbackBatchID)
 	}
 	for _, e := range entries {
 		data, err := os.ReadFile(e.abs)
