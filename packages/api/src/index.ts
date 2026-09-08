@@ -18,6 +18,7 @@ import { auth } from './routes/auth'
 import { avatars } from './routes/avatars'
 import { commentFeed } from './routes/comment-feed'
 import { comments } from './routes/comments'
+import { feedback } from './routes/feedback'
 import { summary } from './routes/summary'
 import { dataApi, dataToken } from './routes/data'
 import { notifications } from './routes/notifications'
@@ -130,6 +131,7 @@ app.get('/api/config', async (c) =>
 app.route('/api/auth', auth)
 app.route('/api/spaces', spaces)
 app.route('/api/sites', sites)
+app.route('/api', feedback)
 // Stars (GET /starred, POST|DELETE /:space/:site/star) mount BEFORE comments/summary: those two
 // groups each register `use('*', requireAuth)` across /api/sites/*, and Hono runs middleware in
 // registration order — anything mounted after them pays their auth reads on top of its own. The

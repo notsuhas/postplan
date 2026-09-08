@@ -166,6 +166,8 @@ export const siteVersions = sqliteTable(
       .references(() => sites.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
     description: text('description'),
+    changeNotes: text('changeNotes'),
+    feedbackBatchId: text('feedbackBatchId'),
     restoredFrom: integer('restoredFrom'),
     createdBy: text('createdBy').references(() => users.id, { onDelete: 'set null' }),
     createdAt: text('createdAt')
@@ -282,6 +284,7 @@ export const commentThreads = sqliteTable(
     anchorStatus: text('anchorStatus', { enum: ['anchored', 'shifted', 'suggested', 'orphaned'] })
       .notNull()
       .default('anchored'),
+    createdVersion: integer('createdVersion').notNull().default(0),
     start: integer('start'),
     end: integer('end'),
     status: text('status', { enum: ['open', 'resolved'] })
@@ -329,6 +332,100 @@ export const comments = sqliteTable(
     // Covers the authored feed arm: WHERE authorId = ? AND deletedAt IS NULL ORDER BY createdAt DESC.
     index('comments_author_deleted_created').on(t.authorId, t.deletedAt, t.createdAt),
   ],
+)
+
+export const feedbackBatches = sqliteTable(
+  'feedback_batches',
+  {
+    id: text('id').primaryKey(),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    siteVersion: integer('siteVersion').notNull(),
+    status: text('status', { enum: ['queued', 'claimed', 'completed', 'cancelled'] })
+      .notNull()
+      .default('queued'),
+    createdBy: text('createdBy').references(() => users.id, { onDelete: 'set null' }),
+    claimedBy: text('claimedBy').references(() => users.id, { onDelete: 'set null' }),
+    idempotencyKey: text('idempotencyKey').notNull(),
+    requestHash: text('requestHash').notNull(),
+    claimableAt: text('claimableAt').notNull(),
+    claimedAt: text('claimedAt'),
+    completedAt: text('completedAt'),
+    cancelledAt: text('cancelledAt'),
+    completedVersion: integer('completedVersion'),
+    createdAt: text('createdAt').notNull(),
+  },
+  (t) => [
+    unique('feedback_batches_actor_key_unq').on(t.createdBy, t.idempotencyKey),
+    index('feedback_batches_status_claimable').on(t.status, t.claimableAt),
+    index('feedback_batches_site_created').on(t.siteId, t.createdAt),
+  ],
+)
+
+export const feedbackBatchItems = sqliteTable(
+  'feedback_batch_items',
+  {
+    batchId: text('batchId')
+      .notNull()
+      .references(() => feedbackBatches.id, { onDelete: 'cascade' }),
+    commentId: text('commentId')
+      .notNull()
+      .references(() => comments.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.batchId, t.commentId] }), index('feedback_batch_items_comment').on(t.commentId)],
+)
+
+export const idempotencyRecords = sqliteTable(
+  'idempotency_records',
+  {
+    actorId: text('actorId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    action: text('action').notNull(),
+    key: text('key').notNull(),
+    requestHash: text('requestHash').notNull(),
+    statusCode: integer('statusCode').notNull(),
+    response: text('response', { mode: 'json' }).$type<unknown>().notNull(),
+    createdAt: text('createdAt').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.action, t.key] })],
+)
+
+export const actionLedger = sqliteTable(
+  'action_ledger',
+  {
+    id: text('id').primaryKey(),
+    actorId: text('actorId').references(() => users.id, { onDelete: 'set null' }),
+    action: text('action').notNull(),
+    siteId: text('siteId').references(() => sites.id, { onDelete: 'set null' }),
+    siteVersion: integer('siteVersion'),
+    authorization: text('authorization').notNull(),
+    targetId: text('targetId'),
+    idempotencyKey: text('idempotencyKey'),
+    metadata: text('metadata', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    createdAt: text('createdAt').notNull(),
+  },
+  (t) => [
+    index('action_ledger_site_created').on(t.siteId, t.createdAt),
+    index('action_ledger_actor_created').on(t.actorId, t.createdAt),
+  ],
+)
+
+export const siteShareLinks = sqliteTable(
+  'site_share_links',
+  {
+    id: text('id').primaryKey(),
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    tokenHash: text('tokenHash').notNull().unique(),
+    createdBy: text('createdBy').references(() => users.id, { onDelete: 'set null' }),
+    expiresAt: text('expiresAt').notNull(),
+    revokedAt: text('revokedAt'),
+    createdAt: text('createdAt').notNull(),
+  },
+  (t) => [index('site_share_links_site_created').on(t.siteId, t.createdAt)],
 )
 
 // Emoji reactions on a comment. Like siteStars, the composite primary key is what makes the toggle
@@ -594,6 +691,9 @@ export type CommentThread = typeof commentThreads.$inferSelect
 export type NewCommentThread = typeof commentThreads.$inferInsert
 export type Comment = typeof comments.$inferSelect
 export type NewComment = typeof comments.$inferInsert
+export type FeedbackBatch = typeof feedbackBatches.$inferSelect
+export type NewFeedbackBatch = typeof feedbackBatches.$inferInsert
+export type ActionLedgerEntry = typeof actionLedger.$inferSelect
 export type DocumentRow = typeof documents.$inferSelect
 export type ChangeLogRow = typeof changeLog.$inferSelect
 export type ChangeType = ChangeLogRow['type']

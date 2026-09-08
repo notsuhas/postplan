@@ -257,6 +257,7 @@ export async function seedSite(
     description: o.description ?? null,
     visibility: o.visibility ?? 'team',
     status: o.status ?? 'active',
+    contentVersion: o.contentVersion ?? 0,
     // Omitted → schema $defaultFn (now). Passable so ordering specs can pin exact timelines.
     ...(o.createdAt !== undefined && { createdAt: o.createdAt }),
     // A fresh site's updatedAt == createdAt (no replace yet); default it so createdAt-pinned ordering
@@ -339,6 +340,7 @@ export async function seedThread(
     quote: o.quote ?? null,
     contentHash: o.contentHash ?? null,
     anchorStatus: o.anchorStatus ?? 'anchored',
+    createdVersion: o.createdVersion ?? 0,
     start: o.start ?? null,
     end: o.end ?? null,
     status: o.status ?? 'open',
