@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { type LoaderFunctionArgs, redirect, useLoaderData, useSearchParams } from 'react-router'
+import { Link, type LoaderFunctionArgs, redirect, useLoaderData, useSearchParams } from 'react-router'
 import { api, ApiError } from '../lib/api'
 import { safeNext } from '../lib/nav'
 import type { Me, PublicConfig } from '../lib/types'
@@ -11,6 +11,10 @@ import '@/tailwind.css'
 // Public source — surfaced in the header + footer so a self-hoster can find the repo.
 const REPO_URL = 'https://github.com/notsuhas/postplan'
 const HOSTED_URL = 'https://postplan.theclau.de'
+
+export interface LoginPageData extends PublicConfig {
+  authenticated: boolean
+}
 
 const ERRORS: Record<string, string> = {
   denied: 'Google did not return a verified email address.',
@@ -66,23 +70,26 @@ function terminalSteps(installCmd: string, host: string) {
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url)
   const next = safeNext(url.searchParams.get('next'))
-  if (url.pathname === '/login') {
-    try {
-      await api.get<Me>('/api/auth/me')
+  let authenticated = false
+  try {
+    await api.get<Me>('/api/auth/me')
+    if (url.pathname === '/login') {
       return redirect(next ?? '/dashboard') // already signed in — honor the return URL
-    } catch {
-      // The public config below also supplies the login methods when there is no session.
     }
+    authenticated = true
+  } catch {
+    // The public config below supplies the login methods when there is no session, while the
+    // marketing page stays available if the identity request itself is temporarily unavailable.
   }
   try {
-    return await api.get<PublicConfig>('/api/config')
+    return { ...(await api.get<PublicConfig>('/api/config')), authenticated } satisfies LoginPageData
   } catch {
-    return { googleEnabled: false, bootstrapAvailable: false } satisfies PublicConfig
+    return { googleEnabled: false, bootstrapAvailable: false, authenticated } satisfies LoginPageData
   }
 }
 
 export function Component() {
-  const { googleEnabled, bootstrapAvailable } = useLoaderData() as PublicConfig
+  const { googleEnabled, bootstrapAvailable, authenticated } = useLoaderData() as LoginPageData
   const [params] = useSearchParams()
   const [busy, setBusy] = useState(false)
   const error = params.get('error')
@@ -218,52 +225,60 @@ export function Component() {
             </div>
 
             <div className="rounded-xl border border-white/10 bg-card/70 p-6 backdrop-blur-sm">
-              {error && <ErrorBanner className="mb-4">{ERRORS[error] ?? 'Sign-in error.'}</ErrorBanner>}
-              {googleEnabled && (
-                <Button
-                  size="lg"
-                  className="h-12 w-full gap-3 text-[15px] font-medium"
-                  onClick={() => {
-                    const qs = next ? `?next=${encodeURIComponent(next)}` : ''
-                    window.location.href = `/api/auth/workos${qs}`
-                  }}
-                >
-                  <span className="flex size-6 items-center justify-center rounded bg-white">
-                    <GoogleGlyph />
-                  </span>
-                  Sign in with Google
+              {authenticated ? (
+                <Button asChild size="lg" className="h-12 w-full text-[15px] font-medium">
+                  <Link to="/dashboard">Go to dashboard</Link>
                 </Button>
+              ) : (
+                <>
+                  {error && <ErrorBanner className="mb-4">{ERRORS[error] ?? 'Sign-in error.'}</ErrorBanner>}
+                  {googleEnabled && (
+                    <Button
+                      size="lg"
+                      className="h-12 w-full gap-3 text-[15px] font-medium"
+                      onClick={() => {
+                        const qs = next ? `?next=${encodeURIComponent(next)}` : ''
+                        window.location.href = `/api/auth/workos${qs}`
+                      }}
+                    >
+                      <span className="flex size-6 items-center justify-center rounded bg-white">
+                        <GoogleGlyph />
+                      </span>
+                      Sign in with Google
+                    </Button>
+                  )}
+
+                  {bootstrapAvailable && <SetupPanel next={next} withDivider={googleEnabled} />}
+
+                  {import.meta.env.DEV && (
+                    <Button
+                      variant="outline"
+                      className="mt-3 h-10 w-full font-mono text-xs"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true)
+                        const res = await fetch('/api/auth/dev-login', { method: 'POST', credentials: 'include' })
+                        if (res.ok) window.location.href = safeNext(next) ?? '/dashboard'
+                        else setBusy(false)
+                      }}
+                    >
+                      {busy ? 'signing in…' : '› dev login (localhost)'}
+                    </Button>
+                  )}
+
+                  {!hasAnyMethod && (
+                    <p className="text-center text-sm text-muted-foreground">
+                      No sign-in method is configured yet. Ask an administrator to finish setup.
+                    </p>
+                  )}
+
+                  <p className="mt-4 text-center text-xs text-muted-foreground">
+                    {googleEnabled
+                      ? 'Invited accounts only · sessions expire after 30 days'
+                      : 'Sessions expire after 30 days'}
+                  </p>
+                </>
               )}
-
-              {bootstrapAvailable && <SetupPanel next={next} withDivider={googleEnabled} />}
-
-              {import.meta.env.DEV && (
-                <Button
-                  variant="outline"
-                  className="mt-3 h-10 w-full font-mono text-xs"
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true)
-                    const res = await fetch('/api/auth/dev-login', { method: 'POST', credentials: 'include' })
-                    if (res.ok) window.location.href = safeNext(next) ?? '/dashboard'
-                    else setBusy(false)
-                  }}
-                >
-                  {busy ? 'signing in…' : '› dev login (localhost)'}
-                </Button>
-              )}
-
-              {!hasAnyMethod && (
-                <p className="text-center text-sm text-muted-foreground">
-                  No sign-in method is configured yet. Ask an administrator to finish setup.
-                </p>
-              )}
-
-              <p className="mt-4 text-center text-xs text-muted-foreground">
-                {googleEnabled
-                  ? 'Invited accounts only · sessions expire after 30 days'
-                  : 'Sessions expire after 30 days'}
-              </p>
             </div>
           </div>
         </main>
