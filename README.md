@@ -66,6 +66,18 @@ postplan deploy <path>  # file or folder → publishes to your personal space
 
 The installer bakes in your instance URL and installs the agent skill so coding agents can drive the CLI. Any agent that can run a shell command drives Postplan by calling the `postplan` CLI directly — it's harness-agnostic.
 
+You can also run the same native CLI through npm (Node 20+):
+
+```bash
+npx @notsuhas/postplan login
+npx @notsuhas/postplan deploy ./dist
+
+# Or install the command globally
+npm install --global @notsuhas/postplan
+```
+
+The npm route installs only the native package for your macOS/Linux architecture. For a self-hosted instance, export `POSTPLAN_API_URL=https://postplan.example.com`; the instance-specific `curl` installer remains the easiest option because it configures that URL automatically.
+
 ### Any agent, any harness
 
 The bundled skill teaches your agent to drive Postplan. Install it into **any** harness — Claude Code, Cursor, Codex, OpenCode, Amp, and more — with the [skills.sh](https://skills.sh) installer:
@@ -91,7 +103,7 @@ The `curl … /api/install | sh` line already installs the skill into detected C
 
 Defaults: `--space` = your personal space · `--name` = file/folder name slugified · `--visibility` = `team` (`unlisted` · `private` · `members` also available). Point at another instance with `POSTPLAN_API_URL=https://… postplan <cmd>`.
 
-The CLI keeps itself current (once-a-day background check, atomic in-place swap). Opt out with `POSTPLAN_NO_UPDATE=1`.
+Standalone installations keep themselves current (once-a-day background check, atomic in-place swap). npm installations are updated through npm instead. Opt out of standalone update checks with `POSTPLAN_NO_UPDATE=1`.
 
 ## API keys & HTTP API
 
@@ -129,7 +141,7 @@ Docs are JSON ≤100KB in named collections. Every viewer can create and read th
 ```
 packages/api   Hono Worker — /api/* + file serving, ships the React app as static assets
 packages/web   Vite + React Router v7
-packages/cli   `postplan` CLI (Go) — `cmd/postplan` is the binary, `internal/cli` the command surface
+packages/cli   `postplan` CLI (Go) — command source plus isolated npm distribution packages
 ```
 
 Local dev: `bun install && bun run db:migrate:local && bun run dev` (main :8787 + content :8788 + vite :5173), then open http://localhost:5173. CI auto-deploys both workers on push to `main`.

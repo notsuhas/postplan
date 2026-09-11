@@ -171,3 +171,18 @@ func TestUpgradeDevGuard(t *testing.T) {
 		t.Errorf("background upgrade on a dev build should be silent, got %v", err)
 	}
 }
+
+func TestNpmManagedUpgradeGuard(t *testing.T) {
+	t.Setenv("POSTPLAN_MANAGED_BY", "npm")
+	if !updatesManagedExternally() {
+		t.Fatal("npm launcher marker should disable native updates")
+	}
+	c, _ := newTestClient("http://unused", "")
+	err := c.upgradeCmd([]string{})
+	if err == nil || !strings.Contains(err.Error(), "npm install --global @notsuhas/postplan@latest") {
+		t.Fatalf("foreground npm-managed upgrade error = %v", err)
+	}
+	if err := c.upgradeCmd([]string{"--quiet"}); err != nil {
+		t.Fatalf("background npm-managed upgrade should be silent, got %v", err)
+	}
+}

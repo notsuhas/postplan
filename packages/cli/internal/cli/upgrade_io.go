@@ -79,6 +79,10 @@ func isInstalledBinary() bool {
 	return !strings.Contains(exe, string(filepath.Separator)+"go-build")
 }
 
+func updatesManagedExternally() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("POSTPLAN_MANAGED_BY")), "npm")
+}
+
 func dirWritable(dir string) bool {
 	f, err := os.CreateTemp(dir, ".postplan-wtest-")
 	if err != nil {
@@ -189,6 +193,12 @@ func (c *client) upgradeCmd(argv []string) error {
 		}
 	}
 	background := slices.Contains(argv, "--quiet")
+	if updatesManagedExternally() {
+		if background {
+			return nil
+		}
+		return fmt.Errorf("this installation is managed by npm — run `npm install --global @notsuhas/postplan@latest`")
+	}
 	if !isInstalledBinary() {
 		if background {
 			return nil
@@ -239,7 +249,7 @@ func (c *client) upgradeCmd(argv []string) error {
 // Fire-and-forget: stamp the TTL, then hand off to a detached `upgrade --quiet` and return
 // immediately - the user's command never waits on the network.
 func maybeAutoUpdate() {
-	if os.Getenv("POSTPLAN_NO_UPDATE") != "" || os.Getenv("CI") != "" {
+	if updatesManagedExternally() || os.Getenv("POSTPLAN_NO_UPDATE") != "" || os.Getenv("CI") != "" {
 		return
 	}
 	if !isInstalledBinary() {
