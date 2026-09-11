@@ -11,6 +11,12 @@ function renderIt() {
 }
 
 describe('GettingStarted', () => {
+  test('offers npm as an alternative CLI installation', async () => {
+    renderIt()
+    expect(await screen.findByText(/npx @notsuhas\/postplan login/)).toBeDefined()
+    expect(screen.getByText(/also starts sign-in/)).toBeDefined()
+  })
+
   test('links to /docs/api-keys', async () => {
     renderIt()
     const link = (await screen.findByText(/API keys/)).closest('a')

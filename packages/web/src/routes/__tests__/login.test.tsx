@@ -62,6 +62,12 @@ describe('homepage authentication action', () => {
     expect(screen.queryByRole('link', { name: 'Go to dashboard' })).toBeNull()
   })
 
+  test('the public homepage offers the npm CLI command', async () => {
+    renderPage({ googleEnabled: true, bootstrapAvailable: false, authenticated: false })
+
+    expect(await screen.findByText(/npx @notsuhas\/postplan login/)).toBeDefined()
+  })
+
   test('the public loader reports a valid existing session without redirecting', async () => {
     const calls = stubHomepage(Response.json(USER))
 

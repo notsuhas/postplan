@@ -15,6 +15,15 @@ curl -fsSL <your-postplan-instance>/api/install | sh
 
 This drops the `postplan` binary on your PATH (pre-pointed at that instance) and it keeps itself up to date. Run `postplan` with no arguments to list every command.
 
+The same native CLI is also available through npm when Node 20+ is installed:
+
+```bash
+npx @notsuhas/postplan login
+npm install --global @notsuhas/postplan
+```
+
+Set `POSTPLAN_API_URL` explicitly when using npm with a self-hosted instance. npm-managed installations update through npm; `postplan upgrade` is reserved for standalone installations.
+
 The installer also adds this bundled skill to every detected Claude Code, Codex, Cursor, OpenCode, or shared Agent Skills directory. To control that separately:
 
 ```bash

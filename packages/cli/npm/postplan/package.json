@@ -1,0 +1,43 @@
+{
+  "name": "@notsuhas/postplan",
+  "version": "0.0.0-development",
+  "description": "Publish files and folders to reviewable Postplan URLs",
+  "type": "module",
+  "bin": {
+    "postplan": "bin/postplan.js"
+  },
+  "files": [
+    "bin/postplan.js",
+    "src/platform.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@notsuhas/postplan-darwin-arm64": "0.0.0-development",
+    "@notsuhas/postplan-darwin-x64": "0.0.0-development",
+    "@notsuhas/postplan-linux-arm64": "0.0.0-development",
+    "@notsuhas/postplan-linux-x64": "0.0.0-development"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notsuhas/postplan.git",
+    "directory": "packages/cli/npm/postplan"
+  },
+  "homepage": "https://postplan.theclau.de",
+  "bugs": {
+    "url": "https://github.com/notsuhas/postplan/issues"
+  },
+  "keywords": [
+    "postplan",
+    "cli",
+    "agents",
+    "static-hosting"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

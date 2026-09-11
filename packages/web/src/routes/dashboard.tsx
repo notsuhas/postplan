@@ -64,6 +64,7 @@ import {
   tabFromParam,
 } from '@/lib/feedState'
 import { skipSearchOnlyRevalidation } from '@/lib/nav'
+import { installCommands } from '@/lib/install'
 import { notificationHref } from '@/lib/mentions'
 import type { RootData } from '@/lib/notifications'
 import { timeAgo } from '@/lib/time'
@@ -508,7 +509,7 @@ function AgentSetup() {
   const root = useRouteLoaderData('root') as RootData | undefined
   if (root?.user?.hasUsedCli) return null
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const installCmd = `curl -fsSL ${origin}/api/install | sh`
+  const installCmd = installCommands(origin).standalone
   return (
     <Card className="gap-4 border-primary/20 bg-primary/[0.03] p-5">
       <div className="space-y-1">
@@ -596,7 +597,7 @@ function NewMenu({ spaces }: { spaces: SpaceSummary[] }) {
 // (mirrors GET /api/install), so what a user copies installs from the instance they're on.
 function InstallDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const installCmd = `curl -fsSL ${origin}/api/install | sh`
+  const commands = installCommands(origin)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
@@ -604,11 +605,26 @@ function InstallDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
           <DialogTitle>Install the postplan CLI</DialogTitle>
           <DialogDescription>Deploy from your terminal — and use it as an agent skill.</DialogDescription>
         </DialogHeader>
-        <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
-          <code className="min-w-0 flex-1 truncate font-mono text-sm">{installCmd}</code>
-          <CopyButton text={installCmd} label="Copy" copiedMessage="Install command copied" />
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <p className="font-medium text-sm">Instance installer</p>
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
+              <code className="min-w-0 flex-1 truncate font-mono text-sm">{commands.standalone}</code>
+              <CopyButton text={commands.standalone} label="Copy" copiedMessage="Install command copied" />
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Installs the CLI to ~/.local/bin and adds the skill to detected agent directories.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <p className="font-medium text-sm">npm · Node 20+</p>
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
+              <code className="min-w-0 flex-1 truncate font-mono text-sm">{commands.npm}</code>
+              <CopyButton text={commands.npm} label="Copy" copiedMessage="npm command copied" />
+            </div>
+            <p className="text-muted-foreground text-xs">Runs the native CLI and starts sign-in for this instance.</p>
+          </div>
         </div>
-        <p className="text-muted-foreground text-xs">Installs to ~/.local/bin/postplan.</p>
       </DialogContent>
     </Dialog>
   )

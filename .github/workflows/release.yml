@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -16,11 +17,17 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
       # The CLI is a stdlib-only Go program. All 4 darwin/linux x arm64/x64 targets cross-compile
-      # from this one runner via GOOS/GOARCH - no bun, no cross toolchain, no per-OS runners. Asset
-      # names (postplan-<arch>-<os>) + the gz + .sha256 contract match the old bun build exactly, so
-      # install.sh and the CLI self-update path are unchanged.
+      # from this one runner via GOOS/GOARCH, with no cross toolchain or per-OS runners. The same
+      # executable bytes feed GitHub's standalone downloads and npm's platform packages.
       - name: Build standalone binaries
         working-directory: packages/cli
         run: |
@@ -31,15 +38,34 @@ jobs:
           while read -r goos goarch out; do
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
               go build -trimpath -ldflags="-s -w -X main.version=$v" -o "dist/$out" ./cmd/postplan
-            # Checksum the uncompressed binary (what actually runs), then gzip to shrink the download.
             # The installer + self-update verify the decompressed bytes against this sum.
-            ( cd dist && shasum -a 256 "$out" | awk '{print $1}' > "$out.sha256" && gzip -9 "$out" )
+            ( cd dist && shasum -a 256 "$out" | awk '{print $1}' > "$out.sha256" )
           done <<'EOF'
           darwin arm64 postplan-arm64-darwin
           darwin amd64 postplan-x64-darwin
           linux  arm64 postplan-arm64-linux
           linux  amd64 postplan-x64-linux
           EOF
+
+      - name: Test and prepare npm packages
+        run: |
+          bun run test:cli:npm
+          current_npm_version="$(npm view @notsuhas/postplan version)"
+          bun run prepare:cli:npm "${GITHUB_REF_NAME#v}" packages/cli/dist "$current_npm_version"
+          for package_dir in packages/cli/npm/platforms/* packages/cli/npm/postplan; do
+            npm pack --dry-run "$package_dir"
+          done
+
+      - name: Compress standalone downloads
+        working-directory: packages/cli/dist
+        run: |
+          for binary in \
+            postplan-arm64-darwin \
+            postplan-x64-darwin \
+            postplan-arm64-linux \
+            postplan-x64-linux; do
+            gzip -9 "$binary"
+          done
 
       - name: Publish release
         # Pinned to a full commit SHA (not the mutable @v3 tag): this action publishes the binaries +
@@ -51,3 +77,17 @@ jobs:
             packages/cli/dist/postplan-*-*.gz
             packages/cli/dist/postplan-*-*.sha256
           generate_release_notes: true
+
+      - name: Publish npm packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          for package_dir in packages/cli/npm/platforms/* packages/cli/npm/postplan; do
+            package_name="$(node -p "require('./${package_dir}/package.json').name")"
+            if npm view "${package_name}@${v}" version >/dev/null 2>&1; then
+              echo "${package_name}@${v} already published"
+            else
+              npm publish "$package_dir" --access public --provenance
+            fi
+          done
