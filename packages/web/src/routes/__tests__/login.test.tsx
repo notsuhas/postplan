@@ -10,9 +10,9 @@ afterEach(() => {
   globalThis.fetch = originalFetch
 })
 
-function renderPage(data: LoginPageData) {
+function renderPage(data: LoginPageData, entry = '/') {
   const router = createMemoryRouter([{ path: '/', Component, HydrateFallback: () => null, loader: () => data }], {
-    initialEntries: ['/'],
+    initialEntries: [entry],
   })
   return render(<RouterProvider router={router} />)
 }
@@ -43,17 +43,22 @@ function stubHomepage(identity: Response | Error) {
 
 describe('homepage authentication action', () => {
   test('an authenticated visitor gets one direct dashboard action', async () => {
-    renderPage({ ...CONFIG, authenticated: true })
+    renderPage({ googleEnabled: true, bootstrapAvailable: true, authenticated: true }, '/?error=oauth')
 
     const dashboard = await screen.findByRole('link', { name: 'Go to dashboard' })
     expect(dashboard.getAttribute('href')).toBe('/dashboard')
     expect(screen.queryByRole('button', { name: 'Sign in with Google' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Complete setup' })).toBeNull()
+    expect(screen.queryByText(/sessions expire/)).toBeNull()
+    expect(screen.queryByText(ERROR_TEXT)).toBeNull()
   })
 
-  test('a signed-out visitor keeps the configured Google sign-in action', async () => {
-    renderPage({ ...CONFIG, authenticated: false })
+  test('a signed-out visitor keeps every configured sign-in action', async () => {
+    renderPage({ googleEnabled: true, bootstrapAvailable: true, authenticated: false })
 
     expect(await screen.findByRole('button', { name: 'Sign in with Google' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Complete setup' })).toBeDefined()
+    expect(screen.getByText(/sessions expire after 30 days/)).toBeDefined()
     expect(screen.queryByRole('link', { name: 'Go to dashboard' })).toBeNull()
   })
 
@@ -67,10 +72,25 @@ describe('homepage authentication action', () => {
   })
 
   test('an unavailable identity request degrades to the signed-out homepage', async () => {
-    stubHomepage(new Error('identity unavailable'))
+    stubHomepage(Response.json({ error: 'Not authenticated' }, { status: 401 }))
 
     const result = await loader({ request: new Request('https://postplan.test/') } as never)
 
     expect(result).toEqual({ ...CONFIG, authenticated: false })
   })
+
+  test('the login route still redirects an existing session to its safe destination', async () => {
+    const calls = stubHomepage(Response.json(USER))
+
+    const result = await loader({
+      request: new Request('https://postplan.test/login?next=%2Fsettings%2Fkeys'),
+    } as never)
+
+    expect(result).toBeInstanceOf(Response)
+    expect((result as Response).status).toBe(302)
+    expect((result as Response).headers.get('location')).toBe('/settings/keys')
+    expect(calls).toEqual(['/api/auth/me'])
+  })
 })
+
+const ERROR_TEXT = "Google sign-in didn't go through. Try again."
