@@ -100,5 +100,5 @@
 - [x] Run npm launcher/preparation tests and package dry runs.
 - [x] Run `bun run typecheck`, `bun run lint`, `bun run format:check`, and relevant root tests.
 - [x] Run `gofmt`, `go vet ./...`, and `go test ./...` in `packages/cli`.
-- [ ] Review `git diff`, commit with Conventional Commits, and push.
-- [ ] Open a pull request with test evidence and the `v1.2.0+` release prerequisite.
+- [x] Review `git diff`, commit with Conventional Commits, and push.
+- [x] Open a pull request with test evidence and the `v1.2.0+` release prerequisite.
