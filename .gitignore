@@ -45,6 +45,7 @@ CLAUDE.md
 *PLAN.md
 *PROGRESS.md
 *PROGRESS.html
+docs/superpowers/
 
 # local CLI build (releases build from source)
 packages/cli/postplan
