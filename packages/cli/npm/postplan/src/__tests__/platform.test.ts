@@ -3,7 +3,7 @@ import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { binaryPath, packageName } from '../src/platform.js'
+import { binaryPath, packageName } from '../platform.js'
 
 describe('packageName', () => {
   test.each([
@@ -28,8 +28,8 @@ async function launcherFixture(nativeScript?: string) {
   const dir = await mkdtemp(join(tmpdir(), 'postplan-launcher-'))
   await mkdir(join(dir, 'bin'), { recursive: true })
   await mkdir(join(dir, 'src'), { recursive: true })
-  await cp(new URL('../bin/postplan.js', import.meta.url), join(dir, 'bin/postplan.js'))
-  await cp(new URL('../src/platform.js', import.meta.url), join(dir, 'src/platform.js'))
+  await cp(new URL('../../bin/postplan.js', import.meta.url), join(dir, 'bin/postplan.js'))
+  await cp(new URL('../platform.js', import.meta.url), join(dir, 'src/platform.js'))
 
   if (nativeScript && process.platform === 'linux' && process.arch === 'x64') {
     const packageDir = join(dir, 'node_modules/@notsuhas/postplan-linux-x64')

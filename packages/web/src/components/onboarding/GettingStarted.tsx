@@ -1,6 +1,7 @@
 import { MessageSquareText, Terminal } from 'lucide-react'
 import { Link } from 'react-router'
 import { CopyButton } from '@/components/ui/CopyButton'
+import { installCommands } from '@/lib/install'
 
 // The onboarding walkthrough, rendered in TWO surfaces: the dashboard's empty sites tab and the
 // header HelpButton sheet. Prompt-first on purpose — the product pitch is "your AI writes the
@@ -39,7 +40,7 @@ const PROMPTS = [
 ]
 
 export function GettingStarted({ onNavigate }: { onNavigate?: () => void } = {}) {
-  const installCommand = `curl -fsSL ${window.location.origin}/api/install | sh`
+  const commands = installCommands(window.location.origin)
   return (
     <div className="space-y-5">
       <p className="text-muted-foreground text-sm">
@@ -48,11 +49,14 @@ export function GettingStarted({ onNavigate }: { onNavigate?: () => void } = {})
       </p>
       <ol className="space-y-5">
         <Step n={1} title="Install the CLI">
-          <CopyRow text={installCommand} copiedMessage="Install command copied" />
+          <CopyRow text={commands.standalone} copiedMessage="Install command copied" />
           <p className="text-muted-foreground text-xs">
             <Terminal className="mr-1 inline size-3 align-[-1px]" />
             Also installs the postplan skill, so Claude Code knows how to deploy here.
           </p>
+          <p className="pt-1 font-medium text-muted-foreground text-xs">Or use npm with Node 20+</p>
+          <CopyRow text={commands.npm} copiedMessage="npm command copied" />
+          <p className="text-muted-foreground text-xs">The npm command also starts sign-in, so skip step 2.</p>
         </Step>
         <Step n={2} title="Sign in">
           <CopyRow text="postplan login" copiedMessage="Command copied" />

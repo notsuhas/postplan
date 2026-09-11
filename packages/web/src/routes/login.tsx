@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, type LoaderFunctionArgs, redirect, useLoaderData, useSearchParams } from 'react-router'
 import { api, ApiError } from '../lib/api'
 import { safeNext } from '../lib/nav'
+import { installCommands } from '../lib/install'
 import type { Me, PublicConfig } from '../lib/types'
 import { CopyButton } from '@/components/ui/CopyButton'
 import { Button } from '@/components/ui/button'
@@ -101,8 +102,8 @@ export function Component() {
   const browserOrigin = typeof window !== 'undefined' ? window.location.origin : ''
   const origin = import.meta.env.DEV ? HOSTED_URL : browserOrigin
   const host = origin.replace(/^https?:\/\//, '') || 'postplan.example.com'
-  const installCmd = `curl -fsSL ${origin}/api/install | sh`
-  const terminal = terminalSteps(installCmd, host)
+  const commands = installCommands(origin)
+  const terminal = terminalSteps(commands.standalone, host)
   const agentPrompt = `Use Postplan at ${origin}. Read ${origin}/llms.txt, install its CLI and skill, then publish the artifact in this workspace for review.`
 
   return (
@@ -199,7 +200,7 @@ export function Component() {
                 <span className="size-3 rounded-full bg-white/15" />
                 <span className="ml-2 font-mono text-xs text-muted-foreground">postplan — zsh</span>
                 <CopyButton
-                  text={installCmd}
+                  text={commands.standalone}
                   label="copy install"
                   copiedMessage="Install command copied"
                   variant="ghost"
@@ -222,6 +223,21 @@ export function Component() {
                   <span className="bp-caret text-foreground/70" />
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-[#0a1120]/55 px-3 py-2.5">
+              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">npm · Node 20+</span>
+              <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground/80" title={commands.npm}>
+                {commands.npm}
+              </code>
+              <CopyButton
+                text={commands.npm}
+                label="copy npm"
+                copiedMessage="npm command copied"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 px-2 font-mono text-[11px] text-muted-foreground hover:text-foreground [&_svg]:size-3"
+              />
             </div>
 
             <div className="rounded-xl border border-white/10 bg-card/70 p-6 backdrop-blur-sm">

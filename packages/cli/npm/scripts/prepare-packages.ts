@@ -31,14 +31,16 @@ function parseStableVersion(version: string): [number, number, number] {
   return [Number(match[1]), Number(match[2]), Number(match[3])]
 }
 
-function assertPublishableVersion(version: string) {
-  const parts = parseStableVersion(version)
-  const minimum: [number, number, number] = [1, 2, 0]
-  const isOld = parts.some((part, index) => {
-    if (part === minimum[index]) return false
-    return parts.slice(0, index).every((value, prefix) => value === minimum[prefix]) && part < minimum[index]
-  })
-  if (isOld) throw new Error(`npm version ${version} must be at least 1.2.0`)
+export function assertPublishableVersion(version: string, currentNpmVersion: string) {
+  const candidate = parseStableVersion(version)
+  const current = parseStableVersion(currentNpmVersion)
+
+  for (let index = 0; index < candidate.length; index += 1) {
+    if (candidate[index] > current[index]) return
+    if (candidate[index] < current[index]) {
+      throw new Error(`npm version ${version} cannot be older than npm latest ${currentNpmVersion}`)
+    }
+  }
 }
 
 async function readManifest(path: string) {
@@ -49,8 +51,8 @@ async function writeManifest(path: string, manifest: Record<string, unknown>) {
   await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`)
 }
 
-export async function preparePackages(version: string, distDir: string, npmDir: string) {
-  assertPublishableVersion(version)
+export async function preparePackages(version: string, distDir: string, npmDir: string, currentNpmVersion: string) {
+  assertPublishableVersion(version, currentNpmVersion)
 
   for (const target of TARGETS) {
     const packageDir = join(npmDir, 'platforms', target.directory)
@@ -78,7 +80,10 @@ if (import.meta.main) {
   const npmDir = resolve(scriptDir, '..')
   const version = Bun.argv[2]
   const distDir = resolve(Bun.argv[3] ?? join(npmDir, '..', 'dist'))
-  if (!version) throw new Error('usage: prepare-packages.ts <version> [dist-dir]')
-  await preparePackages(version, distDir, npmDir)
+  const currentNpmVersion = Bun.argv[4]
+  if (!version || !currentNpmVersion) {
+    throw new Error('usage: prepare-packages.ts <version> <dist-dir> <current-npm-version>')
+  }
+  await preparePackages(version, distDir, npmDir, currentNpmVersion)
   console.log(`Prepared Postplan npm packages at ${version}`)
 }

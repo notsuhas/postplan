@@ -50,7 +50,8 @@ jobs:
       - name: Test and prepare npm packages
         run: |
           bun run test:cli:npm
-          bun run prepare:cli:npm "${GITHUB_REF_NAME#v}" packages/cli/dist
+          current_npm_version="$(npm view @notsuhas/postplan version)"
+          bun run prepare:cli:npm "${GITHUB_REF_NAME#v}" packages/cli/dist "$current_npm_version"
           for package_dir in packages/cli/npm/platforms/* packages/cli/npm/postplan; do
             npm pack --dry-run "$package_dir"
           done
