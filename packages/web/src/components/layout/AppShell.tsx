@@ -59,7 +59,7 @@ export function AppShell() {
       />
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-2 sm:gap-3 sm:px-6">
-          <Link to="/dashboard" className="flex items-center gap-2 font-mono text-sm font-semibold tracking-tight">
+          <Link to="/" className="flex items-center gap-2 font-mono text-sm font-semibold tracking-tight">
             <BrandMark />
             <span className="hidden min-[360px]:inline">postplan</span>
           </Link>

@@ -27,7 +27,13 @@ function renderShell(user: Me = USER) {
   return render(<RouterProvider router={router} />)
 }
 
-describe('AppShell avatar menu', () => {
+describe('AppShell navigation', () => {
+  test('links the postplan brand to the homepage', async () => {
+    renderShell()
+
+    expect((await screen.findByRole('link', { name: 'postplan' })).getAttribute('href')).toBe('/')
+  })
+
   test('links to /settings/keys', async () => {
     renderShell()
     // Radix's DropdownMenuTrigger opens on pointerdown, not click (see its source) — a plain
