@@ -71,8 +71,16 @@ describe('homepage authentication action', () => {
     expect(calls.sort()).toEqual(['/api/auth/me', '/api/config'])
   })
 
-  test('an unavailable identity request degrades to the signed-out homepage', async () => {
+  test('a 401 identity response renders the signed-out homepage', async () => {
     stubHomepage(Response.json({ error: 'Not authenticated' }, { status: 401 }))
+
+    const result = await loader({ request: new Request('https://postplan.test/') } as never)
+
+    expect(result).toEqual({ ...CONFIG, authenticated: false })
+  })
+
+  test('an unavailable identity request also degrades to the signed-out homepage', async () => {
+    stubHomepage(new Error('identity unavailable'))
 
     const result = await loader({ request: new Request('https://postplan.test/') } as never)
 
@@ -90,6 +98,15 @@ describe('homepage authentication action', () => {
     expect((result as Response).status).toBe(302)
     expect((result as Response).headers.get('location')).toBe('/settings/keys')
     expect(calls).toEqual(['/api/auth/me'])
+  })
+
+  test('the login route defaults an existing session to the dashboard', async () => {
+    stubHomepage(Response.json(USER))
+
+    const result = await loader({ request: new Request('https://postplan.test/login') } as never)
+
+    expect(result).toBeInstanceOf(Response)
+    expect((result as Response).headers.get('location')).toBe('/dashboard')
   })
 })
 
