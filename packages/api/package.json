@@ -6,18 +6,20 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "build:annotate": "bun scripts/build-annotate.ts",
+    "build:mermaid": "bun scripts/build-mermaid.ts",
     "build:db": "bun scripts/build-db.ts",
     "build:agent-docs": "bun scripts/build-agent-docs.ts",
     "build:install": "bun scripts/build-install.ts",
     "build:whatsnew": "bun scripts/build-whatsnew.ts",
     "deploy": "wrangler deploy",
-    "deploy:content": "bun run build:annotate && bun run build:db && wrangler deploy --config wrangler.content.jsonc"
+    "deploy:content": "bun run build:mermaid && bun run build:annotate && bun run build:db && wrangler deploy --config wrangler.content.jsonc"
   },
   "dependencies": {
     "@workos-inc/node": "^10.13.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.5",
     "marked": "^18.0.11",
+    "mermaid": "12.0.0",
     "workers-og": "^0.0.27"
   },
   "devDependencies": {

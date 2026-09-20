@@ -5,6 +5,7 @@
     "packages/api/src/content.ts",
     "packages/api/src/annotate/client.css",
     "packages/api/src/postplandb/client.ts",
+    "packages/api/src/mermaid/client.ts",
     "packages/api/src/**/*.test.ts",
     "packages/api/scripts/*.ts",
     "scripts/**/*.test.ts",

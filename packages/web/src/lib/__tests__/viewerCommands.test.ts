@@ -21,20 +21,20 @@ describe('railFromSearch — the ONLY place the deep-link URL→rail decision is
 
 describe('deepLinkReady — content-kind readiness gate for the ?thread deep link (slice C1b, kills the audio bug)', () => {
   test('audio never gets a frame load — ready as soon as its thread has arrived, loaded or not', () => {
-    expect(deepLinkReady({ isAudio: true, loaded: false, hasThread: true })).toBe(true)
+    expect(deepLinkReady({ isMedia: true, loaded: false, hasThread: true })).toBe(true)
   })
 
   test('HTML must wait for the iframe onLoad even once the thread is in', () => {
-    expect(deepLinkReady({ isAudio: false, loaded: false, hasThread: true })).toBe(false)
+    expect(deepLinkReady({ isMedia: false, loaded: false, hasThread: true })).toBe(false)
   })
 
   test('HTML is ready once both the frame has loaded and the thread is in', () => {
-    expect(deepLinkReady({ isAudio: false, loaded: true, hasThread: true })).toBe(true)
+    expect(deepLinkReady({ isMedia: false, loaded: true, hasThread: true })).toBe(true)
   })
 
   test('neither kind reveals a thread that has not arrived yet', () => {
-    expect(deepLinkReady({ isAudio: true, loaded: true, hasThread: false })).toBe(false)
-    expect(deepLinkReady({ isAudio: false, loaded: true, hasThread: false })).toBe(false)
+    expect(deepLinkReady({ isMedia: true, loaded: true, hasThread: false })).toBe(false)
+    expect(deepLinkReady({ isMedia: false, loaded: true, hasThread: false })).toBe(false)
   })
 })
 

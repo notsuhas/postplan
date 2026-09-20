@@ -12,21 +12,17 @@ export function railFromSearch(params: URLSearchParams): boolean {
   return params.get('review') === '1'
 }
 
-/** Readiness gate for the notification deep link (`?thread=<id>`), by content kind (slice C1b). An
- *  HTML page has no way to know its threads are ready until the iframe's onLoad fires `loaded` —
- *  but the audio view renders no iframe, so `loaded` never fires and gating on it left `?thread=`
- *  silently dead on an audio page. Audio is ready as soon as its own thread has arrived; either
- *  kind still refuses to reveal a thread that hasn't. */
+// Media comments are ready without an iframe load event.
 export function deepLinkReady({
-  isAudio,
+  isMedia,
   loaded,
   hasThread,
 }: {
-  isAudio: boolean
+  isMedia: boolean
   loaded: boolean
   hasThread: boolean
 }): boolean {
-  return hasThread && (isAudio || loaded)
+  return hasThread && (isMedia || loaded)
 }
 
 /** A reveal request for ReviewRail's deep-link / anchor-click focus: `id` is WHICH thread, `nonce` a

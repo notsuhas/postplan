@@ -240,7 +240,8 @@ describe('directory listing fallback (no index.html)', () => {
     expect(res.headers.get('content-type')).toContain('text/html')
     expect(res.headers.get('cache-control')).toBe('no-store')
     const body = await res.text()
-    expect(body).toContain('No <code>index.html')
+    expect(body).toContain('No index page here')
+    expect(body).toContain('<code>index.html</code> or <code>index.md</code>')
     // Links point at the app viewer route (URL updates) and break out of the iframe (target=_top).
     expect(body).toContain('href="https://postplan.example.com/sam/site/home.html" target="_top"')
     expect(body).toContain('href="https://postplan.example.com/sam/site/assets/app.js" target="_top"')

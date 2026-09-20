@@ -34,7 +34,7 @@
     "dev:content": "bunx wrangler dev -c wrangler.content.jsonc --port 8788 --inspector-port 9230 --persist-to .wrangler-shared",
     "dev:web": "cd packages/web && bunx vite",
     "build:web": "cd packages/web && bunx vite build",
-    "build:generated": "cd packages/api && bun run build:annotate && bun run build:db && bun run build:agent-docs && bun run build:install && bun run build:whatsnew && bunx biome format --write src/annotate/bundle.ts src/postplandb/bundle.ts src/agent-docs.ts src/install-script.ts src/whats-new/catalog.ts",
+    "build:generated": "cd packages/api && bun run build:mermaid && bun run build:annotate && bun run build:db && bun run build:agent-docs && bun run build:install && bun run build:whatsnew && bunx biome format --write src/annotate/bundle.ts src/postplandb/bundle.ts src/agent-docs.ts src/install-script.ts src/whats-new/catalog.ts",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test scripts packages/cli/npm && bun run --filter '*' test",
     "test:cli:npm": "bun test packages/cli/npm",

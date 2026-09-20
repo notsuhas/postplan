@@ -49,7 +49,7 @@ app.use('*', (c, next) =>
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:'],
+      imgSrc: ["'self'", 'data:', c.env.CONTENT_URL],
       fontSrc: ["'self'"],
       connectSrc: ["'self'"],
       frameSrc: ["'self'", c.env.CONTENT_URL],
