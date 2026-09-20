@@ -45,6 +45,7 @@ describe('shared-backend routes on the root app', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('javascript')
     expect(res.headers.get('content-security-policy')).toContain("script-src 'self'")
+    expect(res.headers.get('content-security-policy')).toContain("img-src 'self' data: https://content.example.com")
     const body = await res.text()
     expect(body).toContain('postplan:db-hello') // broker transport present
     expect(body).toContain('__POSTPLAN_DB__')

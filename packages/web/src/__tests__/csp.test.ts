@@ -13,6 +13,9 @@ describe('_headers CSP (G-1)', () => {
   test('declares a media-src directive', () => {
     expect(mediaSrc).not.toBe('')
   })
+  test('images can load from the content origin without allowing arbitrary remote hosts', () => {
+    expect(/img-src ([^;]+);/.exec(csp)?.[1]).toBe("'self' data: https://postplan-content.YOUR-SUBDOMAIN.workers.dev")
+  })
   test("media-src allows 'self' and blob: (local recording preview)", () => {
     expect(mediaSrc).toContain("'self'")
     expect(mediaSrc).toContain('blob:')

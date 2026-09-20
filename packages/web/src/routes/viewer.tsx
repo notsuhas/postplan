@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
 import { applyCommentEvent } from '@/lib/applyCommentEvent'
 import { isAudioFile } from '@/lib/audio'
+import { isImageFile } from '@/lib/image'
+import { ImageView } from '@/components/viewer/ImageView'
 import { type CommentStream, type CommentStreamEvent, createCommentStream } from '@/lib/commentStream'
 import { attachDbBroker } from '@/lib/dbBroker'
 import { comments, paintAnchors, type PendingAnchor, pendingToInput, type Thread } from '@/lib/comments'
@@ -75,7 +77,9 @@ function Viewer() {
   // iframe, and (unlike the iframe src) no ?postplan_annotate param: that flag only triggers the
   // HTML-injection transform in content.ts, which never applies to audio.
   const isAudio = useMemo(() => entryPath !== null && isAudioFile(entryPath), [entryPath])
-  const audioSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
+  const isImage = entryPath !== null && isImageFile(entryPath)
+  const isMedia = isAudio || isImage
+  const mediaSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
 
   // Is the comments rail on screen. It gates the on-page HIGHLIGHTS again (the rail is the panel
   // that explains them, so they live and die with it) but NOT commenting: selecting text still
@@ -88,7 +92,7 @@ function Viewer() {
   // (never fires for non-HTML) — `filePath` below is what the rest of the viewer (comments,
   // rail) actually reads; for audio there's no message to wait for, so it's the splat itself.
   const [resolvedFilePath, setResolvedFilePath] = useState<string | null>(null)
-  const filePath = isAudio ? entryPath : resolvedFilePath
+  const filePath = isMedia ? entryPath : resolvedFilePath
   const [threads, setThreads] = useState<Thread[]>([])
   // A TEXT selection now comments in place, not in the rail: lib/commentPopover (slice A1) owns the
   // whole chip → composer → save lifecycle and this only executes it. Held with useReducer rather
@@ -126,10 +130,10 @@ function Viewer() {
   }, [threads, railOpen, mode, loaded, contentOrigin])
 
   useEffect(() => {
-    if (!loaded || isAudio) return
+    if (!loaded || isMedia) return
     iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:mode', mode }, contentOrigin)
     if (mode === 'experience') dispatchPopover({ type: 'dismiss' })
-  }, [contentOrigin, isAudio, loaded, mode])
+  }, [contentOrigin, isMedia, loaded, mode])
 
   // ── S11 comments-load arbitration ────────────────────────────────────────────────────────────
   // The loader fires a comments prefetch BEFORE the iframe mounts; this pure reducer
@@ -503,9 +507,9 @@ function Viewer() {
       consumedPrefetch.current = commentsPromise
       // HTML stays provisional until its postplan:ready confirms the path; audio has no iframe (and
       // thus no ready) — it applies as soon as it settles, keeping the audio player's rail working.
-      loadThreads(entryPath, { provisional: !isAudio, prefetch: commentsPromise })
+      loadThreads(entryPath, { provisional: !isMedia, prefetch: commentsPromise })
     }
-  }, [sitePath, entryPath, commentsPromise, isAudio, dispatch, loadThreads])
+  }, [sitePath, entryPath, commentsPromise, isMedia, dispatch, loadThreads])
 
   useEffect(paint, [paint])
 
@@ -577,14 +581,14 @@ function Viewer() {
       deepLinkFocused.current ||
       !deepLinkThreadId ||
       !railOpen ||
-      !deepLinkReady({ isAudio, loaded, hasThread: !!target })
+      !deepLinkReady({ isMedia, loaded, hasThread: !!target })
     )
       return
     deepLinkFocused.current = true
     // Scroll the iframe to the anchor; the rail reveals + scrolls the thread card itself (ReviewRail
     // owns the open/resolved filter, so it can un-hide a resolved target).
     scrollAnchor(target!)
-  }, [deepLinkThreadId, railOpen, loaded, isAudio, threads, scrollAnchor])
+  }, [deepLinkThreadId, railOpen, loaded, isMedia, threads, scrollAnchor])
 
   // Stable identity for ReviewRail's focusRequest prop: an inline object literal here would be a
   // NEW reference on every viewer render (threads loading, `loaded` flipping, …), and ReviewRail's
@@ -724,7 +728,7 @@ function Viewer() {
         onModeChange={setMode}
         // Print rides the annotate client's command channel; audio has no document to print.
         onPrint={
-          isAudio
+          isMedia
             ? undefined
             : () => iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:print' }, contentOrigin)
         }
@@ -747,7 +751,9 @@ function Viewer() {
         <div className="relative flex min-h-0 min-w-0 flex-1 justify-center bg-muted/20">
           <div className="relative h-full w-full">
             {isAudio ? (
-              <AudioView src={audioSrc} fileName={(entryPath ?? '').split('/').pop() ?? ''} audioRef={audioRef} />
+              <AudioView src={mediaSrc} fileName={(entryPath ?? '').split('/').pop() ?? ''} audioRef={audioRef} />
+            ) : isImage ? (
+              <ImageView key={mediaSrc} src={mediaSrc} fileName={(entryPath ?? '').split('/').pop() ?? ''} />
             ) : (
               <iframe
                 ref={iframeRef}
@@ -779,7 +785,7 @@ function Viewer() {
                 the frame reports needs no translation to position the chip/popover over it.
                 The POPOVER is unconditional on railOpen (C2b): anyone who can open the site can
                 comment without opening a panel first. */}
-            {site.authenticated && !isAudio && mode === 'comment' && (
+            {site.authenticated && !isMedia && mode === 'comment' && (
               <CommentPopover
                 chip={popover.chip}
                 composer={popover.composer}
@@ -794,7 +800,7 @@ function Viewer() {
                 onDirtyChange={onDirtyChange}
               />
             )}
-            {!isAudio && !loaded && (
+            {!isMedia && !loaded && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background text-muted-foreground">
                 <Spinner className="size-6" />
                 <span className="text-sm">Loading preview…</span>

@@ -44,6 +44,14 @@ Pick a space, drop a folder, and publish it as private, members-only, team-visib
 
 Superadmins get usage at a postplan — users, sites, storage, page views, comments, and CLI activity.
 
+## Markdown, diagrams & images
+
+Markdown renders automatically. In folders, `index.md` is the landing page when there is no `index.html`, including nested folders. Upload referenced images alongside it using relative paths.
+
+Fenced `mermaid` blocks render as diagrams with click-to-enlarge. The renderer is bundled locally; no CDN setup is needed. Invalid diagrams keep their source visible. Raw HTML and scripts in Markdown remain blocked.
+
+Standalone PNG, JPEG, GIF, WebP, AVIF, SVG and ICO files open in an image viewer with fit-to-screen, zoom, open-original and download controls. Files are served unchanged.
+
 ## Audio & voice comments
 
 Postplan is also a home for **audio** — and the review loop works by voice.

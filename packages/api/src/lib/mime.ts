@@ -16,6 +16,7 @@ export const EXT_MIME: Record<string, string> = {
   jpeg: 'image/jpeg',
   gif: 'image/gif',
   webp: 'image/webp',
+  avif: 'image/avif',
   ico: 'image/x-icon',
   txt: 'text/plain',
   xml: 'application/xml',

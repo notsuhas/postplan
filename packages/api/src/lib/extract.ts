@@ -25,13 +25,10 @@ function extracted(text: string): Extracted {
   return { ok: true, ...cap(text) }
 }
 
-// The file the root URL ('' splat) actually serves, mirroring the content worker's root
-// resolution (content.ts): an explicit index.html wins, else a lone uploaded file is served at
-// the root, else '' (a multi-file site with no index shows the directory listing). The viewer
-// reads this so a single-file audio site picks the native player at its root URL — not just at
-// the explicit `/…/recording.webm` path — and anchors comments to the same resolved path either way.
+// Mirrors the content worker: HTML index, Markdown index, lone file, then directory listing.
 export function resolveIndexPath(paths: string[]): string {
   if (paths.includes('index.html')) return 'index.html'
+  if (paths.includes('index.md')) return 'index.md'
   return paths.length === 1 ? paths[0] : ''
 }
 

@@ -163,6 +163,44 @@ test('uploaded artifacts are never delegated microphone permission', async () =>
   expect(container.querySelector('iframe')?.getAttribute('allow')).toBeNull()
 })
 
+test('standalone images render without an iframe and page comments use the image path', async () => {
+  const create = spyOn(comments, 'create').mockResolvedValue(
+    mkThread({ id: 'image-comment', anchorType: 'page', quote: null, filePath: 'picture.avif' }),
+  )
+  const list = spyOn(comments, 'list').mockResolvedValue([])
+  const mentionable = spyOn(comments, 'mentionable').mockResolvedValue([])
+  try {
+    const site = { ...SITE, indexPath: 'picture.avif', contentUrl: 'https://content.test/_t/token/sp/site/' }
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/:space/:site/*',
+          Component,
+          loader: () => ({ site, entryPath: site.indexPath, commentsPromise: Promise.resolve([]) }),
+        },
+      ],
+      { initialEntries: ['/sp/site?review=1'] },
+    )
+    const { container } = render(<RouterProvider router={router} />)
+    await screen.findByRole('img', { name: 'picture.avif' })
+    expect(container.querySelector('iframe')).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add comment' }))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Image looks good' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
+    })
+    expect(create.mock.calls[0]?.[1]).toEqual({
+      filePath: 'picture.avif',
+      body: 'Image looks good',
+      anchorType: 'page',
+    })
+  } finally {
+    create.mockRestore()
+    list.mockRestore()
+    mentionable.mockRestore()
+  }
+})
+
 /** The socket the mounted viewer dialled — awaited, since the dial happens in a mount effect. */
 const dialledSocket = () =>
   waitFor(() => {

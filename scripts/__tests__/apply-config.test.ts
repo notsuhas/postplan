@@ -59,6 +59,7 @@ describe('apply-config.sh', () => {
     expect(content).toContain('"name": "postplan-content"')
     expect(content).toContain('"pattern": "content.example.com"')
     expect(headers).toContain('https://content.example.com')
+    expect(headers).toContain("img-src 'self' data: https://content.example.com;")
     expect(main).toContain('"name": "UPLOAD_LIMITER"')
   })
 

@@ -31,7 +31,7 @@ jobs:
       - name: Check generated bundles
         run: |
           bun run build:generated
-          git diff --exit-code -- packages/api/src/annotate/bundle.ts packages/api/src/postplandb/bundle.ts packages/api/src/agent-docs.ts packages/api/src/install-script.ts packages/api/src/whats-new/catalog.ts
+          git diff --exit-code -- packages/api/src/annotate/bundle.ts packages/api/src/mermaid/bundle.ts packages/api/src/postplandb/bundle.ts packages/api/src/agent-docs.ts packages/api/src/install-script.ts packages/api/src/whats-new/catalog.ts
 
       - name: Typecheck
         run: bun run typecheck

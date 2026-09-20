@@ -4,6 +4,7 @@ import { type Context, Hono } from 'hono'
 import { sessionDb } from './db/client'
 import { ANNOTATE_CSS, ANNOTATE_JS, ANNOTATE_VERSION } from './annotate/bundle'
 import { POSTPLAN_DB_JS, POSTPLAN_DB_VERSION } from './postplandb/bundle'
+import { MERMAID_JS, MERMAID_VERSION } from './mermaid/bundle'
 import { type NewEvent, files, sites, spaces } from './db/schema'
 import { fireAndForget, recordEvent } from './lib/events'
 import { checkAccess } from './lib/access'
@@ -65,6 +66,10 @@ function notFound(c: Ctx): Response {
 }
 
 app.get('/', (c) => c.text('Postplan content origin', 200))
+
+app.get('/_postplan/mermaid.js', (c) =>
+  c.body(MERMAID_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': IMMUTABLE }),
+)
 
 // Annotate-mode client assets. Registered BEFORE the /:space/:site/* catch-all so `_postplan`
 // isn't captured as a space slug. Long-cache (IMMUTABLE) + content-versioned query (?v=) makes
@@ -180,7 +185,7 @@ async function serve(
     return c.text('Forbidden', userId === null ? 403 : access.status)
   }
 
-  let file = fileRows[0]
+  let file: (typeof fileRows)[number] | undefined = fileRows[0]
 
   // Directory request (root, or any `…/`) with no index.html. Rather than a bare 404 — which
   // leaves an author who dropped a folder without a root index.html staring at a blank frame
@@ -189,10 +194,11 @@ async function serve(
   if (!file && isIndexReq) {
     const dir = reqPath.slice(0, -'index.html'.length) // '' at the root, else `docs/`
     const all = allFileRows ?? [] // fused into the access batch above — never a follow-up trip
+    file = all.find((candidate) => candidate.path === `${dir}index.md`)
     // Single-file site: serve the lone uploaded file at the root (e.g. a dropped `report.html`).
-    if (dir === '' && all.length === 1) {
+    if (!file && dir === '' && all.length === 1) {
       file = all[0]
-    } else {
+    } else if (!file) {
       const here = all.map((f) => f.path).filter((p) => p.startsWith(dir))
       if (here.length > 0) return directoryListing(c, `${spaceSlug}/${siteSlug}`, here, dir)
     }
@@ -250,14 +256,18 @@ async function serve(
     // tags are admitted by name and nothing else is (raw HTML in the source is escaped anyway).
     // Nonce'd bytes differ per request, hence no-store and no ETag.
     const annotate = c.req.query('postplan_annotate') === '1'
-    const nonce = annotate ? crypto.randomUUID().replace(/-/g, '') : null
-    const doc = nonce
-      ? injectAnnotate(
-          renderMarkdownDoc(path, html),
-          { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL },
-          nonce,
+    const hasMermaid = html.includes('<code class="language-mermaid">')
+    const nonce = annotate || hasMermaid ? crypto.randomUUID().replace(/-/g, '') : null
+    const rendered = renderMarkdownDoc(path, html)
+    const withDiagrams = hasMermaid
+      ? rendered.replace(
+          '</body>',
+          `<script nonce="${nonce}" src="/_postplan/mermaid.js?v=${MERMAID_VERSION}" defer></script></body>`,
         )
-      : renderMarkdownDoc(path, html)
+      : rendered
+    const doc = annotate
+      ? injectAnnotate(withDiagrams, { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL }, nonce)
+      : withDiagrams
     const res = c.html(doc, 200, {
       'content-security-policy': markdownCsp(frameAncestors, nonce),
       'x-content-type-options': 'nosniff',
@@ -293,6 +303,12 @@ async function serve(
 
   const headers = new Headers()
   headers.set('content-type', mime)
+  if (c.req.query('download') === '1') {
+    headers.set(
+      'content-disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(path.split('/').pop() ?? 'image')}`,
+    )
+  }
   headers.set('x-content-type-options', 'nosniff')
   headers.set('content-security-policy', frameAncestors)
   // Uploaded HTML lives at a path that carries the gated-content token; no-referrer stops
@@ -604,7 +620,7 @@ function directoryListing(c: Ctx, site: string, paths: string[], dir: string): R
     .join('')
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(
     site,
-  )}${escapeHtml(dir ? `/${dir}` : '')}</title><style>html{color-scheme:light dark}body{max-width:760px;margin:3rem auto;padding:0 1.25rem;font:15px/1.6 -apple-system,system-ui,sans-serif}h1{font-size:1.1rem;margin:0 0 .25rem}p{margin:.25rem 0 1.5rem;color:#6b7280}ul{list-style:none;padding:0;margin:0;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}li+li{border-top:1px solid #e5e7eb}a{display:block;padding:.6rem .9rem;color:#0969da;text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}a:hover{background:#f6f8fa}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}@media(prefers-color-scheme:dark){p{color:#9ca3af}ul{border-color:#30363d}li+li{border-color:#30363d}a:hover{background:#161b22}}</style></head><body><h1>No <code>index.html</code> here</h1><p>Postplan serves <code>index.html</code> at ${
+  )}${escapeHtml(dir ? `/${dir}` : '')}</title><style>html{color-scheme:light dark}body{max-width:760px;margin:3rem auto;padding:0 1.25rem;font:15px/1.6 -apple-system,system-ui,sans-serif}h1{font-size:1.1rem;margin:0 0 .25rem}p{margin:.25rem 0 1.5rem;color:#6b7280}ul{list-style:none;padding:0;margin:0;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}li+li{border-top:1px solid #e5e7eb}a{display:block;padding:.6rem .9rem;color:#0969da;text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}a:hover{background:#f6f8fa}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}@media(prefers-color-scheme:dark){p{color:#9ca3af}ul{border-color:#30363d}li+li{border-color:#30363d}a:hover{background:#161b22}}</style></head><body><h1>No index page here</h1><p>Postplan serves <code>index.html</code> or <code>index.md</code> at ${
     dir ? `<code>${escapeHtml(dir)}</code>` : 'the root'
   } — add one to set the landing page, or open a file below.</p><ul>${rows}</ul></body></html>`
   return c.html(html, 200, {
