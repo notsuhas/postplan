@@ -30,7 +30,7 @@ describe('public agent discovery', () => {
     expect(res.status).toBe(200)
     const body = await res.text()
     expect(body).toContain('name: postplan-cli')
-    expect(body).toContain('--visibility unlisted')
+    expect(body).toContain('--visibility` defaults to `unlisted`')
     expect(body).toContain('without a Postplan login')
     expect(body).toContain('The `postplan read` command still requires a credential')
   })

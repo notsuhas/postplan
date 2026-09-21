@@ -134,8 +134,8 @@ func TestDeployCommand(t *testing.T) {
 		if st.uploadPath != "/api/upload/me/myfolder" {
 			t.Fatalf("uploadPath = %q", st.uploadPath)
 		}
-		if st.visibility != "team" {
-			t.Errorf("visibility = %q, want default team", st.visibility)
+		if st.visibility != "unlisted" {
+			t.Errorf("visibility = %q, want default unlisted", st.visibility)
 		}
 		if st.files["a.txt"] != "AAA" || st.files["sub/b.txt"] != "BBB" {
 			t.Fatalf("files = %v", st.files)
@@ -220,8 +220,8 @@ func TestDeployCommand(t *testing.T) {
 	})
 
 	t.Run("replace-without-visibility-omits-field", func(t *testing.T) {
-		// Regression: sending the default "team" on every replace silently re-tiers (e.g. widens a
-		// private site) on a routine content update. Without --visibility the field must be omitted.
+		// Regression: sending the CLI default on every replace silently re-tiers an existing site on
+		// a routine content update. Without --visibility the field must be omitted.
 		file := filepath.Join(t.TempDir(), "report.html")
 		writeFile(t, file, "x")
 		srv, st := newDeployServer(t)
@@ -251,7 +251,7 @@ func TestDeployCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("create-omitting-visibility-defaults-team", func(t *testing.T) {
+	t.Run("create-omitting-visibility-defaults-unlisted", func(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "report.html")
 		writeFile(t, file, "x")
 		srv, st := newDeployServer(t) // existsBody defaults to {"exists":false} -> create
@@ -259,8 +259,8 @@ func TestDeployCommand(t *testing.T) {
 		if err := c.deploy([]string{file}); err != nil {
 			t.Fatalf("deploy: %v", err)
 		}
-		if st.visibility != "team" {
-			t.Errorf("create sent visibility=%q, want team default", st.visibility)
+		if st.visibility != "unlisted" {
+			t.Errorf("create sent visibility=%q, want unlisted default", st.visibility)
 		}
 	})
 

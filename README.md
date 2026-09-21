@@ -109,7 +109,7 @@ The `curl … /api/install | sh` line already installs the skill into detected C
 | `rollback <space/slug> <version> [--yes] [--json]` | restores an old snapshot as a new version |
 | `upgrade` / `version` / `logout` | self-update · print version · revoke session |
 
-Defaults: `--space` = your personal space · `--name` = file/folder name slugified · `--visibility` = `team` (`unlisted` · `private` · `members` also available). Point at another instance with `POSTPLAN_API_URL=https://… postplan <cmd>`.
+Defaults: `--space` = your personal space · `--name` = file/folder name slugified · `--visibility` = `unlisted` (`private` · `members` · `team` also available). Point at another instance with `POSTPLAN_API_URL=https://… postplan <cmd>`.
 
 Standalone installations keep themselves current (once-a-day background check, atomic in-place swap). npm installations are updated through npm instead. Opt out of standalone update checks with `POSTPLAN_NO_UPDATE=1`.
 
