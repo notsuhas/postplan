@@ -19,13 +19,20 @@ describe('public agent discovery', () => {
     expect(res.headers.get('content-type')).toContain('text/plain')
     const body = await res.text()
     expect(body).toContain('curl -fsSL https://postplan.example.com/api/install | sh')
+    expect(body).toContain('No-install link reading')
+    expect(body).toContain('/api/sites/<space>/<site>')
+    expect(body).toContain('contentUrl')
     expect(body).not.toContain('{{POSTPLAN_ORIGIN}}')
   })
 
   test('/skills/postplan-cli/SKILL.md serves the canonical skill', async () => {
     const res = await worker.fetch(new Request('https://postplan.example.com/skills/postplan-cli/SKILL.md'), ENV)
     expect(res.status).toBe(200)
-    expect(await res.text()).toContain('name: postplan-cli')
+    const body = await res.text()
+    expect(body).toContain('name: postplan-cli')
+    expect(body).toContain('--visibility unlisted')
+    expect(body).toContain('without a Postplan login')
+    expect(body).toContain('The `postplan read` command still requires a credential')
   })
 
   test('/.well-known/agents.json advertises machine-readable entry points', async () => {

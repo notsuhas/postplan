@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { sessionDb } from '../db/client'
 import { sites, spaces } from '../db/schema'
 import { signedOgImageUrl } from './og-image'
-import { injectShareMetadata } from './share-meta'
+import { contentAlternateLink, injectShareMetadata } from './share-meta'
 import { isValidSlug } from './slug'
 import type { Bindings } from '../types'
 
@@ -44,15 +44,18 @@ export async function siteShareShell(request: Request, env: Bindings): Promise<R
   const shellResponse = await env.ASSETS.fetch(shellRequest)
   if (!shellResponse.ok) return null
   const canonical = `${env.APP_URL}/${encodeURIComponent(parsed.space)}/${encodeURIComponent(parsed.site)}`
+  const contentUrl = `${env.CONTENT_URL}/${encodeURIComponent(parsed.space)}/${encodeURIComponent(parsed.site)}/`
   const body = injectShareMetadata(await shellResponse.text(), {
     title: site.title ?? parsed.site,
     description: site.description ?? 'View and review this artifact on Postplan.',
     url: canonical,
     imageUrl: await signedOgImageUrl(env.CONTENT_TOKEN_SECRET, env.CONTENT_URL, parsed.space, parsed.site),
+    contentUrl,
   })
   const headers = new Headers(shellResponse.headers)
   headers.delete('content-length')
   headers.delete('etag')
   headers.set('cache-control', 'public, max-age=60')
+  headers.set('link', contentAlternateLink(contentUrl))
   return new Response(request.method === 'HEAD' ? null : body, { status: 200, headers })
 }
