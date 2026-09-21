@@ -100,7 +100,7 @@ func (c *client) deploy(argv []string) error {
 	assumeYes := flags["yes"] == true
 	jsonOutput := flags["json"] == true
 
-	visibility := "team"
+	visibility := "unlisted"
 	visibilitySet := false
 	if raw, present := flags["visibility"]; present {
 		visibility = raw.(string)
@@ -250,8 +250,8 @@ func (c *client) deploy(argv []string) error {
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
 	// Send visibility on create, but on replace only when --visibility was explicitly passed. The
-	// default is "team", so unconditionally sending it would silently re-tier an existing (e.g.
-	// private) site to team on a routine content update. Absent on replace → server keeps the tier.
+	// default is "unlisted", so unconditionally sending it would silently re-tier an existing (e.g.
+	// private) site on a routine content update. Absent on replace → server keeps the tier.
 	if visibilitySet || !replace {
 		_ = mw.WriteField("visibility", visibility)
 	}

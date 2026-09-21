@@ -42,6 +42,7 @@ Options:
   --space <slug>       Target space; defaults to your personal space
   --name <slug>        Site name; defaults to the file or folder name
   --visibility <tier>  unlisted, private, members, or team
+                       New sites default to unlisted; replacements preserve their tier
   --include-hidden     Include dotfiles; secrets may be published
   --notes <text>       Record deployment change notes
   --feedback-batch <id> Link the claimed feedback batch being addressed

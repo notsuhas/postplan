@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { injectShareMetadata } from '../share-meta'
+import { contentAlternateLink, injectShareMetadata } from '../share-meta'
 
 const shell = `<!doctype html><html><head>
 <title>Postplan — Artifacts for every agent</title>
@@ -15,6 +15,7 @@ describe('injectShareMetadata', () => {
       description: 'Installation and remote login steps',
       url: 'https://postplan.example.com/suhas/herdr-r-49bd',
       imageUrl: 'https://content.example.com/_postplan/og/suhas/herdr-r-49bd.png?sig=abc',
+      contentUrl: 'https://content.example.com/suhas/herdr-r-49bd/',
     })
     expect(html).toContain('<title>Remote Cloud &amp; Codex sessions with Herdr · Postplan</title>')
     expect(html).toContain('property="og:title" content="Remote Cloud &amp; Codex sessions with Herdr"')
@@ -24,6 +25,12 @@ describe('injectShareMetadata', () => {
       'property="og:image" content="https://content.example.com/_postplan/og/suhas/herdr-r-49bd.png?sig=abc"',
     )
     expect(html).toContain('rel="canonical" href="https://postplan.example.com/suhas/herdr-r-49bd"')
+    expect(html).toContain(
+      '<link rel="alternate" type="text/html" href="https://content.example.com/suhas/herdr-r-49bd/"',
+    )
+    expect(html).toContain('<div id="root"><main')
+    expect(html).toContain('Read the artifact content')
+    expect(html).toContain('href="https://content.example.com/suhas/herdr-r-49bd/"')
     expect(html).toContain('src="/assets/app.js"')
     expect(html).not.toContain('content="generic title"')
   })
@@ -34,9 +41,17 @@ describe('injectShareMetadata', () => {
       description: '<img src=x onerror=alert(1)>',
       url: 'https://postplan.example.com/a/b',
       imageUrl: 'https://content.example.com/card.png',
+      contentUrl: 'https://content.example.com/a/b/&quot; onmouseover=&quot;alert(1)',
     })
     expect(html).not.toContain('<script>alert(1)</script>')
     expect(html).not.toContain('<img src=x')
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+    expect(html).not.toContain('href="https://content.example.com/a/b/" onmouseover="alert(1)"')
   })
+})
+
+test('contentAlternateLink advertises the generated content URL', () => {
+  expect(contentAlternateLink('https://content.example.com/a%20space/a%2Fsite/')).toBe(
+    '<https://content.example.com/a%20space/a%2Fsite/>; rel="alternate"; type="text/html"',
+  )
 })
