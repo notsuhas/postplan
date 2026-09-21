@@ -236,20 +236,34 @@ func TestDeployCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("replace-with-explicit-visibility-sends-it", func(t *testing.T) {
-		file := filepath.Join(t.TempDir(), "report.html")
-		writeFile(t, file, "x")
-		srv, st := newDeployServer(t)
-		st.existsBody = `{"exists":true,"canReplace":true}`
-		c, _ := newTestClient(srv.URL, "tok")
-		c.in = strings.NewReader("y\n")
-		if err := c.deploy([]string{file, "--visibility", "private"}); err != nil {
-			t.Fatalf("deploy: %v", err)
-		}
-		if st.visibility != "private" {
-			t.Errorf("replace with --visibility private sent %q, want private", st.visibility)
-		}
-	})
+	for _, visibility := range []string{"unlisted", "private", "members", "team"} {
+		t.Run("create-with-explicit-visibility-"+visibility, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "report.html")
+			writeFile(t, file, "x")
+			srv, st := newDeployServer(t)
+			c, _ := newTestClient(srv.URL, "tok")
+			if err := c.deploy([]string{file, "--visibility", visibility}); err != nil {
+				t.Fatalf("deploy: %v", err)
+			}
+			if st.visibility != visibility {
+				t.Errorf("create with --visibility %s sent %q", visibility, st.visibility)
+			}
+		})
+
+		t.Run("replace-with-explicit-visibility-"+visibility, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "report.html")
+			writeFile(t, file, "x")
+			srv, st := newDeployServer(t)
+			st.existsBody = `{"exists":true,"canReplace":true}`
+			c, _ := newTestClient(srv.URL, "tok")
+			if err := c.deploy([]string{file, "--visibility", visibility, "--yes"}); err != nil {
+				t.Fatalf("deploy: %v", err)
+			}
+			if st.visibility != visibility {
+				t.Errorf("replace with --visibility %s sent %q", visibility, st.visibility)
+			}
+		})
+	}
 
 	t.Run("create-omitting-visibility-defaults-unlisted", func(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "report.html")

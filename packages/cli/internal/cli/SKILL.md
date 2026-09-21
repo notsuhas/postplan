@@ -82,7 +82,7 @@ A key can deploy, create, fork and move, but **never deletes a site** and never 
   - **Folder**: walks recursively, skipping `.git`, `node_modules`, `.DS_Store`; relative paths become the site's layout.
 - `--name` defaults to the **file name (sans extension)** or **folder name**, slugified. Pass `--name` to override (required if the derived name isn't a valid slug — lowercase, 3–40 chars).
 - `--space` defaults to your **personal space**. Pass `--space` to target a team/group space.
-- `--visibility` defaults to `unlisted`, producing a bearer URL anyone can open without a Postplan login. Pass `team`, `members`, or `private` explicitly when access must be protected.
+- New sites default to `unlisted`, producing a bearer URL anyone can open without a Postplan login. On replacement, omitting `--visibility` preserves the current tier; pass `team`, `members`, `private`, or `unlisted` explicitly only to change it.
 - `--yes` replaces an existing site without prompting. Use it only when the target is already known.
 - `--json` prints one machine-readable result and suppresses progress output.
 - `--include-hidden` includes dotfiles. Review the upload first because these can contain credentials.
@@ -272,7 +272,7 @@ You can update that site's content even though you don't own it and aren't in it
 **Editing etiquette — content, not chrome.** As an editor you own the *content*, not the site's look. Add or remove sections, update copy, correct data — but keep the owner's styling and layout intact: don't restyle, re-theme, change the CSS/structure, or re-lay-out the page. The owner set the design; an editor fills it in. (Renaming, moving, deleting, changing visibility, or editing the title aren't yours to do at all — those stay with the owner.)
 
 ## Visibility values
-`unlisted` (default) · `private` · `members` · `team`.
+`unlisted` · `private` · `members` · `team`. New sites default to `unlisted`; replacing without `--visibility` preserves the current tier.
 
 `members` = people in the site's own space only (it was renamed from `group`; the old value is still accepted and mapped to `members`). `unlisted` = anyone with the unguessable URL, without a Postplan login. The legacy value `public` is still accepted on the wire but maps to `team` (everyone in your org), not to `unlisted`.
 
@@ -444,7 +444,7 @@ When the user wants to understand — or share understanding of — a codebase, 
 ```bash
 postplan deploy <file>.html      # --name defaults to the filename slug; renders at the site root
 ```
-Report the returned `✓ Deployed → <url>` as the deliverable — not the prose. Visibility defaults to `unlisted`, so anyone with the bearer URL, including a no-login agent, can read it. Use `--visibility team`, `members`, or `private` explicitly when the user wants protected access. Re-deploying the same name prompts `Replace? (y/N)` and updates the live URL in place — matches the "living doc" behavior above.
+Report the returned `✓ Deployed → <url>` as the deliverable — not the prose. New sites default to `unlisted`, so anyone with the bearer URL, including a no-login agent, can read them. Replacing without `--visibility` preserves the current tier; pass a tier explicitly only when the user wants to change it. Re-deploying the same name prompts `Replace? (y/N)` and updates the live URL in place — matches the "living doc" behavior above.
 
 ### Anti-patterns
 - Explaining from memory/assumption instead of reading the code.
