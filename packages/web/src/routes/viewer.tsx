@@ -120,15 +120,30 @@ function Viewer() {
   // `loaded` is a DEPENDENCY, not just a guard: the client's message listener isn't wired until the
   // frame has booted, so a paint posted before that is dropped on the floor with nothing to re-fire
   // it — which is exactly the `?review=1` deep link (rail open and threads in before onLoad).
+  //
+  // Re-announcing `postplan:mode` HERE too (not only in the mode-post effect below) closes a real
+  // click-reveal bug: navigating to another file inside a multi-page site is a full navigation of
+  // the content iframe, which re-executes client.ts from scratch and resets ITS `mode` back to
+  // 'experience' — even though the parent's own `mode` state never changed. The mode-post effect is
+  // gated on an actual `mode` transition, so it stays silent; but `paint` re-fires anyway once the
+  // new page's `threads` land (the 'ready' → refetch path), repainting the highlights (paint() isn't
+  // mode-gated on the client). The result without this: highlights visible on the new page, but the
+  // client's stale 'experience' guards the click handler, so nothing happens. Sending mode alongside
+  // every repaint keeps the two always in sync regardless of why the repaint fired.
   const paint = useCallback(() => {
     const win = iframeRef.current?.contentWindow
     if (!win || !loaded) return
+    win.postMessage({ type: 'postplan:mode', mode }, contentOrigin)
     win.postMessage(
       { type: 'postplan:paint', anchors: railOpen && mode === 'comment' ? paintAnchors(threads) : [] },
       contentOrigin,
     )
   }, [threads, railOpen, mode, loaded, contentOrigin])
 
+  // Reacts to an actual `mode` TRANSITION (the segmented control, or opening/closing the rail): the
+  // post here is redundant with `paint`'s own re-announcement above whenever both fire together, but
+  // this effect's real job is the popover dismissal, which only belongs on a genuine transition, not
+  // on every repaint.
   useEffect(() => {
     if (!loaded || isMedia) return
     iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:mode', mode }, contentOrigin)

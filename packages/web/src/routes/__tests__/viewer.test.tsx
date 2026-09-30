@@ -116,7 +116,8 @@ function armIframe(container: HTMLElement) {
     posted.filter((m) => (m as { type?: string }).type === 'postplan:paint') as { anchors: { id: string }[] }[]
   const lastPaintIds = () => (paints().at(-1)?.anchors ?? []).map((a) => a.id).sort()
   const pings = () => posted.filter((m) => (m as { type?: string }).type === 'postplan:ping')
-  return { iframe, send, paints, lastPaintIds, pings }
+  const modes = () => posted.filter((m) => (m as { type?: string }).type === 'postplan:mode') as { mode: string }[]
+  return { iframe, send, paints, lastPaintIds, pings, modes }
 }
 
 // The iframe only boots its message listener on load; viewer.tsx gates paint on the same `loaded`
@@ -278,6 +279,37 @@ describe('viewer wiring — the paint is gated on railOpen (the on-page highligh
     loadIframe(iframe)
 
     await waitFor(() => expect(lastPaintIds()).toEqual(['t1', 't2']))
+  })
+
+  // Navigating to another file INSIDE the site (a same-origin link the reader clicked in the
+  // uploaded page) is a full navigation of the content iframe: client.ts re-executes from scratch
+  // and its own `mode` resets to 'experience', even though the parent's `mode` state never changed
+  // and never fires its own mode-transition effect again. `paint` still re-fires once the new file's
+  // threads land (its `threads` dependency), repainting real highlights on the new page — paint()
+  // isn't mode-gated on the client — so without a fresh `postplan:mode` alongside it, the reader
+  // would see highlights on the new page whose clicks silently do nothing (the client's stale
+  // 'experience' guards the click handler). Asserting on `modes()` (not just `lastPaintIds()`) is
+  // what catches that: a broken build could still paint the right anchors here.
+  test('an in-iframe navigation re-announces comment mode alongside the repaint', async () => {
+    const list = spyOn(comments, 'list').mockResolvedValue([mkThread({ id: 'p2a', filePath: 'page2.html' })])
+    try {
+      const { container } = renderViewer('/sp/site?review=1')
+      await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+      const { iframe, send, modes, lastPaintIds } = armIframe(container)
+      loadIframe(iframe)
+
+      act(() => send({ type: 'postplan:ready', filePath: 'index.html' }))
+      await waitFor(() => expect(lastPaintIds()).toEqual(['t1', 't2']))
+      const modesBefore = modes().length
+
+      act(() => send({ type: 'postplan:ready', filePath: 'page2.html' })) // in-iframe nav → refetch
+      await waitFor(() => expect(lastPaintIds()).toEqual(['p2a']))
+
+      expect(modes().length).toBeGreaterThan(modesBefore)
+      expect(modes().at(-1)?.mode).toBe('comment')
+    } finally {
+      list.mockRestore()
+    }
   })
 })
 

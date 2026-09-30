@@ -66,6 +66,7 @@ function renderCard(
     onChanged?: () => void
     selectedCommentIds?: ReadonlySet<string>
     onSelectComment?: (id: string, selected: boolean) => void
+    emphasized?: boolean
   } = {},
 ) {
   const onFocusAnchor = overrides.onFocusAnchor ?? mock((_t: Thread) => {})
@@ -80,6 +81,7 @@ function renderCard(
       onFocusAnchor={onFocusAnchor}
       selectedCommentIds={overrides.selectedCommentIds}
       onSelectComment={overrides.onSelectComment}
+      emphasized={overrides.emphasized}
     />,
   )
   // What a refetch looks like from this component's side: same thread id, brand-new objects and
@@ -99,6 +101,12 @@ function renderCard(
   const card = document.getElementById(`thread-${thread.id}`) as HTMLElement
   return { onFocusAnchor, onChanged, thread, card, refetch }
 }
+
+test('an emphasized card is current and carries the rail reveal class', () => {
+  const { card } = renderCard({ emphasized: true })
+  expect(card.className).toContain('rail-card-reveal')
+  expect(card.getAttribute('aria-current')).toBe('true')
+})
 
 test('reviewers can explicitly select an individual live comment for agent handoff', () => {
   const selected = mock((_id: string, _checked: boolean) => {})

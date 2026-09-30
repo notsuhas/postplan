@@ -183,6 +183,25 @@
   opacity: 0.7;
 }
 
+/* Rail card named by a highlight click / deep-link: a persistent ring plus a short
+   flash so it reads as "this one" in a long comments list. */
+@keyframes rail-card-flash {
+  from {
+    background-color: color-mix(in oklch, var(--primary) 22%, var(--card));
+  }
+}
+.rail-card-reveal {
+  border-color: color-mix(in oklch, var(--primary) 55%, var(--border));
+  background-color: color-mix(in oklch, var(--primary) 10%, var(--card));
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 45%, transparent);
+  animation: rail-card-flash 0.45s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail-card-reveal {
+    animation: none;
+  }
+}
+
 /* Refined surface for cards: a hairline top highlight + a touch of depth, so
  * cards read as panels with light catching the top edge rather than flat slabs. */
 .bp-surface {

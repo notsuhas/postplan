@@ -2,7 +2,7 @@
 // so asking to reveal the SAME thread a second time was silently a no-op. It's now keyed on a
 // caller-bumped NONCE (lib/viewerCommands' shouldReveal) — same id + bumped nonce reveals again,
 // unchanged nonce across a re-render does not.
-import { describe, expect, jest, spyOn, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, jest, spyOn, test } from 'bun:test'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { CommentItem, Thread } from '@/lib/comments'
 import type { Me, ViewerSite } from '@/lib/types'
@@ -343,6 +343,25 @@ describe('ReviewRail — the typing indicator (C22)', () => {
 })
 
 describe('ReviewRail — reveal-by-nonce', () => {
+  const box = {
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    bottom: 48,
+    right: 300,
+    width: 300,
+    height: 48,
+    toJSON() {
+      return this
+    },
+  } as DOMRect
+  let laidOut: ReturnType<typeof spyOn> | undefined
+  beforeAll(() => {
+    laidOut = spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box)
+  })
+  afterAll(() => laidOut?.mockRestore())
+
   test('the default filter (open) hides a resolved thread until it is revealed, then switches tabs', () => {
     const threads = [mkThread({ id: 't1', status: 'resolved' })]
     renderRail(threads, { id: 't1', nonce: 1 })
@@ -443,9 +462,22 @@ describe('ReviewRail — reveal-by-nonce', () => {
   // nonce, silently dropping the scroll forever. Fixed by keying the effect on the request's own
   // id/nonce primitives instead of the wrapper object, so identity churn from the caller can't
   // cancel a scroll that's already in flight.
+  function spyRailScroll() {
+    const scrollTo = spyOn(HTMLElement.prototype, 'scrollTo').mockImplementation(() => {})
+    const scrollIntoView = spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {})
+    return {
+      expectScrolled: () =>
+        waitFor(() => expect(scrollTo.mock.calls.length + scrollIntoView.mock.calls.length).toBeGreaterThan(0)),
+      restore: () => {
+        scrollTo.mockRestore()
+        scrollIntoView.mockRestore()
+      },
+    }
+  }
+
   test('an equal-but-new focusRequest object (same id/nonce) does not drop the pending scroll', async () => {
     const threads = [mkThread({ id: 't1', status: 'open' })]
-    const scrollSpy = spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {})
+    const scroll = spyRailScroll()
     const { rerender } = renderRail(threads, { id: 't1', nonce: 1 })
 
     // A fresh object, same id/nonce — mirrors an inline `{ id, nonce }` literal recreated on an
@@ -467,7 +499,39 @@ describe('ReviewRail — reveal-by-nonce', () => {
       />,
     )
 
-    await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1))
-    scrollSpy.mockRestore()
+    await scroll.expectScrolled()
+    scroll.restore()
+  })
+
+  // Regression: the iframe posts pinpoint-resolved (and the socket can push) while the reveal poll
+  // is in flight. That replaces `threads` with a new array of the same ids. The effect depends on
+  // `threads`, so it re-runs and cleanup cancels the pending rAF. If the nonce was already consumed
+  // at poll-start, the rerun no-ops and the resolved-tab card never scrolls — the live "lookup"
+  // click on a 14-resolved-thread site. Consume the nonce only after the scroll actually happens.
+  test('a new threads array (same ids) mid-poll still scrolls', async () => {
+    const threads = [mkThread({ id: 't1', status: 'resolved' })]
+    const scroll = spyRailScroll()
+    const { rerender } = renderRail(threads, { id: 't1', nonce: 1 })
+
+    rerender(
+      <ReviewRail
+        site={SITE}
+        me={ME}
+        threads={threads.map((t) => ({ ...t }))}
+        composing={null}
+        onCancelComposer={() => {}}
+        onCreate={() => {}}
+        onCreateVoice={() => {}}
+        onChanged={() => {}}
+        onFocusAnchor={() => {}}
+        onClose={() => {}}
+        onStartComment={() => {}}
+        focusRequest={{ id: 't1', nonce: 1 }}
+      />,
+    )
+
+    await scroll.expectScrolled()
+    scroll.restore()
+    expect(document.getElementById('thread-t1')?.className).toContain('rail-card-reveal')
   })
 })

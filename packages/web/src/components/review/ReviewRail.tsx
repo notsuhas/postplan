@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { comments, type PendingAnchor, type Thread, type ThreadStatus } from '@/lib/comments'
 import { timestampPrefix } from '@/lib/audio'
 import type { Me, ViewerSite } from '@/lib/types'
-import { type RevealRequest, shouldReveal } from '@/lib/viewerCommands'
+import { pollUntilFound, type RevealRequest, isLaidOut, scrollCardIntoRail, shouldReveal } from '@/lib/viewerCommands'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Composer } from '@/components/review/Composer'
@@ -172,27 +172,51 @@ export function ReviewRail({
   // Reveal: when a requested thread arrives, switch to its status tab (so a resolved thread isn't
   // hidden by the default 'open' filter) and scroll its card into view. Guarded by NONCE, not id
   // (shouldReveal) — a re-request of the same thread with a bumped nonce reveals again, an
-  // unchanged nonce across an unrelated re-render does not. The rAF lets the tab switch render the
-  // card before we scroll to it.
+  // unchanged nonce across an unrelated re-render does not. Polls across several frames (not just
+  // one) for the card to actually be in the DOM: `setFilter` triggers a re-render, and a SINGLE rAF
+  // assumes it always commits by the very next frame — true for a couple of test threads, false the
+  // moment the target tab has a dozen-plus real ThreadCards to mount (a resolved-heavy site), where
+  // React can defer the heavier render past that frame. A one-shot `getElementById` then finds
+  // nothing, `?.scrollIntoView` silently no-ops, and — since the nonce is already consumed — the
+  // scroll never happens at all. `pollUntilFound` (lib/viewerCommands) retries across frames for a
+  // bounded TIME budget instead of assuming one frame — or any fixed frame count — is enough.
+  //
+  // Two further traps that a time-budgeted getElementById still misses:
+  // 1. The nonce used to be consumed WHEN THE POLL STARTED. Any `threads` identity change (the
+  //    iframe's pinpoint-resolved status report, a socket event) re-runs this effect, cleanup
+  //    cancels the in-flight poll, and shouldReveal then no-ops on the already-consumed nonce —
+  //    the exact "tab switches, card never scrolls" failure on a resolved-heavy site. Consume the
+  //    nonce only once the card has actually been scrolled.
+  // 2. getElementById succeeding is not the same as the card having a box. React can commit the
+  //    node a frame before layout; scrolling a 0×0 node is another silent no-op. Wait until
+  //    isLaidOut, then scroll the rail scroller directly (scrollCardIntoRail) rather than
+  //    scrollIntoView, which fights every ancestor scroller at once.
   //
   // Deps are the request's own PRIMITIVES (id, nonce), not the `focusRequest` object itself — a
   // caller that builds `{ id, nonce }` inline (as viewer.tsx's one-shot deep link does) hands us a
   // new object reference on every one of ITS renders even when id/nonce haven't changed; keying on
   // the object would rerun this effect on every unrelated parent re-render, whose cleanup cancels
-  // the pending rAF before it fires and the rerun then no-ops on the unchanged nonce — silently
+  // the pending poll before it fires and the rerun then no-ops on the unchanged nonce — silently
   // dropping the scroll. Keying on the primitives makes this effect immune to caller identity
   // churn instead of relying on every current and future caller (e.g. a highlight click) to memoize.
   const revealedNonceRef = useRef<number | null>(null)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the primitive deps ARE the fix (above) — depending on the focusRequest object re-runs this on every caller re-render and cancels the pending rAF scroll.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the primitive deps ARE the fix (above) — depending on the focusRequest object re-runs this on every caller re-render and cancels the pending poll.
   useEffect(() => {
     const target = focusRequest ? threads.find((t) => t.id === focusRequest.id) : undefined
     if (!focusRequest || !shouldReveal(focusRequest, revealedNonceRef.current, !!target)) return
-    revealedNonceRef.current = focusRequest.nonce
     setFilter(target!.status)
-    const raf = requestAnimationFrame(() =>
-      document.getElementById(`thread-${focusRequest.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+    return pollUntilFound(
+      () => {
+        const el = document.getElementById(`thread-${focusRequest.id}`)
+        return el && isLaidOut(el) ? el : null
+      },
+      (el) => {
+        revealedNonceRef.current = focusRequest.nonce
+        scrollCardIntoRail(el)
+      },
+      requestAnimationFrame,
+      cancelAnimationFrame,
     )
-    return () => cancelAnimationFrame(raf)
   }, [focusRequest?.id, focusRequest?.nonce, threads])
 
   return (
@@ -314,7 +338,10 @@ export function ReviewRail({
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
+      <div
+        data-rail-scroll
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]"
+      >
         {/* Both creation paths get named (#112). Keyed on getCurrentTime, which is the one prop
             that is still genuinely audio-only — the audio view has no DOM to select text in, so
             offering it a "select text" path would be a lie. */}
@@ -340,6 +367,7 @@ export function ReviewRail({
             onTypingStop={onTypingStop && (() => onTypingStop(t.id))}
             selectedCommentIds={selectedCommentIds}
             onSelectComment={onSendFeedback ? selectComment : undefined}
+            emphasized={focusRequest?.id === t.id}
           />
         ))}
       </div>

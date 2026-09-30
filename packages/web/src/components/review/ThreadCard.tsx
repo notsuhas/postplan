@@ -25,6 +25,7 @@ export function ThreadCard({
   onTypingStop,
   selectedCommentIds,
   onSelectComment,
+  emphasized,
 }: {
   site: ViewerSite
   me: Me | null
@@ -47,6 +48,8 @@ export function ThreadCard({
   onFocusAnchor: (thread: Thread) => void
   selectedCommentIds?: ReadonlySet<string>
   onSelectComment?: (commentId: string, selected: boolean) => void
+  // Lit after a highlight click / deep-link reveal so the scrolled-to card is obvious in a long list.
+  emphasized?: boolean
 }) {
   const [replying, setReplying] = useState(false)
   // Comment id under inline edit, or null. One at a time: starting an edit on another message
@@ -113,7 +116,11 @@ export function ThreadCard({
 
   return (
     // id lets a notification deep-link scroll this card into view (viewer S11).
-    <div id={`thread-${thread.id}`} className="group/card rounded-lg border bg-card p-3 text-card-foreground">
+    <div
+      id={`thread-${thread.id}`}
+      aria-current={emphasized ? 'true' : undefined}
+      className={cn('group/card rounded-lg border bg-card p-3 text-card-foreground', emphasized && 'rail-card-reveal')}
+    >
       <div className="mb-2 flex items-start justify-between gap-2">
         {thread.anchorType === 'element' && thread.anchor ? (
           <button type="button" onClick={() => onFocusAnchor(thread)} className="text-left hover:opacity-80">
