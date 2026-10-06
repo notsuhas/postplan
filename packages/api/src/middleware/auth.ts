@@ -48,10 +48,6 @@ async function authenticate(c: Context<AppEnv>): Promise<boolean> {
   // Tag the credential for usage analytics. The CLI sends a Bearer token and never a cookie;
   // browsers always carry the cookie. Session cookie wins (mirrors readSessionOrBearer), so a
   // request is 'cli' only when there's no cookie AND a Bearer token is present.
-  // Both sides of the merge in one line: `cookieAuthed` is this branch's extraction of main's
-  // inline cookie check (the comments socket route needed the same predicate for its own
-  // same-origin guard), and `bearerToken` is main's — it parses the header rather than
-  // re-deriving `startsWith('Bearer ')` here.
   c.set('authKind', !cookieAuthed(c) && bearerToken(c) !== null ? 'cli' : 'web')
   return true
 }

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -36,5 +38,24 @@ func TestRollbackCommand(t *testing.T) {
 	}
 	if !strings.Contains(string((*reqs)[1].body), `"expectedVersion":3`) || !strings.Contains(out.String(), "Restored v1 as v4") {
 		t.Fatalf("body/output = %q %q", (*reqs)[1].body, out.String())
+	}
+}
+
+func TestVersionsJSONPreservesServerFields(t *testing.T) {
+	payload := `[{"version":2,"createdAt":"now","createdBy":"owner","current":true,"files":[{"path":"index.html","size":42,"etag":"abc"}],"futureField":{"value":true}}]`
+	srv, _ := recordingServer(t, func(r *capturedReq) (int, string) { return 200, payload })
+	c, out := newTestClient(srv.URL, "tok")
+	if err := c.versions([]string{"acme/demo", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	var expected, actual any
+	if err := json.Unmarshal([]byte(payload), &expected); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(out.Bytes(), &actual); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("JSON fields lost: %s", out.String())
 	}
 }

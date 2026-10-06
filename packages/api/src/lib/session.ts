@@ -8,10 +8,10 @@ import { fireAndForget } from './events'
 
 const SESSION_COOKIE = '__Host-postplan_session'
 const DEV_SESSION_COOKIE = 'postplan_dev_session'
-// Browser and CLI both 30d. The session payload is a cached snapshot — readCredential returns
-// it without re-reading `users` — so this is also how stale a demoted role or a deleted user can
-// be, and 24h was the bound on that. On a single-operator instance the demotion it protects
-// against cannot happen, and the cost was a forced re-login every day.
+// Browser and CLI credentials last 30 days. Their payload is a cached identity snapshot;
+// requireAuth reloads the user for live authorization; readSessionOrBearer returns the snapshot
+// to inline-auth routes, which must enforce their own access checks. Revocation markers
+// invalidate credentials before their TTL expires.
 const SESSION_TTL = 60 * 60 * 24 * 30 // 30d
 const CLI_TTL = 60 * 60 * 24 * 30 // 30d
 const REVOKED_USER_PREFIX = 'revoked_user:'

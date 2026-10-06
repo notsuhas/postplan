@@ -4,6 +4,14 @@ import type { Release } from './bake'
 
 export const RELEASES: Release[] = [
   {
+    "slug": "review-and-cli",
+    "title": "Easier reviews and a more reliable CLI",
+    "version": "1.2.0",
+    "date": "2026-10-06T16:30:00.000Z",
+    "featured": true,
+    "bodyHtml": "<p>Reviews work better on phones, and comments on unlisted sites can be read without signing in. Posting comments still requires an account.</p>\n<p>Send selected comments or all open comments to an agent as a feedback batch. The CLI can wait for sent feedback, so an agent responds when you explicitly queue a review.</p>\n<p><code>postplan versions &lt;space/site&gt; --json</code> now preserves file sizes, etags, authors, and all other server fields for scripts and agents. Failed uploads and forks also clean up delayed file writes reliably.</p>\n<p>Update the CLI with <code>postplan upgrade</code> or <code>npm install -g @notsuhas/postplan@1.2.0</code>.</p>\n"
+  },
+  {
     "slug": "safer-updates",
     "title": "Safer updates and clearer review controls",
     "date": "2026-09-08T19:50:00.000Z",
@@ -115,4 +123,4 @@ export const RELEASES: Release[] = [
   }
 ]
 
-export const NEWEST_RELEASE_DATE: string | null = "2026-09-08T19:50:00.000Z"
+export const NEWEST_RELEASE_DATE: string | null = "2026-10-06T16:30:00.000Z"

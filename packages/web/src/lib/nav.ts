@@ -1,3 +1,4 @@
+export { safeNext } from '../../../shared/navigation'
 import { redirect, type ShouldRevalidateFunctionArgs } from 'react-router'
 
 // The dashboard keeps UI state in the URL (?tab=, ?new=). React Router's default treats any
@@ -23,20 +24,6 @@ export function newSpaceHref(location: { pathname: string; search: string }): st
 
 // Post-login return-URL helpers. The OAuth round-trip carries the intended path as a
 // `next` query param; these keep it same-origin so it can't become an open redirect.
-
-/** Root-relative paths only — blocks protocol-relative (`//evil.com`) and `/\evil.com`. */
-export function safeNext(next: string | null | undefined): string | null {
-  if (typeof next !== 'string') return null
-  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return null
-  // URL parsing removes tabs/newlines and normalizes backslashes; check the resulting origin too.
-  try {
-    const url = new URL(next, 'https://postplan.invalid')
-    if (url.origin !== 'https://postplan.invalid' || url.pathname.startsWith('//')) return null
-    return `${url.pathname}${url.search}${url.hash}`
-  } catch {
-    return null
-  }
-}
 
 /** Redirect to /login, preserving the current location as `?next=` so login returns here. */
 export function toLogin(request: Request): Response {

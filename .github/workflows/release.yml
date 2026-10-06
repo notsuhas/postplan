@@ -22,8 +22,10 @@ jobs:
           bun-version: 1.4.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: '24.14.0'
+
+      - name: Pin npm for trusted publishing
+        run: npm install --global npm@11.21.0
 
       # The CLI is a stdlib-only Go program. All 4 darwin/linux x arm64/x64 targets cross-compile
       # from this one runner via GOOS/GOARCH, with no cross toolchain or per-OS runners. The same
@@ -78,9 +80,7 @@ jobs:
             packages/cli/dist/postplan-*-*.sha256
           generate_release_notes: true
 
-      - name: Publish npm packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish npm packages with trusted publishing
         run: |
           v="${GITHUB_REF_NAME#v}"
           for package_dir in packages/cli/npm/platforms/* packages/cli/npm/postplan; do

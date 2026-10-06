@@ -21,7 +21,7 @@ import { batchAll } from '../lib/d1'
 import { capTitle, extractHtmlMeta, NO_META, pickEntry } from '../lib/extract'
 import { cleanDisplayText } from '../lib/untrusted-text'
 import { isValidSlug, slugForVisibility } from '../lib/slug'
-import { deleteKeys, MAX_FILE_BYTES, sanitizePath } from '../lib/storage'
+import { deleteKeys, MAX_FILE_BYTES, sanitizePath, settleWrites } from '../lib/storage'
 import { isVisibility } from '../lib/visibility'
 import { requireAuth, requireControlGrant } from '../middleware/auth'
 import type { AppEnv, SessionUser } from '../types'
@@ -277,7 +277,7 @@ async function writeObjects(bucket: R2Bucket, plan: UploadPlanItem[]): Promise<v
   const attempted: string[] = []
   try {
     for (let index = 0; index < plan.length; index += UPLOAD_CONCURRENCY) {
-      await Promise.all(
+      await settleWrites(
         plan.slice(index, index + UPLOAD_CONCURRENCY).map(async ({ file, row }) => {
           attempted.push(row.storageKey)
           const contentType = file.type || 'application/octet-stream'
