@@ -12,7 +12,7 @@ export function b64urlEncode(buf: ArrayBuffer): string {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-export function b64urlDecode(s: string): Uint8Array {
+export function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4))
   return Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad), (c) => c.charCodeAt(0))
 }
@@ -39,7 +39,7 @@ export async function hmacSignHex(secret: string, message: string): Promise<stri
 
 /** Constant-time verify of a base64url MAC against `message`. False on any decode error. */
 export async function hmacVerify(secret: string, message: string, macB64: string): Promise<boolean> {
-  let mac: Uint8Array
+  let mac: Uint8Array<ArrayBuffer>
   try {
     mac = b64urlDecode(macB64)
   } catch {

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.browser.json",
     "test": "bun test",
     "build:annotate": "bun scripts/build-annotate.ts",
     "build:mermaid": "bun scripts/build-mermaid.ts",

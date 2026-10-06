@@ -243,7 +243,7 @@ function paintTexts(anchors: PaintAnchor[]): void {
   applyRanges(ranges)
   if (textAnchors.length > 0) {
     const resolved = textAnchors
-      .filter((anchor) => !!findRange(anchor.quote, document, anchor.context))
+      .filter((anchor) => !!anchor.quote && !!findRange(anchor.quote, document, anchor.context))
       .map((a) => a.id)
     const resolvedSet = new Set(resolved)
     toParent({
@@ -361,6 +361,8 @@ function openLightbox(svg: Element): void {
 
 document.addEventListener('click', (e) => {
   if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return
+  // Drag selection also fires a click on release; leave it available for commenting.
+  if (window.getSelection()?.isCollapsed === false) return
   const svg = (e.target as Element | null)?.closest?.('.mermaid')?.querySelector('svg')
   if (svg) openLightbox(svg)
 })

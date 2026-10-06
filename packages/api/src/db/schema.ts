@@ -99,6 +99,8 @@ export const sites = sqliteTable(
     // of clobbering a newer one; owner replaces treat it as advisory. lastReplacedBy records who
     // last swapped the bytes (owner id or an editor's user id) — read-only provenance today.
     contentVersion: integer('contentVersion').notNull().default(0),
+    // Maintained by document insert/delete triggers, including FK-cascade deletes.
+    docCount: integer('docCount').notNull().default(0),
     lastReplacedBy: text('lastReplacedBy'),
     // Provenance for a forked ("remixed") site: the site it was copied from. Null = deployed
     // directly. SET NULL (never cascade) — a fork's R2 objects are its OWN (fork COPIES the bytes
