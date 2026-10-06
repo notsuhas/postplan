@@ -245,7 +245,7 @@ export function ApiKeyDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Site access</Label>
-              <div className="flex gap-4 text-sm">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
                 <label className="flex items-center gap-1.5">
                   <input
                     type="radio"
@@ -285,7 +285,7 @@ export function ApiKeyDialog({
                             setSiteIds((ids) => (e.target.checked ? [...ids, s.id] : ids.filter((id) => id !== s.id)))
                           }
                         />
-                        <span className="font-mono">
+                        <span className="min-w-0 break-all font-mono">
                           {s.spaceSlug}/{s.siteSlug}
                         </span>
                       </label>

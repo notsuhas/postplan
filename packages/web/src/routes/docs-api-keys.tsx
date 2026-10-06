@@ -8,7 +8,7 @@ import { Link } from 'react-router'
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <pre className="whitespace-pre-wrap rounded-md border bg-muted px-3 py-2 font-mono text-xs [overflow-wrap:anywhere]">
       <code>{children}</code>
     </pre>
   )

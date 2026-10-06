@@ -21,14 +21,14 @@ export function PageHeader({
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1 basis-full sm:basis-auto">
         <div className="font-mono text-xs text-muted-foreground">
           <span className="text-primary">~/work</span> $ postplan
         </div>
-        <h1 className="mt-2 font-mono text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="mt-2 break-words font-mono text-2xl font-semibold tracking-tight">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
-      {children && <div className="flex items-center gap-2">{children}</div>}
+      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>
   )
 }
@@ -84,7 +84,7 @@ export function EmptyState({
       )}
       <div className="font-medium">{title}</div>
       {description && <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>}
-      {children && <div className="mt-4 flex items-center gap-2">{children}</div>}
+      {children && <div className="mt-4 flex flex-wrap items-center justify-center gap-2">{children}</div>}
     </div>
   )
 }

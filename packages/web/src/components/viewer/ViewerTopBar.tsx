@@ -70,7 +70,7 @@ export function ViewerTopBar({
   // Star has a permanent slot in the row, so it is the one action with no menu-item twin.
   const { starred, toggle: toggleStar } = useStar(site)
   return (
-    <header className="flex h-12 shrink-0 items-center gap-1 border-b bg-background px-2 sm:gap-2 sm:px-3 md:gap-3">
+    <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-1 gap-y-2 border-b bg-background px-2 py-2 sm:h-12 sm:flex-nowrap sm:gap-2 sm:px-3 sm:py-0 md:gap-3">
       <Link
         to={site.authenticated ? '/dashboard' : loginHref(location)}
         className="flex shrink-0 items-center gap-2 font-mono font-semibold text-sm tracking-tight"
@@ -101,7 +101,7 @@ export function ViewerTopBar({
         <VisibilityBadge value={site.visibility} compactOnMobile className="shrink-0" />
       )}
 
-      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+      <div className="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:justify-end sm:gap-2">
         {site.authenticated ? (
           <>
             {onModeChange && (
@@ -152,6 +152,7 @@ export function ViewerTopBar({
           size="sm"
           variant="ghost"
           onClick={onToggleRail}
+          aria-label="Comments"
           aria-pressed={railOpen}
           className={cn('gap-1.5', commentCount > 0 && 'text-primary')}
           title={commentCount > 0 ? `${commentCount} open comment${commentCount === 1 ? '' : 's'}` : 'Comments'}

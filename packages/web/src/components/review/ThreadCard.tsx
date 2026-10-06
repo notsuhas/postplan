@@ -243,7 +243,7 @@ export function ThreadCard({
                 </div>
               )}
 
-              <div className="grid grid-cols-[20px_1fr] gap-2">
+              <div className="grid grid-cols-[20px_minmax(0,1fr)] gap-2">
                 <div className="pt-0.5">
                   {head ? (
                     <UserAvatar
@@ -263,10 +263,10 @@ export function ThreadCard({
 
                 <div className="min-w-0">
                   {meta && (
-                    <div className="flex items-baseline gap-2 text-muted-foreground text-xs">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-muted-foreground text-xs">
                       {head && (
                         <>
-                          <span className="font-medium text-foreground">
+                          <span className="break-all font-medium text-foreground">
                             {c.authorId === me?.id ? 'You' : (c.author ?? 'Reviewer')}
                           </span>
                           <span>{fmt(c.createdAt)}</span>
@@ -298,7 +298,11 @@ export function ThreadCard({
                       />
                     </div>
                   ) : (
-                    <p className={c.deleted ? 'text-muted-foreground italic' : 'whitespace-pre-wrap'}>
+                    <p
+                      className={
+                        c.deleted ? 'text-muted-foreground italic' : 'whitespace-pre-wrap [overflow-wrap:anywhere]'
+                      }
+                    >
                       {c.deleted ? 'comment deleted' : c.body}
                     </p>
                   )}
