@@ -24,9 +24,6 @@ func (c *client) comments(argv []string) error {
 	if err != nil {
 		return fmt.Errorf("Usage: postplan comments <space/slug> [--file <path>] [--open] [--json]")
 	}
-	if err := c.requireAuth(); err != nil {
-		return err
-	}
 
 	query := ""
 	if file, isStr := flags["file"].(string); isStr && file != "" {

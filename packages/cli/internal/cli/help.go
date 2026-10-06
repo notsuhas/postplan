@@ -21,7 +21,7 @@ Commands:
   notifications  Read review notifications
   versions       List a site's deployment history
   rollback       Restore an earlier deployment as a new version
-  feedback       List, claim, and complete sent feedback
+  feedback       List, wait for, claim, and complete sent feedback
   shares         List, grant, and revoke explicit site shares
   skill          Install the bundled agent skill
   upgrade        Install the latest CLI release
@@ -98,10 +98,11 @@ Example:
 
 Example:
   postplan rollback team/report 2 --yes --json`,
-		"feedback": `Usage: postplan feedback <list|claim|complete> [options]
+		"feedback": `Usage: postplan feedback <list|wait|claim|complete> [options]
 
 Examples:
   postplan feedback list team/report --json
+  postplan feedback wait team/report --timeout 60s --json
   postplan feedback claim <batch-id> --json
   postplan feedback complete <batch-id> --version 4 --json`,
 		"shares": `Usage: postplan shares <list|grant|revoke> [options]

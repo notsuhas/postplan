@@ -67,8 +67,8 @@ function Viewer() {
   const contentOrigin = useMemo(() => new URL(site.contentUrl).origin, [site.contentUrl])
   const src = useMemo(() => {
     const contentUrl = appendPath(site.contentUrl, sitePath)
-    return site.authenticated ? withAnnotate(contentUrl) : contentUrl
-  }, [site.authenticated, site.contentUrl, sitePath])
+    return withAnnotate(contentUrl)
+  }, [site.contentUrl, sitePath])
   // `entryPath` (loader-resolved via resolveEntryPath, mirroring the server's normalizePath) is
   // the concrete file this URL serves — at the root that's the API's indexPath (root index.html or
   // the lone-upload fallback, e.g. recording.webm), so audio detection, the player src, and comment
@@ -374,7 +374,7 @@ function Viewer() {
         // it and orders a fresh fetch, a duplicate or a stale ready (old iframe doc after a splat
         // nav) is ignored outright — including for recordVisit below.
         const { state, decision } = dispatch({ type: 'ready', path: intent.filePath })
-        if (decision.kind === 'refetch' && site.authenticated) loadThreads(decision.path)
+        if (decision.kind === 'refetch') loadThreads(decision.path)
         // 'ignore' covers duplicates too — a duplicate ready no longer double-counts a visit.
         if (decision.kind === 'ignore') return
         if (state.readyPath !== intent.filePath) return
@@ -394,7 +394,11 @@ function Viewer() {
       // UNCONDITIONAL (C2b): commenting is on for anyone with access, not just while the rail is
       // open — a text selection feeds the popover reducer (chip first, composer only on an
       // explicit click) whether or not the rail panel happens to be visible.
-      else if (!site.authenticated || mode !== 'comment') return
+      else if (
+        mode !== 'comment' ||
+        (!site.authenticated && intent.type !== 'anchorClick' && intent.type !== 'anchorStatus')
+      )
+        return
       else if (intent.type === 'select')
         dispatchPopover({
           type: 'select',
@@ -809,7 +813,7 @@ function Viewer() {
           </div>
         </div>
 
-        {site.authenticated && railOpen && (
+        {railOpen && (
           <ReviewRail
             site={site}
             me={me}
@@ -829,7 +833,7 @@ function Viewer() {
             // and no state of its own. With no live socket both are silent no-ops.
             onTyping={sendTyping}
             onTypingStop={sendTypingStop}
-            onSendFeedback={sendFeedback}
+            onSendFeedback={site.authenticated ? sendFeedback : undefined}
             onClose={closeRail}
             onStartComment={startPageComment}
             getCurrentTime={isAudio ? getCurrentTime : undefined}

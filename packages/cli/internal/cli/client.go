@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,7 +55,12 @@ func newClient(baseURL, token string, out io.Writer) *client {
 
 // authed issues a request to the configured instance with the bearer token + User-Agent attached.
 func (c *client) authed(method, path string, body io.Reader, headers map[string]string) (*http.Response, error) {
-	req, err := http.NewRequest(method, c.baseURL+path, body)
+	return c.authedContext(context.Background(), method, path, body, headers)
+}
+
+// authedContext lets waiting commands bound reads without changing other commands' timeouts.
+func (c *client) authedContext(ctx context.Context, method, path string, body io.Reader, headers map[string]string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return nil, err
 	}

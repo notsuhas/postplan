@@ -157,6 +157,49 @@ beforeEach(() => {
   sockets.length = 0
 })
 
+test('anonymous unlisted viewers can open and read comments without login', async () => {
+  const site = { ...SITE, authenticated: false, isOwner: false, visibility: 'unlisted' as const }
+  const thread = mkThread({
+    id: 'public',
+    comments: [
+      {
+        id: 'public-comment',
+        authorId: 'reviewer',
+        author: 'Ada',
+        body: 'Public feedback',
+        deleted: false,
+        hasAudio: false,
+        reactions: [],
+        createdAt: '2026-10-06',
+        editedAt: null,
+      },
+    ],
+  })
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/:space/:site/*',
+        Component,
+        loader: () => ({ site, entryPath: 'index.html', commentsPromise: Promise.resolve([thread]) }),
+      },
+    ],
+    { initialEntries: ['/sp/site'] },
+  )
+  const { container } = render(<RouterProvider router={router} />)
+  await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+  const frame = armIframe(container)
+  expect(frame.iframe.getAttribute('src')).toContain('postplan_annotate=1')
+  await loadIframe(frame.iframe)
+  await act(async () => frame.send({ type: 'postplan:ready', filePath: 'index.html' }))
+  fireEvent.click(await screen.findByRole('button', { name: /Comments/ }))
+  expect(await screen.findByText('Public feedback')).toBeDefined()
+  expect(screen.getByText('Log in to add comments or reply.')).toBeDefined()
+  expect(screen.queryByRole('button', { name: 'Add comment' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Send all open to agent' })).toBeNull()
+  expect(sockets.length).toBe(0)
+})
+
 test('uploaded artifacts are never delegated microphone permission', async () => {
   const { container } = renderViewer('/sp/site')
   await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
