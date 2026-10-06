@@ -133,3 +133,28 @@ Enable read replication in the Cloudflare dashboard under D1 database settings. 
 ## CI deploys
 
 `.github/workflows/deploy.yml` migrates D1 and deploys both workers on pushes to `main`. Configure `CLOUDFLARE_API_TOKEN` as a repository secret and each `CF_*` value referenced by the workflow as a repository variable. Worker secrets persist across deploys and must be set separately.
+
+## Backups and recovery
+
+D1 Time Travel protects database history automatically on production databases (7 days on Workers Free, 30 days on Workers Paid). It does not restore R2 files. Postplan's deployment versions retain earlier files until site/space deletion; they are not an independent backup. See [Cloudflare's Time Travel guide](https://developers.cloudflare.com/d1/reference/time-travel/).
+
+Run the **Recovery check** workflow manually in GitHub Actions to verify that the configured live D1 database exposes current and one-day-old recovery bookmarks, and to count enabled R2 lock rules. It uses the existing deployment secret and instance variables, makes only metadata GETs, and logs no application data or bookmarks. Locally, run `bun scripts/check-recovery.ts` with `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, and `CF_R2_BUCKET` set. The token needs D1 read and R2 bucket metadata access. A new database may not have one day of history yet.
+
+This check cannot establish that an independent object backup exists or that a restore works. Bucket locks protect selected objects from deletion; enabling them on the serving bucket can prevent normal site deletion and failed-upload cleanup. Keep retention policies on a separate backup destination.
+
+For a complete recovery checkpoint:
+
+1. Pause all writes at the instance ingress, including deploys, comments, site/space deletion, and `postplan.db` mutations. Wait for in-flight requests to finish. Postplan has no built-in maintenance switch.
+2. Export D1 with `bunx wrangler d1 export <database-name> --remote --output <checkpoint>/database.sql` using your instance config. Copy the entire R2 bucket, preserving exact keys, including historical deployment files and comment audio. Use authenticated S3-compatible tooling with a private backup destination; do not mirror deletions. Record the checkpoint time, application commit, migration state, database ID, and bucket name together.
+3. Encrypt and restrict the backup, retain multiple checkpoints outside the serving bucket/account, and resume writes only after both copies finish successfully.
+4. Test recovery in an isolated instance: import the SQL into a fresh D1 database, restore R2 objects under their original keys, and deploy the matching application revision with separate app/content origins. Verify a current file, an older deployment version, comments, audio, sharing, and `postplan.db` data before switching traffic.
+
+Use a fresh KV namespace and fresh session/signing secrets on recovery; users and CLI clients must log in again. Do not restore old sessions, bearer tokens, pending login flows, or revocation markers. D1 API keys are durable credentials: revoke/rotate restored keys before admitting traffic. Realtime Durable Objects are transient fan-out relays; their state is not a durable data backup.
+
+For an in-place D1 Time Travel restore, keep a pre-restore bookmark and follow Cloudflare's procedure during a maintenance window. A database-only restore cannot recover R2 objects already deleted; choose a checkpoint with a matching object copy whenever files were lost. Never test a restore against the live instance.
+
+## CLI releases
+
+The `release.yml` workflow builds four native binaries, checksum files, and five npm packages from a `v<major>.<minor>.<patch>` tag. npm publishing uses GitHub OIDC with provenance; no `NPM_TOKEN` is required. Each existing npm package must authorize repository `notsuhas/postplan`, workflow `release.yml`, with publish permission in its npm trusted-publisher settings. A maintainer can configure this with `npm trust github <package> --file release.yml --repo notsuhas/postplan --allow-publish --yes`; npm requires account authentication and 2FA. See [npm's trusted publishing guide](https://docs.npmjs.com/trusted-publishers/).
+
+Configure the launcher `@notsuhas/postplan` and each platform package (`@notsuhas/postplan-darwin-arm64`, `@notsuhas/postplan-darwin-x64`, `@notsuhas/postplan-linux-arm64`, `@notsuhas/postplan-linux-x64`) before tagging. If a publish fails partway through, rerun the release workflow: it skips versions already present on npm. Confirm all five versions are published, then smoke-test both `postplan upgrade` and an npm install on a supported platform. Keep release tags on reviewed commits from `main`.

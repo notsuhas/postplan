@@ -1,12 +1,11 @@
+import { useViewerComments } from '@/hooks/useViewerComments'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
-import { applyCommentEvent } from '@/lib/applyCommentEvent'
 import { isAudioFile } from '@/lib/audio'
 import { isImageFile } from '@/lib/image'
 import { ImageView } from '@/components/viewer/ImageView'
-import { type CommentStream, type CommentStreamEvent, createCommentStream } from '@/lib/commentStream'
 import { attachDbBroker } from '@/lib/dbBroker'
 import { comments, paintAnchors, type PendingAnchor, pendingToInput, type Thread } from '@/lib/comments'
 import { feedback } from '@/lib/feedback'
@@ -14,20 +13,19 @@ import { type Anchor, initialPopover, stepPopover } from '@/lib/commentPopover'
 import { askStream } from '@/lib/ask'
 import { type Intent, parseIntent } from '@/lib/parseIntent'
 import { encodePathSegments } from '@/lib/paths'
-import { type ArbiterEvent, type ArbiterState, type Decision, initialArbiter, stepArbiter } from '@/lib/prefetchArbiter'
 import { recordVisit } from '@/lib/recents'
 import type { Me } from '@/lib/types'
 import { deepLinkReady, railFromSearch, type RevealRequest } from '@/lib/viewerCommands'
-import { loadViewer, PREFETCH_FAILED, type PrefetchResult, type ViewerLoaderData } from '@/lib/viewerLoader'
+import { loadViewer, type PrefetchResult, type ViewerLoaderData } from '@/lib/viewerLoader'
 import { AudioView } from '@/components/viewer/AudioView'
 import { Spinner } from '@/components/ui/states'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { ViewerTopBar } from '@/components/viewer/ViewerTopBar'
 import { CommentPopover } from '@/components/review/CommentPopover'
-import { ReviewRail, type TypingPing } from '@/components/review/ReviewRail'
+import { ReviewRail } from '@/components/review/ReviewRail'
 import { ViewerSidebar } from '@/components/viewer/ViewerSidebar'
 
-// S11: the loader resolves on SITE META alone; the comments prefetch for the predicted entry file
+// The loader resolves on SITE META alone; the comments prefetch for the predicted entry file
 // is fired unawaited and rides along as a pending promise — the iframe never waits on comments.
 // All the logic (401 redirect, no-prefetch-on-meta-failure, null-entry root) lives in
 // lib/viewerLoader where it's unit-tested.
@@ -88,13 +86,28 @@ function Viewer() {
   const [mode, setMode] = useState<'experience' | 'comment'>(wantRailOpen ? 'comment' : 'experience')
   const [loaded, setLoaded] = useState(false)
   const [me, setMe] = useState<Me | null>(null)
+  // Stable site ref for fetches: slugs never change within a mount (Component keys on them).
+  const siteRef = useMemo(
+    () => ({ spaceSlug: site.spaceSlug, siteSlug: site.siteSlug }),
+    [site.spaceSlug, site.siteSlug],
+  )
+
+  const {
+    threads,
+    setThreads,
+    resolvedFilePath,
+    dispatch,
+    loadThreads,
+    typing,
+    sendTyping,
+    sendTypingStop,
+    refreshUnlessPushed,
+  } = useViewerComments(siteRef, entryPath, isMedia, site.authenticated)
   // The HTML iframe only learns its file path from the annotate client's 'ready' postMessage
   // (never fires for non-HTML) — `filePath` below is what the rest of the viewer (comments,
   // rail) actually reads; for audio there's no message to wait for, so it's the splat itself.
-  const [resolvedFilePath, setResolvedFilePath] = useState<string | null>(null)
   const filePath = isMedia ? entryPath : resolvedFilePath
-  const [threads, setThreads] = useState<Thread[]>([])
-  // A TEXT selection now comments in place, not in the rail: lib/commentPopover (slice A1) owns the
+  // A TEXT selection now comments in place, not in the rail: lib/commentPopover owns the
   // whole chip → composer → save lifecycle and this only executes it. Held with useReducer rather
   // than the arbiter's ref, because unlike the arbiter every transition here IS the UI.
   const [popover, dispatchPopover] = useReducer(stepPopover, undefined, initialPopover)
@@ -104,10 +117,10 @@ function Viewer() {
   const onDirtyChange = useCallback((d: boolean) => {
     dirtyRef.current = d
   }, [])
-  // The rail composer, now only ever the page anchor — element creation is gone (slice C2a). Note
+  // The rail composer, now only ever the page anchor — element comments are handled by the popover. Note
   // this is INDEPENDENT of `popover` above: neither clears the other, so both can be open at once.
   // That is why the rail offers a page comment behind a button rather than an always-open textarea
-  // (#112) — an always-open one would make two live drafts the norm, not the exception.
+  // — an always-open one would make two live drafts the norm, not the exception.
   const [composing, setComposing] = useState<PendingAnchor | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
@@ -134,38 +147,6 @@ function Viewer() {
     iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:mode', mode }, contentOrigin)
     if (mode === 'experience') dispatchPopover({ type: 'dismiss' })
   }, [contentOrigin, isMedia, loaded, mode])
-
-  // ── S11 comments-load arbitration ────────────────────────────────────────────────────────────
-  // The loader fires a comments prefetch BEFORE the iframe mounts; this pure reducer
-  // (lib/prefetchArbiter) owns every ordering rule — generations (newer loads invalidate all older
-  // in-flight results), provisional HTML prefetches (held until a matching postplan:ready), stale
-  // readys after a splat nav. The component only executes its decisions.
-  const arbiter = useRef<ArbiterState>(initialArbiter(entryPath))
-
-  const applyDecision = useCallback((decision: Decision) => {
-    if (decision.kind === 'apply') setThreads(decision.data)
-    else if (decision.kind === 'error')
-      toast.error(decision.error instanceof ApiError ? decision.error.message : 'Failed to load comments')
-    // none / ignore / discard: stale or unconfirmed results die silently — never clear state,
-    // never toast over a newer success. ('refetch' is handled at the ready dispatch site.)
-  }, [])
-
-  const dispatch = useCallback(
-    (event: ArbiterEvent) => {
-      const step = stepArbiter(arbiter.current, event)
-      arbiter.current = step.state
-      setResolvedFilePath(step.state.readyPath)
-      applyDecision(step.decision)
-      return step
-    },
-    [applyDecision],
-  )
-
-  // Stable site ref for fetches: slugs never change within a mount (Component keys on them).
-  const siteRef = useMemo(
-    () => ({ spaceSlug: site.spaceSlug, siteSlug: site.siteSlug }),
-    [site.spaceSlug, site.siteSlug],
-  )
 
   // The ask panel's one streaming call. Stable on siteRef alone — the question/anchor/token-sink/
   // signal all come from the caller, so this never needs to change identity within a mount.
@@ -200,125 +181,6 @@ function Viewer() {
     [siteRef],
   )
 
-  // Start a comments load through the arbiter. `prefetch` adopts the loader's in-flight promise
-  // (it never rejects — failures arrive as PREFETCH_FAILED); ad-hoc loads fetch here, and only a
-  // CURRENT-generation failure surfaces (the reducer ignores stale rejections).
-  const loadThreads = useCallback(
-    (path: string, opts?: { provisional?: boolean; prefetch?: Promise<PrefetchResult> }) => {
-      const { state } = dispatch({ type: 'start', path, provisional: opts?.provisional ?? false })
-      const gen = state.inFlight?.gen
-      if (gen === undefined) return Promise.resolve()
-      // Returned so a mutation flow can await the refresh (keeps the composer busy until the list
-      // is applied) — the chain itself never rejects, every outcome settles through the arbiter.
-      if (opts?.prefetch) {
-        return opts.prefetch.then((r) => {
-          if (r === PREFETCH_FAILED) dispatch({ type: 'settled', gen, ok: false, error: null })
-          else dispatch({ type: 'settled', gen, ok: true, data: r })
-        })
-      }
-      return comments.list(siteRef, path).then(
-        (data) => void dispatch({ type: 'settled', gen, ok: true, data }),
-        (error: unknown) => void dispatch({ type: 'settled', gen, ok: false, error }),
-      )
-    },
-    [dispatch, siteRef],
-  )
-
-  // Mutation refresh (create/reply/resolve): a fresh generation, so any older in-flight list
-  // result — prefetch included — can no longer clobber what this returns.
-  const refresh = useCallback((fp: string) => loadThreads(fp), [loadThreads])
-
-  // ── S9 pushed comment events ─────────────────────────────────────────────────────────────────
-  // The rail stops asking and starts listening: the site's comments socket pushes creates and
-  // replies (Phase 1+2) and lib/applyCommentEvent folds each one into `threads`. Nothing else is
-  // needed for the page to keep up — `paint` already derives from `threads`, so the chips repaint
-  // for free, and `openCount` (the toolbar badge) recomputes with them.
-  const streamRef = useRef<CommentStream | null>(null)
-  // The socket is per SITE and outlives every in-iframe file change, so its callbacks read the
-  // current file from a ref rather than closing over it: making `filePath` a dependency of the
-  // effect below would re-dial on every in-page navigation and drop events for the redial's length.
-  const filePathRef = useRef(filePath)
-  useEffect(() => {
-    filePathRef.current = filePath
-  }, [filePath])
-
-  // S12 — who is replying right now. A ping carries its own ABSOLUTE expiry and is never retracted
-  // (the room schedules nothing; a closed laptop just stops sending), so the rail counts it down on
-  // its own clock and nothing here has to expire anything. Keyed by VIEWER: a person types in one
-  // place at a time, so a new ping replaces that viewer's previous one — and any ping already past
-  // its expiry is dropped on the way in, so this can't grow with the length of the session.
-  const [typing, setTyping] = useState<TypingPing[]>([])
-
-  const onPushed = useCallback(
-    // Both frames the comments channel carries — the transport declares the union (S8), so the
-    // discriminant below is the only thing that tells them apart here.
-    (event: CommentStreamEvent) => {
-      if (event.type === 'typing') {
-        // Destructured, never spread: ONLY these three fields cross into the rail, so a payload
-        // that also carried a display name could not get it rendered.
-        const { viewerId, threadId, expiresAt } = event
-        const now = Date.now()
-        setTyping((live) => {
-          // Dropping this viewer's previous ping is what makes a stop (expiresAt 0) work: the ping
-          // it replaces is gone, and an already-elapsed one is never added back — so the list holds
-          // live pings only and cannot grow with the length of the session.
-          const others = live.filter((p) => p.viewerId !== viewerId && p.expiresAt > now)
-          return expiresAt > now ? [...others, { viewerId, threadId, expiresAt }] : others
-        })
-        return
-      }
-      // The fold goes THROUGH the arbiter rather than straight to setThreads: a push landing while a
-      // list read is unsettled must be applied to the list that read returns (applying it now would
-      // paint it onto a list the settle is about to replace — the comment would vanish). Only the
-      // arbiter knows whether one is in flight, and which file it is for, so it holds the fold and
-      // runs it at apply time. 'live' means nothing is unsettled: this is the on-screen list's file.
-      const { decision } = dispatch({ type: 'push', apply: (list, path) => applyCommentEvent(list, event, path) })
-      const fp = filePathRef.current
-      if (decision.kind === 'live' && fp) setThreads((list) => decision.apply(list, fp))
-    },
-    [dispatch],
-  )
-
-  useEffect(() => {
-    if (!site.authenticated) return
-    const stream = createCommentStream({
-      site: siteRef,
-      appOrigin: window.location.origin,
-      onEvent: onPushed,
-      // There is no cursor to replay from (ruled decision 1), so a redial can only mean "a gap may
-      // have happened" — including the one comment the 300s token expiry drops. Re-reading the list
-      // is the whole convergence story.
-      onReconnect: () => {
-        const fp = filePathRef.current
-        if (fp) void refresh(fp)
-      },
-    })
-    streamRef.current = stream
-    return () => {
-      streamRef.current = null
-      stream.dispose()
-    }
-    // All three are stable for the life of a mount (siteRef is memoized on slugs the Component keys
-    // on), so this dials ONCE per site and disposes on unmount — never mid-session.
-  }, [site.authenticated, siteRef, onPushed, refresh])
-
-  // A local write's list refetch, dropped in exactly one case: the room fans this write back to
-  // every socket on the site — the author's own included — so a PUSHED change on a CONNECTED stream
-  // is already on its way and the read would only ask for what we are about to be told. Anything
-  // else still reads: resolve/reopen/delete are never pushed (ruled decision 5), and with no live
-  // socket (the redial gap, or realtime unavailable) the read is the only way the author ever sees
-  // their own write. Returned so a mutation flow can keep its composer busy until the list lands.
-  // Stable across renders so ReviewRail's own memoized children don't churn: the stream itself is
-  // held in a ref precisely because it is replaced on redial, and neither of these should change
-  // identity when it is.
-  const sendTyping = useCallback((threadId: string) => streamRef.current?.sendTyping(threadId), [])
-  const sendTypingStop = useCallback((threadId: string) => streamRef.current?.sendTypingStop(threadId), [])
-
-  const refreshUnlessPushed = useCallback(
-    (fp: string, pushed: boolean) => (pushed && streamRef.current?.connected() ? Promise.resolve() : refresh(fp)),
-    [refresh],
-  )
-
   // Actionable count for the toolbar badge: open threads (mirrors the rail's default "open" list).
   const openCount = useMemo(() => threads.filter((t) => t.status === 'open').length, [threads])
 
@@ -335,7 +197,7 @@ function Viewer() {
 
   // postplan.db credential broker: the injected SDK in the iframe hands us a MessagePort; we
   // execute its data-plane requests with OUR token so no credential ever enters the untrusted
-  // frame (P0-1). Bound to THIS site — the page cannot ask for another site's data.
+  // frame. Bound to THIS site — the page cannot ask for another site's data.
   useEffect(() => {
     if (!site.authenticated) return
     const broker = attachDbBroker({
@@ -391,8 +253,7 @@ function Viewer() {
             filePath: intent.filePath,
           })
       }
-      // UNCONDITIONAL (C2b): commenting is on for anyone with access, not just while the rail is
-      // open — a text selection feeds the popover reducer (chip first, composer only on an
+      // Comment mode accepts selections even while the rail is closed — a text selection feeds the popover reducer (chip first, composer only on an
       // explicit click) whether or not the rail panel happens to be visible.
       else if (
         mode !== 'comment' ||
@@ -418,7 +279,7 @@ function Viewer() {
       else if (intent.type === 'clickAway') dispatchPopover({ type: 'clickAway', dirty: dirtyRef.current })
       else if (intent.type === 'escape') dispatchPopover({ type: 'dismiss' })
       // Nor is a keystroke inside the frame — the reason ⌘K doesn't work there either. The reducer
-      // is the authority on whether this opens anything (#117).
+      // is the authority on whether this opens anything.
       else if (intent.type === 'commentKey') dispatchPopover({ type: 'commentKey' })
       // Same contract as commentKey, for the ask panel's own shortcut.
       else if (intent.type === 'askKey') dispatchPopover({ type: 'askKey' })
@@ -461,6 +322,7 @@ function Viewer() {
     threads,
     dispatch,
     loadThreads,
+    setThreads,
     revealThread,
     mode,
   ])
@@ -513,12 +375,12 @@ function Viewer() {
       // thus no ready) — it applies as soon as it settles, keeping the audio player's rail working.
       loadThreads(entryPath, { provisional: !isMedia, prefetch: commentsPromise })
     }
-  }, [sitePath, entryPath, commentsPromise, isMedia, dispatch, loadThreads])
+  }, [sitePath, entryPath, commentsPromise, isMedia, dispatch, loadThreads, setThreads])
 
   useEffect(paint, [paint])
 
   // The rail's "Add comment" button starts a bare page-anchored composer directly (no selection
-  // step) — for every content type, not just audio (#112). Audio NEEDS it (there is no DOM to
+  // step) — for every content type, not just audio. Audio NEEDS it (there is no DOM to
   // select in); everywhere else it is how you say something about the page as a whole rather than
   // about one arbitrary sentence. Text selection still composes in the popover, untouched.
   const startPageComment = useCallback(() => {
@@ -577,7 +439,7 @@ function Viewer() {
 
   useEffect(() => {
     const target = threads.find((t) => t.id === deepLinkThreadId)
-    // Readiness differs by content kind (slice C1b, lib/viewerCommands' deepLinkReady): an HTML
+    // Readiness differs by content kind (lib/viewerCommands' deepLinkReady): an HTML
     // page waits on the iframe's `loaded` onLoad; audio renders no iframe, so `loaded` never fires
     // and gating on it left `?thread=` on an audio page permanently dead — audio is ready as soon
     // as its thread has arrived.
@@ -634,7 +496,7 @@ function Viewer() {
     // confirmation (and its highlight lighting up on the page), so there is no toast: a toast was
     // only ever standing in for a panel that wasn't allowed to open itself. Already open is a no-op.
     setRailOpen(true)
-    // S9: a create IS pushed, so with a live stream this read goes away (see refreshUnlessPushed).
+    // A create is pushed, so with a live stream this read goes away (see refreshUnlessPushed).
     await refreshUnlessPushed(filePath, true)
   }
 
@@ -822,13 +684,13 @@ function Viewer() {
             onCancelComposer={() => setComposing(null)}
             onCreate={createThread}
             onCreateVoice={createVoiceThread}
-            // ThreadCard fires this for resolve/reopen and delete as well as for replies, so the S9
+            // ThreadCard fires this for resolve/reopen and delete as well as for replies, so the
             // gate is per change (`pushed`), not per call site: a reply's push replaces this read,
             // a resolve has no push and must keep it or it would be invisible until reload.
             onChanged={({ pushed }) => filePath && void refreshUnlessPushed(filePath, pushed)}
             onFocusAnchor={scrollAnchor}
             typing={typing}
-            // The send side. `sendTyping` does its own 15s-per-thread rate cap (S11) — every
+            // The send side. `sendTyping` does its own 15s-per-thread rate cap — every
             // keystroke calls it and all but one is swallowed there, so the composer needs no timer
             // and no state of its own. With no live socket both are silent no-ops.
             onTyping={sendTyping}

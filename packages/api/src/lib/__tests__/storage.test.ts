@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { makeDb, makeR2, seedComment, seedFile, seedSite, seedSpace, seedThread, seedUser } from '../../test/harness'
-import { deleteSiteObjects, deleteSpaceObjects } from '../storage'
+import { copyObjects, deleteSiteObjects, deleteSpaceObjects } from '../storage'
 
 // deleteSpaceObjects: purge every R2 object for EVERY site in a space in one join query, batched.
 // Replaces the N+1 per-site loop the space-delete unit calls.
@@ -111,5 +111,59 @@ describe('deleteSpaceObjects (#9)', () => {
 
     await deleteSpaceObjects(db, r2 as unknown as R2Bucket, empty)
     expect(r2.store.size).toBe(0)
+  })
+})
+
+describe('copyObjects failure cleanup', () => {
+  test('waits for delayed reads and writes before deleting the failed batch', async () => {
+    const r2 = makeR2()
+    await r2.put('source/slow', 'slow')
+    await r2.put('source/later', 'later')
+    let releasePut!: () => void
+    let releaseGet!: () => void
+    const putGate = new Promise<void>((resolve) => {
+      releasePut = resolve
+    })
+    const getGate = new Promise<void>((resolve) => {
+      releaseGet = resolve
+    })
+    let putStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      putStarted = resolve
+    })
+    const deletes: string[][] = []
+    const bucket = {
+      ...r2,
+      get: async (key: string) => {
+        if (key === 'source/later') await getGate
+        return r2.get(key)
+      },
+      put: async (key: string, body: ReadableStream, options: { httpMetadata: { contentType: string } }) => {
+        if (key === 'fork/slow') {
+          putStarted()
+          await putGate
+        }
+        return r2.put(key, body, options)
+      },
+      delete: async (keys: string[]) => {
+        deletes.push(keys)
+        await r2.delete(keys)
+      },
+    }
+    const rows = ['slow', 'missing', 'later'].map((path) => ({
+      path,
+      storageKey: `source/${path}`,
+      mimeType: null,
+      size: 4,
+    }))
+    const result = copyObjects(bucket as unknown as R2Bucket, rows, 'fork').catch((error: unknown) => error)
+    await started
+    expect(deletes).toHaveLength(0)
+    releaseGet()
+    releasePut()
+    expect(await result).toBeInstanceOf(Error)
+    expect([...r2.store.keys()].filter((key) => key.startsWith('fork/'))).toEqual([])
+    expect(r2.store.has('source/slow')).toBe(true)
+    expect(r2.store.has('source/later')).toBe(true)
   })
 })

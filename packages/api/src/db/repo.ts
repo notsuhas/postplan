@@ -114,7 +114,7 @@ export async function createPersonalSpace(db: DrizzleD1Database, userId: string,
  * Establish `email` as superadmin without Google: promote an existing row to superadmin
  * (leaving its googleId untouched so a later Google login can backfill onto it), or insert
  * a fresh googleId:null superadmin with a personal space. Idempotent for an existing
- * superadmin. Separate from the OAuth `findOrCreateUser` path, which never promotes.
+ * superadmin. Used before an identity-provider login is available.
  */
 export async function bootstrapSuperadminByEmail(
   db: DrizzleD1Database,

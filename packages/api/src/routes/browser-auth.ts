@@ -1,3 +1,4 @@
+import { safeNext as safeLoginNext } from '../../../shared/navigation'
 import { eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { invites } from '../db/schema'
@@ -15,20 +16,6 @@ import {
   sessionCookiePresent,
 } from '../lib/session'
 import type { AppEnv, Bindings } from '../types'
-
-/** Only application paths may be used after login, regardless of the adapter's redirect format. */
-function safeLoginNext(next: string | null | undefined): string | null {
-  if (typeof next !== 'string') return null
-  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return null
-  // URL parsing removes tabs/newlines and normalizes backslashes; check the resulting origin too.
-  try {
-    const url = new URL(next, 'https://postplan.invalid')
-    if (url.origin !== 'https://postplan.invalid' || url.pathname.startsWith('//')) return null
-    return `${url.pathname}${url.search}${url.hash}`
-  } catch {
-    return null
-  }
-}
 
 export function createBrowserAuthRoutes(resolve: (env: Bindings) => BrowserAuthProvider | null): Hono<AppEnv> {
   const routes = new Hono<AppEnv>()

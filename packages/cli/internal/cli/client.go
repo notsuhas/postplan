@@ -11,10 +11,7 @@ import (
 	"time"
 )
 
-// version is stamped at build time via `-ldflags "-X main.version=<tag>"`; the release workflow
-// sets it from the git tag so a released CLI reports its exact version in the User-Agent.
-// Version is stamped by the release build via cmd/postplan (-X main.version) and assigned here at
-// startup. It stays in package main so the existing ldflags path keeps working.
+// Version is assigned at startup from cmd/postplan's release value (-X main.version).
 var Version = "0.0.0-dev"
 
 // Sent on every authenticated request so the server can attribute CLI usage (and segment by
@@ -72,7 +69,7 @@ func (c *client) authedContext(ctx context.Context, method, path string, body io
 	return c.http.Do(req)
 }
 
-// requireAuth guards commands that need a saved token, matching the JS ordering: each command
+// requireAuth guards commands that need a saved token: each command
 // validates its args first, THEN calls this - so a usage error still beats "Not logged in".
 func (c *client) requireAuth() error {
 	if c.token == "" {

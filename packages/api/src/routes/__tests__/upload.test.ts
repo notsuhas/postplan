@@ -283,6 +283,50 @@ describe('upload — DoS caps (before any R2 write)', () => {
 })
 
 describe('upload — put-loop cleanup', () => {
+  test('a delayed sibling put completes before cleanup and cannot recreate an orphan', async () => {
+    const { app, env, db, r2 } = await setup()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let started!: () => void
+    const pending = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    let failed!: () => void
+    const rejected = new Promise<void>((resolve) => {
+      failed = resolve
+    })
+    let cleanupStarted = false
+    const bucket = {
+      ...r2,
+      put: async (key: string, value: string | ReadableStream, opts?: { httpMetadata?: { contentType?: string } }) => {
+        if (key.endsWith('/b.html')) {
+          failed()
+          throw new Error('r2 down')
+        }
+        started()
+        await gate
+        return r2.put(key, value, opts)
+      },
+      delete: async (keys: string[]) => {
+        cleanupStarted = true
+        await r2.delete(keys)
+      },
+    }
+    const response = postFiles(app, { ...env, POSTPLAN_FILES: bucket } as unknown as AppEnv['Bindings'], 'delayed', [
+      html('<html>a</html>', 'a.html'),
+      html('<html>b</html>', 'b.html'),
+    ])
+    await Promise.all([pending, rejected])
+    await Promise.resolve()
+    expect(cleanupStarted).toBe(false)
+    release()
+    expect((await response).status).toBe(500)
+    expect(await db.select().from(files)).toHaveLength(0)
+    expect(r2.store.size).toBe(0)
+  })
+
   test('put-failure-purges-written-objects: a mid-loop R2 throw leaves no orphans and no rows', async () => {
     const { app, env, db, r2 } = await setup()
     // Fail the put for one object; the siblings that DID write must be deleted on the way out.

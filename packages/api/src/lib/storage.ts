@@ -2,7 +2,7 @@ import { and, eq, isNotNull } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { comments, commentThreads, files, siteVersionFiles, siteVersions, sites } from '../db/schema'
 
-export const MAX_FILE_BYTES = 20 * 1024 * 1024 // 20MB/file (spec resolved decision #3)
+export const MAX_FILE_BYTES = 20 * 1024 * 1024 // 20MB/file
 
 /** Remove ASCII control chars (incl. NUL, 0x00-0x1F, and DEL 0x7F) without using
  *  control-char literals in source. */
@@ -37,6 +37,13 @@ export async function deleteKeys(bucket: R2Bucket, keys: string[]): Promise<void
   }
 }
 
+/** Settle every in-flight write before propagating a failure, so cleanup cannot race a late put. */
+export async function settleWrites(writes: Promise<unknown>[]): Promise<void> {
+  const results = await Promise.allSettled(writes)
+  const failure = results.find((result) => result.status === 'rejected')
+  if (failure?.status === 'rejected') throw failure.reason
+}
+
 // Bounded parallelism for the fork copy loop — mirrors the upload put loop, sized well under the
 // Workers subrequest budget (a fork is 2 subrequests per file: one get + one put).
 const COPY_CONCURRENCY = 10
@@ -66,7 +73,7 @@ export async function copyObjects(
   const etags = new Map<string, string | null>()
   try {
     for (let i = 0; i < plan.length; i += COPY_CONCURRENCY) {
-      await Promise.all(
+      await settleWrites(
         plan.slice(i, i + COPY_CONCURRENCY).map(async ({ from, to, row }) => {
           const object = await bucket.get(from)
           if (!object) throw new Error(`source object missing: ${from}`)

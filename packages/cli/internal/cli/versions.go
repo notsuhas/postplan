@@ -45,12 +45,16 @@ func (c *client) versions(argv []string) error {
 	if !ok(resp) {
 		return fmt.Errorf("Could not list versions (%d): %s", resp.StatusCode, bodySlice(resp))
 	}
-	var rows []siteVersion
-	if err := json.NewDecoder(resp.Body).Decode(&rows); err != nil {
+	var raw json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return err
 	}
 	if flags["json"] == true {
-		return json.NewEncoder(c.out).Encode(rows)
+		return json.NewEncoder(c.out).Encode(raw)
+	}
+	var rows []siteVersion
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return err
 	}
 	for _, row := range rows {
 		label := fmt.Sprintf("v%d", row.Version)
