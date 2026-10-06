@@ -38,11 +38,11 @@ export const requireSameOrigin = createMiddleware<AppEnv>(async (c, next) => {
 
 /** 401 unless a valid browser session, CLI Bearer token, or D1 API key exists; attaches the LIVE
  *  user plus the resolved Credential (which store authenticated the request). */
-export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
+async function authenticate(c: Context<AppEnv>): Promise<boolean> {
   const credential = await readCredential(c)
-  if (!credential) return c.json({ error: 'unauthorized' }, 401)
+  if (!credential) return false
   const user = await getUserById(c.get('db'), credential.user.id)
-  if (!user) return c.json({ error: 'unauthorized' }, 401)
+  if (!user) return false
   c.set('user', user)
   c.set('credential', credential)
   // Tag the credential for usage analytics. The CLI sends a Bearer token and never a cookie;
@@ -53,6 +53,17 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   // same-origin guard), and `bearerToken` is main's — it parses the header rather than
   // re-deriving `startsWith('Bearer ')` here.
   c.set('authKind', !cookieAuthed(c) && bearerToken(c) !== null ? 'cli' : 'web')
+  return true
+}
+
+export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
+  if (!(await authenticate(c))) return c.json({ error: 'unauthorized' }, 401)
+  await next()
+})
+
+/** Resolve a live identity when supplied; public reads still enforce site access. */
+export const optionalAuth = createMiddleware<AppEnv>(async (c, next) => {
+  await authenticate(c)
   await next()
 })
 

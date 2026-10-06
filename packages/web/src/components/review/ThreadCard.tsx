@@ -186,7 +186,7 @@ export function ThreadCard({
                   the bar would never appear and the emoji picker (which used to be a permanent chip)
                   would be unreachable. Where there is no hover, it is simply always on — the same
                   deal touch users get today, minus the desktop clutter. */}
-              {!c.deleted && (
+              {site.authenticated && !c.deleted && (
                 <div className="absolute -top-2 right-1 z-10 flex items-center gap-0.5 rounded-md border bg-popover p-0.5 opacity-0 shadow-sm transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100 [@media(hover:none)]:opacity-100">
                   {onSelectComment && (
                     <label className="flex size-6 cursor-pointer items-center justify-center rounded-sm hover:bg-muted">
@@ -331,6 +331,7 @@ export function ThreadCard({
                                   type="button"
                                   // A toggle, so it announces as one: pressed IS `mine`, which is
                                   // the same fact the filled chip shows sighted users.
+                                  disabled={!site.authenticated}
                                   aria-pressed={r.mine}
                                   aria-label={`${r.emoji} ${r.count}`}
                                   onClick={toggle(c, r.emoji, r.mine)}
@@ -365,75 +366,76 @@ export function ThreadCard({
         <p className="mt-2 text-muted-foreground text-xs italic">{`${typing.name ?? 'Someone'} is replying…`}</p>
       )}
 
-      {replying ? (
-        <div className="mt-3">
-          <Composer
-            autoFocus
-            placeholder="Reply…"
-            submitLabel="Reply"
-            loadMentions={() => comments.mentionable(site)}
-            onTyping={onTyping}
-            onTypingStop={onTypingStop}
-            onCancel={() => {
-              // Closing the composer is as much a stop as blurring it: the draft is gone, so a peer
-              // left showing "…is replying" would be waiting on something that no longer exists.
-              onTypingStop?.()
-              setReplying(false)
-            }}
-            onSubmit={async (body, mentions) => {
-              await run(() => comments.reply(site, thread.id, body, mentions), true)
-              setReplying(false)
-            }}
-            onSubmitVoice={async (blob) => {
-              await run(() => comments.replyVoice(site, thread.id, blob), true)
-              setReplying(false)
-            }}
-          />
-        </div>
-      ) : (
-        // A chat's message box, collapsed. On a thread that is already a conversation it stays put;
-        // on a thread of one it takes no height until the card is hovered or focused.
-        //
-        // grid-rows 0fr→1fr, NOT `hidden`: the button has to stay in the accessibility tree and stay
-        // tab-reachable while collapsed. Tabbing anywhere into the card opens it, so keyboard users
-        // never have to hover to find the reply box.
-        //
-        // :focus-visible, NOT :focus-within: a mouse click parks plain :focus on whatever button was
-        // clicked, and under focus-within that pinned the card open after hover-out — until the next
-        // mousedown anywhere else blurred it, collapsed this row, and yanked the page up between that
-        // click's mousedown and mouseup, so the victim's click never fired. Keyboard focus is
-        // :focus-visible; a mouse click is not.
-        <div
-          className={cn(
-            'grid transition-all duration-150',
-            pinnedReply
-              ? 'mt-2 grid-rows-[1fr]'
-              : // The touch clause is not optional: group-hover compiles under `@media (hover:hover)`,
-                // so without it a phone would have no way at all to open a reply on a thread of one.
-                'grid-rows-[0fr] group-has-[:focus-visible]/card:mt-2 group-has-[:focus-visible]/card:grid-rows-[1fr] group-hover/card:mt-2 group-hover/card:grid-rows-[1fr] [@media(hover:none)]:mt-2 [@media(hover:none)]:grid-rows-[1fr]',
-          )}
-        >
-          <div className="overflow-hidden">
-            <button
-              type="button"
-              // "Reply", not "Reply…": the label names the action, the ellipsis is the placeholder
-              // styling of an input this button stands in for.
-              aria-label="Reply"
-              onClick={() => setReplying(true)}
-              className="flex w-full items-center gap-2 rounded-md border bg-background/40 px-2.5 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:border-foreground/20 hover:text-foreground"
-            >
-              <UserAvatar
-                userId={me?.id}
-                name={me?.name}
-                email={me?.email}
-                className="size-4"
-                fallbackClassName="text-[0.5rem]"
-              />
-              Reply…
-            </button>
+      {site.authenticated &&
+        (replying ? (
+          <div className="mt-3">
+            <Composer
+              autoFocus
+              placeholder="Reply…"
+              submitLabel="Reply"
+              loadMentions={() => comments.mentionable(site)}
+              onTyping={onTyping}
+              onTypingStop={onTypingStop}
+              onCancel={() => {
+                // Closing the composer is as much a stop as blurring it: the draft is gone, so a peer
+                // left showing "…is replying" would be waiting on something that no longer exists.
+                onTypingStop?.()
+                setReplying(false)
+              }}
+              onSubmit={async (body, mentions) => {
+                await run(() => comments.reply(site, thread.id, body, mentions), true)
+                setReplying(false)
+              }}
+              onSubmitVoice={async (blob) => {
+                await run(() => comments.replyVoice(site, thread.id, blob), true)
+                setReplying(false)
+              }}
+            />
           </div>
-        </div>
-      )}
+        ) : (
+          // A chat's message box, collapsed. On a thread that is already a conversation it stays put;
+          // on a thread of one it takes no height until the card is hovered or focused.
+          //
+          // grid-rows 0fr→1fr, NOT `hidden`: the button has to stay in the accessibility tree and stay
+          // tab-reachable while collapsed. Tabbing anywhere into the card opens it, so keyboard users
+          // never have to hover to find the reply box.
+          //
+          // :focus-visible, NOT :focus-within: a mouse click parks plain :focus on whatever button was
+          // clicked, and under focus-within that pinned the card open after hover-out — until the next
+          // mousedown anywhere else blurred it, collapsed this row, and yanked the page up between that
+          // click's mousedown and mouseup, so the victim's click never fired. Keyboard focus is
+          // :focus-visible; a mouse click is not.
+          <div
+            className={cn(
+              'grid transition-all duration-150',
+              pinnedReply
+                ? 'mt-2 grid-rows-[1fr]'
+                : // The touch clause is not optional: group-hover compiles under `@media (hover:hover)`,
+                  // so without it a phone would have no way at all to open a reply on a thread of one.
+                  'grid-rows-[0fr] group-has-[:focus-visible]/card:mt-2 group-has-[:focus-visible]/card:grid-rows-[1fr] group-hover/card:mt-2 group-hover/card:grid-rows-[1fr] [@media(hover:none)]:mt-2 [@media(hover:none)]:grid-rows-[1fr]',
+            )}
+          >
+            <div className="overflow-hidden">
+              <button
+                type="button"
+                // "Reply", not "Reply…": the label names the action, the ellipsis is the placeholder
+                // styling of an input this button stands in for.
+                aria-label="Reply"
+                onClick={() => setReplying(true)}
+                className="flex w-full items-center gap-2 rounded-md border bg-background/40 px-2.5 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:border-foreground/20 hover:text-foreground"
+              >
+                <UserAvatar
+                  userId={me?.id}
+                  name={me?.name}
+                  email={me?.email}
+                  className="size-4"
+                  fallbackClassName="text-[0.5rem]"
+                />
+                Reply…
+              </button>
+            </div>
+          </div>
+        ))}
     </div>
   )
 }

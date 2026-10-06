@@ -142,28 +142,28 @@ export function ViewerTopBar({
             >
               <Star className={starred ? 'fill-primary text-primary' : 'opacity-40'} />
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onToggleRail}
-              aria-pressed={railOpen}
-              className={cn('gap-1.5', commentCount > 0 && 'text-primary')}
-              title={commentCount > 0 ? `${commentCount} open comment${commentCount === 1 ? '' : 's'}` : 'Comments'}
-            >
-              <MessageSquare className="size-3.5" />
-              <span className="hidden sm:inline">Comments</span>
-              {commentCount > 0 && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-semibold text-[10px] text-primary-foreground leading-none tabular-nums">
-                  {commentCount > 9 ? '9+' : commentCount}
-                </span>
-              )}
-            </Button>
           </>
         ) : (
           <Button asChild size="sm">
             <Link to={loginHref(location)}>Log in</Link>
           </Button>
         )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onToggleRail}
+          aria-pressed={railOpen}
+          className={cn('gap-1.5', commentCount > 0 && 'text-primary')}
+          title={commentCount > 0 ? `${commentCount} open comment${commentCount === 1 ? '' : 's'}` : 'Comments'}
+        >
+          <MessageSquare className="size-3.5" />
+          <span className="hidden sm:inline">Comments</span>
+          {commentCount > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-semibold text-[10px] text-primary-foreground leading-none tabular-nums">
+              {commentCount > 9 ? '9+' : commentCount}
+            </span>
+          )}
+        </Button>
         {(site.authenticated || onPrint) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

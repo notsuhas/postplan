@@ -57,7 +57,7 @@ import { fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
 import { decideRange } from '../lib/range'
 import { deleteKeys } from '../lib/storage'
 import { transcribeVoice } from '../lib/transcribe'
-import { cookieAuthed, isSameOrigin, requireAuth, requireControlGrant } from '../middleware/auth'
+import { cookieAuthed, isSameOrigin, optionalAuth, requireAuth, requireControlGrant } from '../middleware/auth'
 import { notifyCommentEvent } from '../realtime/notify'
 import { TOKEN_HEADER } from '../realtime/protocol'
 import { isUpgrade, reissueUpgrade } from '../realtime/upgrade'
@@ -108,15 +108,15 @@ const canModerate = (site: ResolvedSite, user: SessionUser): boolean => site.own
 
 /** PURE post-batch gate on assembled access facts: missing site → 404, then `checkAccess` (the
  *  live session user from requireAuth is the subject, exactly as before) with access-ok as
- *  the gate (comments are allowed wherever the viewer has access — every tier is authed).
+ *  the gate (unlisted comments are readable without login; mutations require authentication).
  *  Surfaces checkAccess's real status so an archived site returns 410 (gone), not a
  *  flat 403. Evaluated AFTER the facts
  *  batch resolves — a route that fuses extra statements into that batch (S9b) must return this
  *  denial WITHOUT touching their rows. Returns the site or a Response to return as-is. */
 function siteFromFacts(c: Context<AppEnv>, facts: AccessFacts): ResolvedSite | Response {
-  const { site, access } = siteAccessFromFacts(facts, c.get('user'))
+  const { site, access } = siteAccessFromFacts(facts, c.get('user') ?? null)
   if (!site) return c.json({ error: 'not found' }, 404)
-  if (!access.ok) return c.json({ error: 'forbidden' }, access.status)
+  if (!access.ok) return c.json({ error: access.status === 401 ? 'unauthorized' : 'forbidden' }, access.status)
   return site
 }
 
@@ -131,7 +131,13 @@ async function gated<T extends readonly BatchItem<'sqlite'>[]>(
   ...extras: [...T]
 ): Promise<{ site: ResolvedSite; extras: BatchResponse<T> } | Response> {
   const { space, site: siteSlug } = c.req.param()
-  const { facts, extras: rows } = await fetchAccessFacts(c.get('db'), space, siteSlug, c.get('user').id, ...extras)
+  const { facts, extras: rows } = await fetchAccessFacts(
+    c.get('db'),
+    space,
+    siteSlug,
+    c.get('user')?.id ?? null,
+    ...extras,
+  )
   const site = siteFromFacts(c, facts)
   if (site instanceof Response) return site
   return { site, extras: rows }
@@ -453,8 +459,15 @@ async function ingestVoiceComment(
 const isMultipart = (c: Context<AppEnv>): boolean =>
   (c.req.header('content-type') ?? '').startsWith('multipart/form-data')
 
-// Every route in this router is a comment route, so auth is required on all of them.
-comments.use('*', requireAuth, requireControlGrant)
+// Public reads inherit site visibility; writes, mentions and sockets still require login.
+comments.use(
+  '*',
+  async (c, next) => {
+    const publicRead = c.req.method === 'GET' && /\/comments(?:\/audio\/[^/]+)?$/.test(c.req.path)
+    return publicRead ? optionalAuth(c, next) : requireAuth(c, next)
+  },
+  requireControlGrant,
+)
 
 // GET — list threads (+ ordered comments). With ?filePath, one file's threads; with NO filePath
 // at all, the whole site's threads. Authz is site-level (siteFromFacts), so the site-wide list
@@ -481,7 +494,7 @@ comments.get('/:space/:site/comments', async (c) => {
   if (filePath !== undefined && (!filePath || tooLong(filePath, MAX_PATH)))
     return c.json({ error: 'filePath required' }, 400)
   const [threadRows, commentRows, reactionRows] = gate.extras
-  return c.json(assembleThreadViews(threadRows, commentRows, reactionRows, c.get('user').id))
+  return c.json(assembleThreadViews(threadRows, commentRows, reactionRows, c.get('user')?.id ?? null))
 })
 
 // GET — who the caller may @-mention on this site (autocomplete source). Same access gate as

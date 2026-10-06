@@ -75,13 +75,13 @@ describe('loadViewer', () => {
     expect(list).not.toHaveBeenCalled()
   })
 
-  test('anonymous unlisted viewer skips the authenticated comments prefetch', async () => {
+  test('anonymous unlisted viewer prefetches public comments', async () => {
     stubMeta({ ...site('index.html'), authenticated: false, isOwner: false, visibility: 'unlisted' })
     const list = stubList(() => Promise.resolve([]))
     const data = await loadViewer(argsFor())
     expect(data.entryPath).toBe('index.html')
-    expect(data.commentsPromise).toBeNull()
-    expect(list).not.toHaveBeenCalled()
+    expect(await data.commentsPromise).toEqual([])
+    expect(list).toHaveBeenCalledTimes(1)
   })
 
   test('meta 401 → toLogin redirect preserving the current location', async () => {

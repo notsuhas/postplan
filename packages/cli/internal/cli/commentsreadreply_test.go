@@ -15,6 +15,17 @@ func TestCommentsCommand(t *testing.T) {
 		{"id":"t2","filePath":"index.md","quote":null,"status":"resolved","comments":[]}
 	]`
 
+	t.Run("reads unlisted comments without login", func(t *testing.T) {
+		srv, _ := recordingServer(t, func(r *capturedReq) (int, string) { return 200, threadsJSON })
+		c, out := newTestClient(srv.URL, "")
+		if err := c.comments([]string{"docs/api", "--json"}); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out.String(), "reword") {
+			t.Fatalf("output=%s", out.String())
+		}
+	})
+
 	t.Run("digest-default-all-threads", func(t *testing.T) {
 		srv, reqs := recordingServer(t, func(r *capturedReq) (int, string) { return 200, threadsJSON })
 		c, out := newTestClient(srv.URL, "tok")

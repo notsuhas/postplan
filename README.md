@@ -113,6 +113,16 @@ Defaults for new sites: `--space` = your personal space · `--name` = file/folde
 
 Standalone installations keep themselves current (once-a-day background check, atomic in-place swap). npm installations are updated through npm instead. Opt out of standalone update checks with `POSTPLAN_NO_UPDATE=1`.
 
+To have a running agent listen for feedback, ask it to keep reviewing a site. The bundled skill uses:
+
+```bash
+postplan feedback wait <space/site> --timeout 60s --json
+```
+
+The command polls every five seconds and returns one atomically claimed, reviewer-sent batch, or `null` on timeout. The agent handles it, replies, redeploys, completes the batch, then waits again. Ordinary comments remain conversation until someone selects **Send** or **Send all** in the review panel. Postplan does not launch the agent itself.
+
+Unlisted links expose their comment threads and voice recordings to anyone with the URL, without login. Adding comments, replying, reacting, and sending feedback require signing in. Protected links retain their existing access rules for both content and comments.
+
 ## API keys & HTTP API
 
 `postplan login` is interactive, so CI mints an **API key** at `/settings/keys` instead and exports it — `POSTPLAN_TOKEN` takes precedence over the stored config:

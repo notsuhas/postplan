@@ -15,7 +15,7 @@ const url = (space: string, site: string, extra = '') => `/api/sites/${space}/${
 async function seedCommentedSite(
   db: ReturnType<typeof makeRouteApp>['db'],
   ownerId: string,
-  visibility: 'private' | 'members' | 'team' = 'team',
+  visibility: 'unlisted' | 'private' | 'members' | 'team' = 'team',
   status: 'active' | 'archived' = 'active',
 ) {
   const spaceId = await seedSpace(db, { createdBy: ownerId, slug: 'acme' })
@@ -26,6 +26,69 @@ async function seedCommentedSite(
 }
 
 describe('comments routes — T9.1 exact status/body pins', () => {
+  test('anonymous unlisted readers can read threads and audio, but cannot write or send feedback', async () => {
+    const { app, env, db, kv, r2 } = makeRouteApp()
+    const owner = await mintUser(db, kv, 'owner')
+    const { threadId, commentId } = await seedCommentedSite(db, owner, 'unlisted')
+    const res = await app.request(url('acme', 'doc'), {}, env)
+    expect(res.status).toBe(200)
+    const threads = (await res.json()) as { id: string; comments: { body: string }[] }[]
+    expect(threads[0]?.id).toBe(threadId)
+    expect(threads[0]?.comments[0]?.body).toBe('opening')
+    for (const path of [
+      url('acme', 'doc'),
+      url('acme', 'doc', `/${threadId}/replies`),
+      '/api/sites/acme/doc/feedback',
+    ]) {
+      const write = await app.request(
+        path,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: 'guest', commentIds: [commentId] }),
+        },
+        env,
+      )
+      expect(write.status).toBe(401)
+    }
+    const publicAudioId = await seedComment(db, {
+      threadId,
+      authorId: owner,
+      body: 'voice transcript',
+      audioKey: 'comment-audio/public.webm',
+    })
+    await r2.put('comment-audio/public.webm', new Uint8Array([1, 2, 3]))
+    const publicAudio = await app.request(url('acme', 'doc', `/audio/${publicAudioId}`), {}, env)
+    expect(publicAudio.status).toBe(200)
+    expect(new Uint8Array(await publicAudio.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
+    // A comment cannot be used to fetch an audio object from another site.
+    const otherSpace = await seedSpace(db, { createdBy: owner, slug: 'hidden' })
+    const otherSite = await seedSite(db, { spaceId: otherSpace, ownerId: owner, slug: 'doc', visibility: 'private' })
+    const otherThread = await seedThread(db, { siteId: otherSite, filePath: 'index.html', createdBy: owner })
+    const audioId = await seedComment(db, {
+      threadId: otherThread,
+      authorId: owner,
+      body: 'secret',
+      audioKey: 'comment-audio/secret.webm',
+    })
+    await r2.put('comment-audio/secret.webm', new Uint8Array([1]))
+    const crossSite = await app.request(url('acme', 'doc', `/audio/${audioId}`), {}, env)
+    expect(crossSite.status).toBe(404)
+    const protectedAudio = await app.request(url('hidden', 'doc', `/audio/${audioId}`), {}, env)
+    expect(protectedAudio.status).toBe(401)
+  })
+
+  test('anonymous readers cannot read protected comments', async () => {
+    for (const visibility of ['private', 'members', 'team'] as const) {
+      const { app, env, db, kv } = makeRouteApp()
+      const owner = await mintUser(db, kv, 'owner')
+      await seedCommentedSite(db, owner, visibility)
+      const res = await app.request(url('acme', 'doc'), {}, env)
+      expect(res.status).toBe(401)
+      expect(await res.json()).toEqual({ error: 'unauthorized' })
+    }
+  })
+
   test('unauthed → 401 {error:unauthorized}', async () => {
     const { app, env, db, kv } = makeRouteApp()
     const owner = await mintUser(db, kv, 'owner')

@@ -242,7 +242,9 @@ export function ReviewRail({
           opens — so a permanently-open textarea would make "two live drafts, no rule for which
           wins" the DEFAULT state on every text selection, and would spend ~100px of a 55vh mobile
           bottom sheet on every reader who came only to read. */}
-      {composing ? (
+      {!site.authenticated ? (
+        <p className="border-b p-3 text-muted-foreground text-sm">Log in to add comments or reply.</p>
+      ) : composing ? (
         <div className="border-b bg-muted/40 p-3">
           <Composer
             autoFocus
@@ -322,9 +324,11 @@ export function ReviewRail({
           <p className="px-1 py-8 text-center text-muted-foreground text-sm">
             {filter !== 'open'
               ? 'No resolved threads.'
-              : getCurrentTime
-                ? 'Add a comment above — optionally with a timestamp.'
-                : 'Add a comment above, or select text on the page to anchor one.'}
+              : !site.authenticated
+                ? 'No open threads.'
+                : getCurrentTime
+                  ? 'Add a comment above — optionally with a timestamp.'
+                  : 'Add a comment above, or select text on the page to anchor one.'}
           </p>
         )}
         {active.map((t) => (

@@ -115,10 +115,10 @@ describe('ViewerTopBar — the visibility tier rides beside the site name', () =
 })
 
 describe('ViewerTopBar — anonymous unlisted viewer', () => {
-  test('offers login instead of controls that require an account', () => {
+  test('offers public comments and login while hiding account controls', () => {
     renderTopBar({ site: { ...SITE, authenticated: false, visibility: 'unlisted' } })
     expect(screen.getByRole('link', { name: 'Log in' }).getAttribute('href')).toBe('/login?next=%2F')
-    expect(screen.queryByRole('button', { name: /Comments/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /Comments/ })).toBeDefined()
     expect(screen.queryByRole('button', { name: /Star this page/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Menu' })).toBeNull()
   })

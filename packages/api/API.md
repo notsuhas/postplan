@@ -45,6 +45,11 @@ store, or the reverse — an invalid key is `401`, not a retry against the other
 token. Presented with an API key it returns `400 not_a_session` — a key is revoked with
 [`DELETE /api/api-keys/:id`](#delete-apiapi-keysid--revoke), not by logging out.
 
+Comment reads inherit the site's visibility: `GET /api/sites/:space/:site/comments` and
+`GET /api/sites/:space/:site/comments/audio/:commentId` allow anonymous reads of unlisted sites.
+Protected sites require an authorized credential. Comment writes, reactions, mention lookups,
+comment sockets, and all feedback queue operations require authentication.
+
 ## What a key may do
 
 A key carries a `grants` object fixed at mint time. It can only ever *narrow* what you can already

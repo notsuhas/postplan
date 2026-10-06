@@ -541,3 +541,26 @@ describe('ThreadCard — deletion', () => {
     remove.mockRestore()
   })
 })
+
+test('anonymous viewers read the conversation without mutation controls', () => {
+  render(
+    <ThreadCard
+      site={{ ...SITE, authenticated: false, visibility: 'unlisted' }}
+      me={null}
+      thread={mkThread({
+        id: 'public',
+        comments: [
+          mkComment({ id: 'public-comment', reactions: [{ emoji: '👍', count: 1, mine: false, names: ['Ada'] }] }),
+        ],
+      })}
+      onChanged={() => {}}
+      onFocusAnchor={() => {}}
+    />,
+  )
+  expect(screen.getByText('the axis label is cropped')).toBeDefined()
+  expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Add reaction' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Edit comment' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Delete comment' })).toBeNull()
+  expect(screen.getByRole('button', { name: '👍 1' }).hasAttribute('disabled')).toBe(true)
+})
