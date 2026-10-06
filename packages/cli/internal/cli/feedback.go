@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -79,7 +80,7 @@ func (c *client) feedbackList(argv []string) error {
 	if err := argparse.ValidateFlags(flags, "json"); err != nil || len(positional) > 1 {
 		return fmt.Errorf(feedbackUsage)
 	}
-	batches, err := c.fetchFeedback(positional)
+	batches, err := c.fetchFeedback(context.Background(), positional)
 	if err != nil {
 		return err
 	}
@@ -97,7 +98,7 @@ func (c *client) feedbackList(argv []string) error {
 }
 
 // fetchFeedback reads only reviewer-sent, claimable batches; ordinary comments are never polled.
-func (c *client) fetchFeedback(positional []string) ([]feedbackBatch, error) {
+func (c *client) fetchFeedback(ctx context.Context, positional []string) ([]feedbackBatch, error) {
 	path := "/api/feedback"
 	if len(positional) == 1 {
 		if _, _, err := splitSpaceSlug(positional[0]); err != nil {
@@ -105,7 +106,7 @@ func (c *client) fetchFeedback(positional []string) ([]feedbackBatch, error) {
 		}
 		path += "?site=" + url.QueryEscape(positional[0])
 	}
-	resp, err := c.authed("GET", path, nil, nil)
+	resp, err := c.authedContext(ctx, "GET", path, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +143,7 @@ func (c *client) feedbackWait(argv []string) error {
 		interval = parsed
 	}
 	var deadline time.Time
+	ctx := context.Background()
 	if raw, present := flags["timeout"]; present {
 		value, ok := raw.(string)
 		timeout, err := time.ParseDuration(value)
@@ -149,6 +151,9 @@ func (c *client) feedbackWait(argv []string) error {
 			return fmt.Errorf("--timeout must be a positive duration")
 		}
 		deadline = timeNow().Add(timeout)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
 	timeoutResult := func() error {
 		if flags["json"] == true {
@@ -161,8 +166,11 @@ func (c *client) feedbackWait(argv []string) error {
 		if !deadline.IsZero() && !timeNow().Before(deadline) {
 			return timeoutResult()
 		}
-		batches, err := c.fetchFeedback(positional)
+		batches, err := c.fetchFeedback(ctx, positional)
 		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return timeoutResult()
+			}
 			return err
 		}
 		for _, candidate := range batches {

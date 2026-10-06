@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -143,4 +145,36 @@ func TestFeedbackWait(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestFeedbackWaitCancelsSlowPoll(t *testing.T) {
+	canceled := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("unexpected mutation: %s", r.Method)
+		}
+		select {
+		case <-r.Context().Done():
+			close(canceled)
+		case <-time.After(2 * time.Second):
+			w.Write([]byte("[]"))
+		}
+	}))
+	defer srv.Close()
+	c, out := newTestClient(srv.URL, "tok")
+	started := time.Now()
+	if err := c.feedback([]string{"wait", "--timeout", "100ms", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("timeout did not cancel poll: %v", elapsed)
+	}
+	if strings.TrimSpace(out.String()) != "null" {
+		t.Fatalf("output=%s", out.String())
+	}
+	select {
+	case <-canceled:
+	case <-time.After(time.Second):
+		t.Fatal("server request was not canceled")
+	}
 }
