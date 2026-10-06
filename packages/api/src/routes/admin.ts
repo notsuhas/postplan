@@ -7,7 +7,7 @@ import { revokeUserAccess, revokeUserCliTokens } from '../lib/session'
 import { cachedStats } from '../lib/stats'
 import { deleteSiteObjects } from '../lib/storage'
 import { isVisibility } from '../lib/visibility'
-import { isAdminEmail, superadminEmails } from '../lib/workos'
+import { isAdminEmail, superadminEmails } from '../lib/access-policy'
 import { requireAuth, requireHumanCredential, requireSuperAdmin } from '../middleware/auth'
 import type { AppEnv } from '../types'
 

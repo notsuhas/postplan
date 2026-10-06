@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { users } from '../../db/schema'
 import { makeDb } from '../../test/harness'
 import type { AppEnv } from '../../types'
-import { findOrCreateUser } from '../auth'
+import { findOrCreateUser } from '../../lib/login'
 
 // Every configured address grants `superadmin`, and the grant is re-applied on every login — otherwise adding an address
 // would silently do nothing for someone who had already signed in as a member.

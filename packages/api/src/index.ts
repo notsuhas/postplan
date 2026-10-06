@@ -8,7 +8,7 @@ import { cachedStats } from './lib/stats'
 import { POSTPLAN_DB_JS } from './postplandb/bundle'
 import { buildPublicConfig } from './lib/bootstrap'
 import { INSTALL_SH } from './install-script'
-import { isWorkosEnabled } from './lib/workos'
+import { resolveBrowserAuthProvider } from './lib/auth-provider'
 import { siteShareShell } from './lib/site-share-shell'
 import { trackCliUsage } from './middleware/analytics'
 import { requireSameOrigin } from './middleware/auth'
@@ -129,17 +129,19 @@ app.use('/api/*', trackCliUsage)
 app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
 // Public first-run config: what login options the SPA should offer. Behind requireSameOrigin
-// + withDb (GET same-origin is fine); exposes only booleans, no secrets.
-app.get('/api/config', async (c) =>
-  c.json(
-    buildPublicConfig({
-      // WorkOS brokers Google, so the button copy stays accurate; only the broker changed.
-      googleEnabled: isWorkosEnabled(c.env),
+// + withDb (GET same-origin is fine); exposes login display metadata and booleans, no secrets.
+app.get('/api/config', async (c) => {
+  const provider = resolveBrowserAuthProvider(c.env)
+  return c.json({
+    ...buildPublicConfig({
+      // Kept for older clients; new clients consume the provider's display metadata.
+      googleEnabled: provider?.signIn.icon === 'google',
       hasSuperadmin: await superadminExists(c.get('db')),
       bootstrapTokenSet: Boolean(c.env.BOOTSTRAP_TOKEN),
     }),
-  ),
-)
+    signIn: provider?.signIn ?? null,
+  })
+})
 app.route('/api/auth', auth)
 app.route('/api/spaces', spaces)
 app.route('/api/sites', sites)

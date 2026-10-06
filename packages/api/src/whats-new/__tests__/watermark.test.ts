@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'bun:test'
 import { bootstrapSuperadminByEmail } from '../../db/repo'
 import { users } from '../../db/schema'
-import { findOrCreateUser } from '../../routes/auth'
+import { findOrCreateUser } from '../../lib/login'
 import { makeDb, seedUser } from '../../test/harness'
 import { NEWEST_RELEASE_DATE } from '../catalog'
 

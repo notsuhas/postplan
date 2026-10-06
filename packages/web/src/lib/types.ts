@@ -16,6 +16,7 @@ export interface Me {
 // GET /api/config — public first-run config driving which login options the page offers.
 export interface PublicConfig {
   googleEnabled: boolean
+  signIn?: { label: string; icon?: 'google' } | null
   bootstrapAvailable: boolean
 }
 

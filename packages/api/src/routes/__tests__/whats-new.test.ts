@@ -8,7 +8,7 @@ import { requireSameOrigin } from '../../middleware/auth'
 import { makeDb, makeKv, seedUser } from '../../test/harness'
 import type { AppEnv } from '../../types'
 import { NEWEST_RELEASE_DATE, RELEASES } from '../../whats-new/catalog'
-import { findOrCreateUser } from '../auth'
+import { findOrCreateUser } from '../../lib/login'
 import { whatsNew } from '../whats-new'
 
 const APP_URL = 'https://postplan.example.com'

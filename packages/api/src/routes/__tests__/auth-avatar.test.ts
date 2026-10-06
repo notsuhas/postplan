@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { users } from '../../db/schema'
 import { makeDb } from '../../test/harness'
 import type { AppEnv } from '../../types'
-import { findOrCreateUser } from '../auth'
+import { findOrCreateUser } from '../../lib/login'
 
 // findOrCreateUser and the `picture` claim. Login is the only moment the IdP hands us a photo, so
 // it is also the only backfill available: a user who signed up before this column existed gets one
