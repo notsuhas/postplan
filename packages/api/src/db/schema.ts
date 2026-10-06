@@ -11,8 +11,8 @@ export const invites = sqliteTable('invites', {
   createdAt: integer('createdAt').notNull(),
   // First completed sign-in, coalesced so it keeps the original timestamp. Null = never signed in.
   usedAt: integer('usedAt'),
-  // Refreshed on every sign-in, never coalesced: revoking access deletes this WorkOS user, so a
-  // stale id would revoke the wrong one (or nothing).
+  // Legacy WorkOS audit metadata, refreshed by its adapter on sign-in.
+  // Local access revocation uses the Postplan user id, never this provider id.
   workosUserId: text('workosUserId'),
 })
 

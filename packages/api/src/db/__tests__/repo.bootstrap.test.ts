@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 import { makeDb } from '../../test/harness'
 import { spaceMembers, spaces, users } from '../schema'
-import { findOrCreateUser } from '../../routes/auth'
+import { findOrCreateUser } from '../../lib/login'
 import type { AppEnv } from '../../types'
 import { bootstrapSuperadminByEmail, createPersonalSpace, createSpace, getUserById, superadminExists } from '../repo'
 

@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { Link, NavLink, Outlet, useLoaderData, useNavigation } from 'react-router'
 import { Command, KeyRound, LayoutDashboard, LogOut, Moon, Shield, Sun, SunMoon } from 'lucide-react'
 import type { RootData } from '@/lib/notifications'
-import { api } from '@/lib/api'
+import { signOut } from '@/lib/auth'
 import { toggleTheme, useTheme } from '@/lib/theme'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { HelpButton } from '@/components/onboarding/HelpButton'
@@ -40,14 +40,6 @@ export function AppShell() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-
-  async function signOut() {
-    try {
-      await api.post('/api/auth/logout')
-    } finally {
-      window.location.href = '/login'
-    }
-  }
 
   return (
     <div ref={bindHotkeys} className="bp-app-bg min-h-screen">

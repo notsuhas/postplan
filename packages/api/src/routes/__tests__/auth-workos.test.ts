@@ -1,8 +1,16 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import { makeRouteApp } from '../../test/route-fixtures'
 import type { AppEnv } from '../../types'
 import { auth } from '../auth'
+import { workosProvider } from '../../lib/workos'
+import { seedUser } from '../../test/harness'
+
+const originalFetch = globalThis.fetch
+afterEach(() => {
+  globalThis.fetch = originalFetch
+  delete workosProvider.validateSession
+})
 
 const base = {
   APP_URL: 'https://postplan.example.com',
@@ -26,6 +34,71 @@ describe('GET /workos guard (creds optional)', () => {
     // WorkOS brokers Google with its own OAuth credentials — this deploy owns no Google project.
     expect(location).toContain('GoogleOAuth')
     expect(location).toContain('client_123')
+  })
+
+  test('generic login and legacy WorkOS entry point preserve OAuth state and the existing subject', async () => {
+    const { app, db, env } = makeRouteApp()
+    app.route('/api/auth', auth)
+    const configured = { ...env, WORKOS_API_KEY: 'sk_test', WORKOS_CLIENT_ID: 'client_123' }
+    globalThis.fetch = (async () =>
+      Response.json({
+        user: {
+          id: 'user_existing',
+          email: 'person@example.com',
+          email_verified: true,
+          first_name: 'Person',
+          last_name: null,
+          profile_picture_url: null,
+        },
+        access_token: 'unused',
+        refresh_token: 'unused',
+        authentication_method: 'GoogleOAuth',
+      })) as typeof fetch
+    const start = await app.request('/api/auth/login?next=%2Fsettings%2Fkeys', {}, configured)
+    expect(start.status).toBe(302)
+    const state = new URL(start.headers.get('location')!).searchParams.get('state')!
+    const cookie = start.headers.get('set-cookie')!.split(';')[0]
+    const mismatch = await app.request(
+      '/api/auth/callback?code=code&state=wrong',
+      { headers: { Cookie: cookie } },
+      configured,
+    )
+    expect(mismatch.headers.get('location')).toBe('/login?error=state')
+    const complete = await app.request(
+      `/api/auth/callback?code=code&state=${state}`,
+      { headers: { Cookie: cookie } },
+      configured,
+    )
+    expect(complete.headers.get('location')).toBe('/settings/keys')
+    expect(complete.headers.get('set-cookie')).toContain('__Host-postplan_session=')
+    const { users } = await import('../../db/schema')
+    expect((await db.select().from(users))[0].googleId).toBe('user_existing')
+  })
+
+  test('live provider session validation denies expired sessions and errors, without changing CLI credentials', async () => {
+    const { app, env, kv, db } = makeRouteApp()
+    app.route('/api/auth', auth)
+    const local = { ...env, APP_URL: 'http://localhost:5173', SUPERADMIN_EMAILS: 'person@example.com' }
+    const login = await app.request('/api/auth/dev-login', { method: 'POST' }, local)
+    const cookie = login.headers.get('set-cookie')!.split(';')[0]
+    const configured = { ...local, WORKOS_API_KEY: 'sk_test', WORKOS_CLIENT_ID: 'client_123' }
+    let accepted = true
+    workosProvider.validateSession = async (_c, user) => {
+      expect(user.email).toBe('person@example.com')
+      return accepted
+    }
+    expect((await app.request('/api/auth/me', { headers: { Cookie: cookie } }, configured)).status).toBe(200)
+    accepted = false
+    expect((await app.request('/api/auth/me', { headers: { Cookie: cookie } }, configured)).status).toBe(401)
+    workosProvider.validateSession = async () => {
+      throw new Error('provider unavailable')
+    }
+    expect((await app.request('/api/auth/me', { headers: { Cookie: cookie } }, configured)).status).toBe(401)
+    await seedUser(db, { id: 'cli', email: 'cli@example.com' })
+    await kv.put('cli:token', JSON.stringify({ id: 'cli', email: 'person@example.com', role: 'member' }))
+    expect((await app.request('/api/auth/me', { headers: { Authorization: 'Bearer token' } }, configured)).status).toBe(
+      200,
+    )
   })
 
   test('GET /callback with unset creds → 404 (never constructs a WorkOS client)', async () => {

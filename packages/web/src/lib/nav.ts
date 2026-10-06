@@ -28,7 +28,14 @@ export function newSpaceHref(location: { pathname: string; search: string }): st
 export function safeNext(next: string | null | undefined): string | null {
   if (typeof next !== 'string') return null
   if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return null
-  return next
+  // URL parsing removes tabs/newlines and normalizes backslashes; check the resulting origin too.
+  try {
+    const url = new URL(next, 'https://postplan.invalid')
+    if (url.origin !== 'https://postplan.invalid' || url.pathname.startsWith('//')) return null
+    return `${url.pathname}${url.search}${url.hash}`
+  } catch {
+    return null
+  }
 }
 
 /** Redirect to /login, preserving the current location as `?next=` so login returns here. */

@@ -1,3 +1,4 @@
+import { resolveBrowserAuthProvider } from './auth-provider'
 import type { Context } from 'hono'
 import { deleteCookie, getCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
 import { getUserById } from '../db/repo'
@@ -182,10 +183,16 @@ export function bearerToken(c: Context<AppEnv>): string | null {
 // a second shot at the CLI token store (or vice versa).
 export async function readCredential(c: Context<AppEnv>): Promise<Credential | null> {
   const sessionUser = await readSession(c)
-  if (sessionUser)
-    return (await isUserAccessRevoked(c.env.POSTPLAN_SESSIONS, sessionUser.id))
-      ? null
-      : { kind: 'session', user: sessionUser }
+  if (sessionUser) {
+    if (await isUserAccessRevoked(c.env.POSTPLAN_SESSIONS, sessionUser.id)) return null
+    try {
+      const provider = resolveBrowserAuthProvider(c.env)
+      if (provider?.validateSession && !(await provider.validateSession(c, sessionUser))) return null
+    } catch {
+      return null // A provider outage must never turn into authenticated access.
+    }
+    return { kind: 'session', user: sessionUser }
+  }
 
   const token = bearerToken(c)
   if (token === null) return null

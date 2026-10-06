@@ -18,11 +18,11 @@ export interface LoginPageData extends PublicConfig {
 }
 
 const ERRORS: Record<string, string> = {
-  denied: 'Google did not return a verified email address.',
+  denied: 'Your sign-in provider did not return a verified email address.',
   not_invited: 'Your email address has not been invited to this Postplan instance.',
-  oauth: "Google sign-in didn't go through. Try again.",
+  oauth: "Sign-in didn't go through. Try again.",
   state: 'Sign-in session expired before it finished. Start over.',
-  exchange: "Couldn't finish the handshake with Google. Try again.",
+  exchange: "Couldn't finish the sign-in handshake. Try again.",
 }
 
 // Maps bootstrap route status codes to a human message for the first-run setup form.
@@ -90,12 +90,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export function Component() {
-  const { googleEnabled, bootstrapAvailable, authenticated } = useLoaderData() as LoginPageData
+  const {
+    googleEnabled,
+    signIn: configuredSignIn,
+    bootstrapAvailable,
+    authenticated,
+  } = useLoaderData() as LoginPageData
   const [params] = useSearchParams()
   const [busy, setBusy] = useState(false)
   const error = params.get('error')
   const next = params.get('next')
-  const hasAnyMethod = googleEnabled || bootstrapAvailable || import.meta.env.DEV
+  const signIn =
+    configuredSignIn === undefined
+      ? googleEnabled
+        ? { label: 'Sign in with Google', icon: 'google' as const }
+        : null
+      : configuredSignIn
+  const hasAnyMethod = Boolean(signIn) || bootstrapAvailable || import.meta.env.DEV
 
   // This deployment's own origin drives the copy-paste install one-liner and the demo output,
   // so what a visitor copies is pre-pointed at THIS instance (mirrors GET /api/install).
@@ -250,23 +261,26 @@ export function Component() {
               ) : (
                 <>
                   {error && <ErrorBanner className="mb-4">{ERRORS[error] ?? 'Sign-in error.'}</ErrorBanner>}
-                  {googleEnabled && (
+                  {signIn && (
                     <Button
                       size="lg"
                       className="h-12 w-full gap-3 text-[15px] font-medium"
                       onClick={() => {
                         const qs = next ? `?next=${encodeURIComponent(next)}` : ''
-                        window.location.href = `/api/auth/workos${qs}`
+                        const path = configuredSignIn === undefined ? '/api/auth/workos' : '/api/auth/login'
+                        window.location.href = `${path}${qs}`
                       }}
                     >
-                      <span className="flex size-6 items-center justify-center rounded bg-white">
-                        <GoogleGlyph />
-                      </span>
-                      Sign in with Google
+                      {signIn.icon === 'google' && (
+                        <span className="flex size-6 items-center justify-center rounded bg-white">
+                          <GoogleGlyph />
+                        </span>
+                      )}
+                      {signIn.label}
                     </Button>
                   )}
 
-                  {bootstrapAvailable && <SetupPanel next={next} withDivider={googleEnabled} />}
+                  {bootstrapAvailable && <SetupPanel next={next} withDivider={Boolean(signIn)} />}
 
                   {import.meta.env.DEV && (
                     <Button
@@ -291,9 +305,7 @@ export function Component() {
                   )}
 
                   <p className="mt-4 text-center text-xs text-muted-foreground">
-                    {googleEnabled
-                      ? 'Invited accounts only · sessions expire after 30 days'
-                      : 'Sessions expire after 30 days'}
+                    {signIn ? 'Invited accounts only · sessions expire after 30 days' : 'Sessions expire after 30 days'}
                   </p>
                 </>
               )}

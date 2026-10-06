@@ -44,6 +44,70 @@ scripts/wire-workos.sh
 
 The script writes both secrets to the main worker, redeploys it, and checks `/api/config`. Users from `ORG_EMAIL_DOMAINS` and superadmins can join directly. External users need an invite.
 
+## Adding another login provider (including Ory)
+
+Browser authentication is an adapter boundary. The app uses `/api/auth/login`,
+`/api/auth/callback`, and `/api/auth/logout`; the provider label comes from
+`/api/config`. Existing `/api/auth/workos` links remain supported.
+
+To add Ory:
+
+1. Add `packages/api/src/lib/ory.ts` implementing `BrowserAuthProvider` from
+   `lib/auth-provider.ts`. Its `start` redirects to the hosted login with an
+   allowlisted, absolute `return_to` pointing to `/api/auth/callback`. Carry the
+   intended app path in a signed, short-lived cookie, rather than accepting an
+   arbitrary redirect from the browser. The interface does not require OAuth
+   codes or state: `complete` may verify an Ory cookie through a server-side
+   `/sessions/whoami` request instead.
+2. Return normalized `IdpClaims`: the stable identity id, email, verified-email
+   status, and optional name/photo. Require an active, unexpired session and
+   verified email matching the identity; never trust browser-supplied profile
+   fields. Bound network requests with a timeout and deny on provider errors.
+   Ory traits alone are not proof that an email is verified: use verified
+   addresses or the organization's documented, enforced identity policy.
+3. Select the adapter in `resolveBrowserAuthProvider`, and add its environment
+   bindings/configuration. Selection must be explicit when multiple providers
+   are configured; do not silently fall back to WorkOS after an Ory error.
+
+The shared pipeline checks org domains/admins/invites, links the existing local
+user by verified email, creates a Postplan session, and records invite use.
+Provider subjects are namespaced; historical WorkOS subjects stay unchanged.
+Local user ids, spaces, sites, comments, and roles survive a provider switch.
+There is no schema migration required to add the adapter. The `googleId` column
+is a legacy name for the provider subject; `workosUserId` is WorkOS-only audit
+metadata. Do not use either as the local user id.
+
+Two optional hooks complete the browser lifecycle:
+
+- `validateSession(c, user)`: check Ory on authenticated browser requests and
+  bind its verified identity to this local user, so central logout/revocation
+  takes effect. Returning false or throwing denies access. Without this hook,
+  the app-owned session retains its normal 30-day lifetime and local revocation.
+- `logout(c)`: resolve a trusted Ory browser logout URL. The SPA follows the
+  returned URL after local logout. Throw on provider failure so the app does not
+  claim sign-out completed. The hook runs for requests carrying an app browser-session cookie;
+  bearer CLI logout continues to revoke only that CLI token.
+
+CLI browser approval and API keys stay app-owned, so changing the login provider
+requires no CLI changes. Central Ory revocation does not by itself revoke these
+credentials; Postplan's local access-revocation flow handles them. A shared
+organization provider should omit `onDenied`: denying access to one Postplan
+instance must never delete a company-wide identity. `recordLogin` is optional
+provider audit metadata; normal invite timestamps are handled by the app.
+
+For a shared-domain cookie setup, use an app hostname under
+`company.example`, configure permitted login/logout return URLs, and **keep the
+uploaded-content origin outside `company.example`**. A separate subdomain is not
+sufficient isolation from a `Domain=company.example` authentication cookie. Localhost
+and apps on another domain need a supported proxy/OIDC setup rather than an
+assumption that the shared cookie will arrive.
+
+`routes/__tests__/browser-auth.test.ts` demonstrates a cookie-based adapter
+using the shared routes, verified-email linking, access gates, logout, and CLI
+approval. WorkOS handshake and live-session hook regressions are covered in
+`auth-workos.test.ts`. Actual Ory deployment configuration and a real-session
+integration check are still required when adding that adapter.
+
 ## Optional shared backend
 
 `postplan.db` stays disabled until the main worker has a separate `DATA_TOKEN_SECRET`:

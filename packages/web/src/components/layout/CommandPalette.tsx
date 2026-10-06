@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/command'
 import { toggleTheme } from '@/lib/theme'
 import { api } from '@/lib/api'
+import { signOut } from '@/lib/auth'
 import { newSpaceHref } from '@/lib/nav'
 import { encodePathSegments } from '@/lib/paths'
 import { siteName, useRecents, visibleEntries } from '@/lib/recents'
@@ -217,17 +218,7 @@ export function CommandPalette({
             Toggle theme
           </CommandItem>
           {user && (
-            <CommandItem
-              onSelect={() =>
-                run(async () => {
-                  try {
-                    await api.post('/api/auth/logout')
-                  } finally {
-                    window.location.href = '/login'
-                  }
-                })
-              }
-            >
+            <CommandItem onSelect={() => run(signOut)}>
               <LogOut />
               Sign out
             </CommandItem>

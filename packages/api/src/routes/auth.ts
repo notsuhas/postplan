@@ -1,159 +1,21 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
-import { events, invites, users } from '../db/schema'
-import { bootstrapSuperadminByEmail, createPersonalSpace, superadminStatus, toSessionUser } from '../db/repo'
+import { events } from '../db/schema'
+import { bootstrapSuperadminByEmail, superadminStatus } from '../db/repo'
 import { NEWEST_RELEASE_DATE } from '../whats-new/catalog'
 import { requireAuth, requireControlGrant } from '../middleware/auth'
-import { sanitizeAvatarUrl } from '../lib/avatar'
 import { bootstrapDecision } from '../lib/bootstrap'
-import { createWorkos, isAdminEmail, isOrgEmail, isWorkosEnabled, primarySuperadminEmail } from '../lib/workos'
-import {
-  bearerToken,
-  createCliToken,
-  createDevLoginSession,
-  createSession,
-  destroyCliToken,
-  destroySession,
-  isLocalAppUrl,
-  readCredential,
-  restoreUserAccess,
-} from '../lib/session'
-import type { AppEnv, Bindings, SessionUser } from '../types'
-
-const OAUTH_COOKIE = 'postplan_oauth'
-
-/** Only allow same-origin absolute paths as a post-login redirect (no open redirect). */
-function safeNext(next: string | null | undefined): string | null {
-  if (typeof next !== 'string') return null
-  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return null
-  return next
-}
-
-/** Identity as this app consumes it, independent of who brokered the login. `sub` is the IdP's
- *  stable subject — the WorkOS user id — and lands in users.googleId (kept as the column name so
- *  no migration is needed for a rename that changes nothing). */
-interface IdpClaims {
-  sub: string
-  email: string
-  email_verified: boolean
-  name?: string
-  // Profile photo URL. Stored host-pinned and served through /api/avatars — never handed to the
-  // browser as-is. See lib/avatar.
-  picture?: string
-}
+import { isOrgEmail, primarySuperadminEmail } from '../lib/access-policy'
+import { findOrCreateUser } from '../lib/login'
+import { resolveBrowserAuthProvider } from '../lib/auth-provider'
+import { createBrowserAuthRoutes } from './browser-auth'
+import { createCliToken, createDevLoginSession, createSession, isLocalAppUrl } from '../lib/session'
+import type { AppEnv } from '../types'
 
 export const auth = new Hono<AppEnv>()
 
-// --- Browser OAuth ---
-
-auth.get('/workos', async (c) => {
-  if (!isWorkosEnabled(c.env)) return c.notFound()
-  const state = crypto.randomUUID()
-  const next = safeNext(c.req.query('next')) // carried through the round-trip in the signed cookie
-  const url = createWorkos(c.env).userManagement.getAuthorizationUrl({
-    provider: 'GoogleOAuth',
-    clientId: c.env.WORKOS_CLIENT_ID as string,
-    redirectUri: `${c.env.APP_URL}/api/auth/callback`,
-    state,
-  })
-
-  await setSignedCookie(c, OAUTH_COOKIE, JSON.stringify({ state, next }), c.env.SESSION_SECRET, {
-    httpOnly: true,
-    secure: c.env.APP_URL.startsWith('https://'),
-    sameSite: 'Lax', // Strict would drop the cookie on the cross-site callback redirect
-    path: '/',
-    maxAge: 600,
-  })
-  return c.redirect(url.toString())
-})
-
-auth.get('/callback', async (c) => {
-  if (!isWorkosEnabled(c.env)) return c.notFound()
-  const code = c.req.query('code')
-  const state = c.req.query('state')
-  const stored = await getSignedCookie(c, c.env.SESSION_SECRET, OAUTH_COOKIE)
-  deleteCookie(c, OAUTH_COOKIE, { path: '/' })
-
-  if (!code || !state || typeof stored !== 'string') return c.redirect('/login?error=oauth')
-  let parsed: { state: string; next?: string | null }
-  try {
-    parsed = JSON.parse(stored)
-  } catch {
-    return c.redirect('/login?error=oauth')
-  }
-  if (parsed.state !== state) return c.redirect('/login?error=state')
-
-  const workos = createWorkos(c.env)
-  let claims: IdpClaims
-  let workosUserId: string
-  try {
-    const result = await workos.userManagement.authenticateWithCode({
-      code,
-      clientId: c.env.WORKOS_CLIENT_ID as string,
-    })
-    workosUserId = result.user.id
-    claims = {
-      sub: result.user.id,
-      email: result.user.email,
-      email_verified: result.user.emailVerified,
-      name: [result.user.firstName, result.user.lastName].filter(Boolean).join(' ') || undefined,
-      picture: result.user.profilePictureUrl ?? undefined,
-    }
-  } catch {
-    return c.redirect('/login?error=exchange')
-  }
-
-  const email = claims.email?.toLowerCase() ?? ''
-  if (!email || !claims.email_verified) return c.redirect('/login?error=denied')
-
-  // Organization-domain users and admins may join directly; external accounts need an invite.
-  if (!isAdminEmail(c.env, email) && !isOrgEmail(c.env, email)) {
-    const invited = await c.get('db').select().from(invites).where(eq(invites.email, email)).limit(1)
-    if (!invited[0]) {
-      c.executionCtx?.waitUntil(workos.userManagement.deleteUser(workosUserId).catch(() => {}))
-      return c.redirect('/login?error=not_invited')
-    }
-  }
-
-  // Stamp every completed sign-in, not just gated ones: admins bypass the gate but still show on
-  // the People view, and stamping inside the gate left them reading "never signed in".
-  c.executionCtx?.waitUntil(
-    c
-      .get('db')
-      .update(invites)
-      .set({ usedAt: sql`coalesce(${invites.usedAt}, ${Date.now()})`, workosUserId })
-      .where(eq(invites.email, email))
-      .run()
-      .catch(() => {}),
-  )
-
-  const user = await findOrCreateUser(c.get('db'), c.env, claims, email)
-  await restoreUserAccess(c.env.POSTPLAN_SESSIONS, user.id)
-  await createSession(c, user)
-  return c.redirect(safeNext(parsed.next) ?? '/dashboard')
-})
-
-auth.post('/logout', async (c) => {
-  // This route runs neither requireAuth nor requireSameOrigin's cookie gate, so the credential is
-  // resolved directly. A `glk_` API key is not a session — `postplan logout` is the wrong verb for
-  // it (a key is revoked from the keys screen, not by logging out) — so report that rather than
-  // silently doing nothing: destroyCliToken below is a KV delete and no-ops on a D1 key, and a
-  // false { ok: true } would tell the caller a credential was revoked when it was not.
-  if ((await readCredential(c))?.kind === 'key') {
-    return c.json(
-      { error: 'not_a_session', message: 'This is an API key — revoke it from the keys screen, not logout.' },
-      400,
-    )
-  }
-
-  await destroySession(c)
-  // `postplan logout` authenticates with a Bearer CLI token and no cookie, so also revoke that
-  // token server-side — otherwise the logged-out CLI credential stays valid for its full 30d TTL.
-  const token = bearerToken(c)
-  if (token) await destroyCliToken(c, token)
-  return c.json({ ok: true })
-})
+// Provider-specific handshakes finish through the shared access/session pipeline.
+auth.route('/', createBrowserAuthRoutes(resolveBrowserAuthProvider))
 
 // `hasUsedCli` rides along so the dashboard can hide the CLI-install banner for anyone whose CLI
 // has already made an authenticated call (an events row exists — see middleware/analytics.ts).
@@ -308,66 +170,3 @@ auth.post('/cli/approve', requireAuth, requireControlGrant, async (c) => {
   await c.env.POSTPLAN_SESSIONS.delete(`cli_user:${userCode.toUpperCase()}`)
   return c.json({ ok: true })
 })
-
-// --- helpers ---
-
-// Exported for characterization tests. Matches by googleId then email, so an IdP login backfills
-// onto a prior bootstrap user (googleId null, same email). Role is preserved unless the address is
-// in the admin allowlist, which promotes; nothing here ever demotes. The googleId column keeps its
-// name: it holds the IdP subject, which is now the WorkOS user id.
-export async function findOrCreateUser(
-  db: AppEnv['Variables']['db'],
-  env: Bindings,
-  claims: IdpClaims,
-  email: string,
-): Promise<SessionUser> {
-  const byGoogle = await db.select().from(users).where(eq(users.googleId, claims.sub)).limit(1)
-  const existing = byGoogle[0] ?? (await db.select().from(users).where(eq(users.email, email)).limit(1))[0]
-
-  // The photo is re-read from the IdP on EVERY login, which is also the only backfill it
-  // offers: users who signed up before avatars existed get one the next time they sign in. A claim
-  // that fails the host pin leaves the stored URL untouched rather than clearing a good one.
-  const avatarUrl = sanitizeAvatarUrl(claims.picture)
-
-  // Promote on EVERY login, not just at creation: adding an address to SUPERADMIN_EMAILS has to reach
-  // someone who already signed in as a member, or the var silently does nothing for them.
-  // Promote-only — removing an address never demotes, so a fat-fingered edit cannot strip the last
-  // superadmin out of its own instance. Demote through the admin UI, deliberately.
-  const admin = isAdminEmail(env, email)
-  const isOrgMember = isOrgEmail(env, email)
-
-  if (existing) {
-    const name = claims.name ?? existing.name
-    const role = admin ? 'superadmin' : existing.role
-    await db
-      .update(users)
-      .set({
-        name,
-        googleId: claims.sub,
-        avatarUrl: avatarUrl ?? existing.avatarUrl,
-        role,
-        isOrgMember,
-        disabledAt: null,
-      })
-      .where(eq(users.id, existing.id))
-    await createPersonalSpace(db, existing.id, email)
-    return toSessionUser({ ...existing, name, role, isOrgMember })
-  }
-
-  const id = crypto.randomUUID()
-  const role = admin ? 'superadmin' : 'member'
-  // New signups start caught up on release notes (watermark = newest), so they don't land on an
-  // inbox full of "unread" features that shipped before they existed. null would mean all-unread.
-  await db.insert(users).values({
-    id,
-    email,
-    name: claims.name ?? null,
-    googleId: claims.sub,
-    avatarUrl,
-    role,
-    isOrgMember,
-    lastSeenReleaseAt: NEWEST_RELEASE_DATE,
-  })
-  await createPersonalSpace(db, id, email)
-  return { id, email, name: claims.name ?? null, role, isOrgMember }
-}

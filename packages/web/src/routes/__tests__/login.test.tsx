@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import type { Me, PublicConfig } from '@/lib/types'
 import { Component, loader, type LoginPageData } from '../login'
@@ -42,6 +42,61 @@ function stubHomepage(identity: Response | Error) {
 }
 
 describe('homepage authentication action', () => {
+  test('provider metadata uses the generic entry point and preserves the CLI return path', async () => {
+    renderPage(
+      { googleEnabled: false, signIn: { label: 'Sign in with SSO' }, bootstrapAvailable: false, authenticated: false },
+      '/?next=%2Fcli%3Fcode%3DABC',
+    )
+    const previous = Object.getOwnPropertyDescriptor(window.location, 'href')
+    Object.defineProperty(window.location, 'href', {
+      value: 'https://postplan.test/',
+      writable: true,
+      configurable: true,
+    })
+    try {
+      fireEvent.click(await screen.findByRole('button', { name: 'Sign in with SSO' }))
+      expect(window.location.href).toBe('/api/auth/login?next=%2Fcli%3Fcode%3DABC')
+    } finally {
+      if (previous) Object.defineProperty(window.location, 'href', previous)
+      else Reflect.deleteProperty(window.location, 'href')
+    }
+  })
+
+  test('old config uses its legacy WorkOS entry point', async () => {
+    renderPage({ googleEnabled: true, bootstrapAvailable: false, authenticated: false })
+    const previous = Object.getOwnPropertyDescriptor(window.location, 'href')
+    Object.defineProperty(window.location, 'href', {
+      value: 'https://postplan.test/',
+      writable: true,
+      configurable: true,
+    })
+    try {
+      fireEvent.click(await screen.findByRole('button', { name: 'Sign in with Google' }))
+      expect(window.location.href).toBe('/api/auth/workos')
+    } finally {
+      if (previous) Object.defineProperty(window.location, 'href', previous)
+      else Reflect.deleteProperty(window.location, 'href')
+    }
+  })
+
+  test('provider metadata renders a Company action without changing the login page', async () => {
+    renderPage({
+      googleEnabled: false,
+      signIn: { label: 'Sign in with Company' },
+      bootstrapAvailable: false,
+      authenticated: false,
+    })
+    expect(await screen.findByRole('button', { name: 'Sign in with Company' })).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Sign in with Google' })).toBeNull()
+    expect(screen.queryByText('No sign-in method is configured yet. Ask an administrator to finish setup.')).toBeNull()
+  })
+
+  test('an explicitly disabled provider overrides the older Google compatibility flag', async () => {
+    renderPage({ googleEnabled: true, signIn: null, bootstrapAvailable: false, authenticated: false })
+    await screen.findByText(/sessions expire after 30 days/i)
+    expect(screen.queryByRole('button', { name: 'Sign in with Google' })).toBeNull()
+  })
+
   test('an authenticated visitor gets one direct dashboard action', async () => {
     renderPage({ googleEnabled: true, bootstrapAvailable: true, authenticated: true }, '/?error=oauth')
 
@@ -116,4 +171,4 @@ describe('homepage authentication action', () => {
   })
 })
 
-const ERROR_TEXT = "Google sign-in didn't go through. Try again."
+const ERROR_TEXT = "Sign-in didn't go through. Try again."
