@@ -160,7 +160,7 @@ export function AppShell() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <main className="mx-auto min-w-0 w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <Outlet />
       </main>
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} user={user} />

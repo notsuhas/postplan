@@ -351,10 +351,10 @@ function ToolbarSkeleton() {
   // Mirror DashboardToolbar's slim row (heading + subtitle on the left, New button on the right)
   // so the fallback doesn't reflow when the real toolbar streams in.
   return (
-    <div className="flex items-end justify-between gap-4" aria-hidden>
+    <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end" aria-hidden>
       <div className="space-y-2">
         <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-4 w-72 max-w-full" />
       </div>
       <Skeleton className="h-9 w-24 rounded-md" />
     </div>

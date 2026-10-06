@@ -107,7 +107,7 @@ export function Component() {
   const agentPrompt = `Use Postplan at ${origin}. Read ${origin}/llms.txt, install its CLI and skill, then publish the artifact in this workspace for review.`
 
   return (
-    <div className="dark relative min-h-screen w-full overflow-x-hidden bg-[#070b16] font-sans text-foreground antialiased">
+    <div className="dark relative min-h-screen w-full bg-[#070b16] font-sans text-foreground antialiased">
       {/* blueprint drafting grid: hairlines every 28px, brighter major lines every 4th cell,
           over a faint overhead-light gradient — pure CSS, no canvas */}
       <div
@@ -133,8 +133,8 @@ export function Component() {
         }}
       />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-7 sm:px-8">
-        <header className="bp-rise flex items-center justify-between">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-5 sm:px-8 sm:py-7">
+        <header className="bp-rise flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-tight">
             <span className="inline-block size-2.5 rounded-[3px] bg-primary shadow-[0_0_14px_2px_rgba(245,158,11,0.5)]" />
             postplan
@@ -153,14 +153,14 @@ export function Component() {
           </div>
         </header>
 
-        <main className="grid flex-1 items-center gap-12 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+        <main className="grid min-w-0 flex-1 grid-cols-1 items-center gap-8 py-8 sm:gap-12 sm:py-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16">
           {/* pitch */}
-          <div>
+          <div className="min-w-0">
             <div className="bp-rise font-mono text-sm" style={{ animationDelay: '60ms' }}>
               <span className="text-muted-foreground">~/work $</span> <span className="text-primary">postplan</span>
             </div>
             <h1
-              className="bp-rise mt-5 font-mono text-5xl font-semibold leading-[1.04] tracking-tight [text-shadow:0_2px_30px_rgba(7,11,22,0.85)] sm:text-6xl"
+              className="bp-rise mt-5 font-mono text-4xl font-semibold leading-[1.04] tracking-tight [text-shadow:0_2px_30px_rgba(7,11,22,0.85)] min-[360px]:text-5xl sm:text-6xl"
               style={{ animationDelay: '120ms' }}
             >
               Artifacts
@@ -192,20 +192,22 @@ export function Component() {
           </div>
 
           {/* terminal + auth */}
-          <div className="bp-rise flex flex-col gap-5" style={{ animationDelay: '360ms' }}>
+          <div className="bp-rise flex min-w-0 flex-col gap-5" style={{ animationDelay: '360ms' }}>
             <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0a1120]/80 shadow-2xl backdrop-blur-sm">
               <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
                 <span className="size-3 rounded-full bg-white/15" />
                 <span className="size-3 rounded-full bg-white/15" />
                 <span className="size-3 rounded-full bg-white/15" />
-                <span className="ml-2 font-mono text-xs text-muted-foreground">postplan — zsh</span>
+                <span className="ml-2 min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                  postplan — zsh
+                </span>
                 <CopyButton
                   text={commands.standalone}
                   label="copy install"
                   copiedMessage="Install command copied"
                   variant="ghost"
                   size="sm"
-                  className="ml-auto h-7 gap-1.5 px-2 font-mono text-[11px] text-muted-foreground hover:text-foreground [&_svg]:size-3"
+                  className="ml-auto h-7 shrink-0 gap-1.5 px-2 font-mono text-[11px] text-muted-foreground hover:text-foreground [&_svg]:size-3"
                 />
               </div>
               <div className="space-y-3 p-4 font-mono text-[12.5px] leading-relaxed">
@@ -213,7 +215,7 @@ export function Component() {
                   <div key={line.prompt}>
                     <div className="flex gap-2">
                       <span className="shrink-0 select-none text-primary">$</span>
-                      <span className="break-all text-foreground/90">{line.prompt}</span>
+                      <span className="min-w-0 break-all text-foreground/90">{line.prompt}</span>
                     </div>
                     <div className="mt-1 break-all pl-4 text-muted-foreground">{line.output}</div>
                   </div>
@@ -225,9 +227,9 @@ export function Component() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-[#0a1120]/55 px-3 py-2.5">
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">npm · Node 20+</span>
-              <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground/80" title={commands.npm}>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-lg border border-white/10 bg-[#0a1120]/55 px-3 py-2.5 sm:flex">
+              <span className="col-span-2 shrink-0 font-mono text-[11px] text-muted-foreground">npm · Node 20+</span>
+              <code className="min-w-0 flex-1 break-all font-mono text-[11px] text-foreground/80" title={commands.npm}>
                 {commands.npm}
               </code>
               <CopyButton
@@ -240,7 +242,7 @@ export function Component() {
               />
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-card/70 p-6 backdrop-blur-sm">
+            <div className="rounded-xl border border-white/10 bg-card/70 p-4 sm:p-6 backdrop-blur-sm">
               {authenticated ? (
                 <Button asChild size="lg" className="h-12 w-full text-[15px] font-medium">
                   <Link to="/dashboard">Go to dashboard</Link>
@@ -316,7 +318,10 @@ export function Component() {
         </footer>
       </div>
 
-      <section className="relative z-10 border-y border-white/10 bg-[#080d19]/85 px-4 py-20 sm:px-8" id="workflow">
+      <section
+        className="relative z-10 border-y border-white/10 bg-[#080d19]/85 px-4 py-12 sm:px-8 sm:py-20"
+        id="workflow"
+      >
         <div className="mx-auto max-w-6xl">
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">The review loop</p>
           <div className="mt-4 grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
@@ -329,7 +334,7 @@ export function Component() {
                 and every review thread in one place.
               </p>
             </div>
-            <ol className="grid gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-3">
+            <ol className="grid min-w-0 gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-3">
               {REVIEW_STEPS.map(([number, title, detail]) => (
                 <li key={number} className="bg-[#0a1120] p-6">
                   <span className="font-mono text-xs text-primary">{number}</span>
@@ -342,7 +347,7 @@ export function Component() {
         </div>
       </section>
 
-      <section className="relative z-10 px-4 py-20 sm:px-8" id="agents">
+      <section className="relative z-10 px-4 py-12 sm:px-8 sm:py-20" id="agents">
         <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Agent-ready</p>
@@ -385,7 +390,9 @@ export function Component() {
                 className="h-7 gap-1.5 px-2 font-mono text-[11px] text-muted-foreground hover:text-foreground [&_svg]:size-3"
               />
             </div>
-            <p className="p-5 font-mono text-[13px] leading-7 text-foreground/80">{agentPrompt}</p>
+            <p className="p-5 font-mono text-[13px] leading-7 [overflow-wrap:anywhere] text-foreground/80">
+              {agentPrompt}
+            </p>
           </div>
         </div>
       </section>

@@ -50,7 +50,7 @@ export function Component() {
         </div>
         <CardTitle className="mt-3">Connect CLI</CardTitle>
         <CardDescription>
-          Signed in as <span className="font-mono text-foreground">{user.email}</span>
+          Signed in as <span className="break-all font-mono text-foreground">{user.email}</span>
         </CardDescription>
       </CardHeader>
 
