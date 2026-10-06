@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.TypedArrays"],
+    "types": []
+  },
+  "include": [
+    "src/annotate/client.ts",
+    "src/annotate/locator.ts",
+    "src/annotate/reflow.ts",
+    "src/annotate/selection.ts",
+    "src/postplandb/client.ts",
+    "src/mermaid/client.ts"
+  ]
+}

@@ -10,7 +10,7 @@ import {
   Sparkles,
   Star,
 } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { toast } from 'sonner'
 import { useStar } from '@/hooks/useStar'
@@ -21,10 +21,15 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ForkDialog } from '@/components/sites/ForkDialog'
-import { ShareDialog } from '@/components/sites/ShareDialog'
-import { SummarySheet } from '@/components/sites/SummarySheet'
 import { VISIBILITY_META, VisibilityBadge, VisibilityMenu } from '@/components/sites/visibility'
 import { BrandMark } from '@/components/ui/states'
+
+const SummarySheet = lazy(() =>
+  import('@/components/sites/SummarySheet').then((module) => ({ default: module.SummarySheet })),
+)
+const ShareDialog = lazy(() =>
+  import('@/components/sites/ShareDialog').then((module) => ({ default: module.ShareDialog })),
+)
 
 // The persistent top chrome for the viewer: brand (→ dashboard) + a breadcrumb, then one action
 // row — Star, Comments, hamburger. Replaces the old floating PreviewToolbar dock.
@@ -212,23 +217,25 @@ export function ViewerTopBar({
       {/* All three render through a portal, so they can live inside the header without affecting
           layout. Controlled (no inline trigger) — their menu items drive this state. */}
       {site.authenticated && <ForkDialog site={site} open={forkOpen} onOpenChange={setForkOpen} />}
-      {site.authenticated && (
-        <SummarySheet
-          spaceSlug={site.spaceSlug}
-          siteSlug={site.siteSlug}
-          open={summaryOpen}
-          onOpenChange={setSummaryOpen}
-        />
-      )}
-      {site.isOwner && (
-        <ShareDialog
-          spaceSlug={site.spaceSlug}
-          siteSlug={site.siteSlug}
-          title={site.title}
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-        />
-      )}
+      <Suspense fallback={null}>
+        {site.authenticated && summaryOpen && (
+          <SummarySheet
+            spaceSlug={site.spaceSlug}
+            siteSlug={site.siteSlug}
+            open={summaryOpen}
+            onOpenChange={setSummaryOpen}
+          />
+        )}
+        {site.isOwner && shareOpen && (
+          <ShareDialog
+            spaceSlug={site.spaceSlug}
+            siteSlug={site.siteSlug}
+            title={site.title}
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+          />
+        )}
+      </Suspense>
     </header>
   )
 }

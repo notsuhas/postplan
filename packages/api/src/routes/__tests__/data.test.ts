@@ -342,6 +342,34 @@ describe('#10: per-site document quota (DoS guard on unbounded creation)', () =>
     await seedDocs(db, 'siteB', 'bulk', MAX_DOCS_PER_SITE, 'userB')
     expect((await req(app, tokens.ownerA, 'POST', '/posts', { x: 1 })).status).toBe(201)
   })
+  test('rows that leave the table free quota — a route delete and a user FK cascade alike', async () => {
+    const { db, app, tokens } = await scenario()
+    await seedDocs(db, 'siteA', 'bulk', MAX_DOCS_PER_SITE - 1, 'userA')
+    await create(app, tokens.viewerB, 'feedback', { x: 1 })
+    expect((await req(app, tokens.ownerA, 'POST', '/posts', { x: 1 })).status).toBe(429)
+
+    expect((await req(app, tokens.ownerA, 'DELETE', '/bulk/seed-0')).status).toBe(204)
+    expect((await req(app, tokens.ownerA, 'POST', '/posts', { x: 1 })).status).toBe(201)
+    expect((await req(app, tokens.ownerA, 'POST', '/posts', { x: 1 })).status).toBe(429)
+
+    // userB's document goes through the documents.createdBy cascade, which no route observes.
+    await db.delete(users).where(eq(users.id, 'userB'))
+    expect((await req(app, tokens.ownerA, 'POST', '/posts', { x: 1 })).status).toBe(201)
+    expect((await req(app, tokens.ownerA, 'POST', '/posts', { x: 1 })).status).toBe(429)
+  })
+
+  test('a PUT that loses the first-write race to the same id adds one row and counts one', async () => {
+    const { db, app, tokens } = await scenario()
+    await seedDocs(db, 'siteA', 'bulk', MAX_DOCS_PER_SITE - 2, 'userA')
+    const [a, b] = await Promise.all([
+      req(app, tokens.ownerA, 'PUT', '/posts/same', { v: 1 }),
+      req(app, tokens.ownerA, 'PUT', '/posts/same', { v: 2 }),
+    ])
+    expect([a.status, b.status].sort()).toEqual([200, 201])
+    // One slot was used, so exactly one more create fits.
+    expect((await req(app, tokens.ownerA, 'POST', '/posts', { x: 1 })).status).toBe(201)
+    expect((await req(app, tokens.ownerA, 'POST', '/posts', { x: 1 })).status).toBe(429)
+  })
 })
 
 describe('auth + validation + inert-when-unconfigured', () => {
