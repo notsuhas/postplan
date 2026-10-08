@@ -171,7 +171,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString()
+  return new Date(iso).toLocaleDateString(navigator.languages, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
 }
 
 // Run a mutation, toast the outcome, then revalidate the loader. The ConfirmDialog
