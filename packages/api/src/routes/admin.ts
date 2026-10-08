@@ -26,6 +26,7 @@ admin.get('/sites', async (c) => {
 
   const statusParam = c.req.query('status')
   const visibilityParam = c.req.query('visibility')
+  const ownerId = c.req.query('ownerId')
   const pageParam = Number.parseInt(c.req.query('page') ?? '', 10)
   const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1
 
@@ -35,6 +36,7 @@ admin.get('/sites', async (c) => {
     return c.json({ error: 'invalid visibility' }, 400)
   }
   if (isVisibility(visibilityParam)) filters.push(eq(sites.visibility, visibilityParam))
+  if (ownerId) filters.push(eq(sites.ownerId, ownerId))
   const where = filters.length > 0 ? and(...filters) : undefined
 
   const rows = await db

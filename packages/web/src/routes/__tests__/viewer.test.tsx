@@ -206,6 +206,12 @@ test('uploaded artifacts are never delegated microphone permission', async () =>
   expect(container.querySelector('iframe')?.getAttribute('allow')).toBeNull()
 })
 
+test('uploaded artifacts can download files from the sandboxed viewer', async () => {
+  const { container } = renderViewer('/sp/site')
+  await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+  expect(container.querySelector('iframe')?.sandbox.contains('allow-downloads')).toBe(true)
+})
+
 test('standalone images render without an iframe and page comments use the image path', async () => {
   const create = spyOn(comments, 'create').mockResolvedValue(
     mkThread({ id: 'image-comment', anchorType: 'page', quote: null, filePath: 'picture.avif' }),

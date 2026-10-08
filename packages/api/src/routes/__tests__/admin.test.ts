@@ -4,6 +4,33 @@ import { sites } from '../../db/schema'
 import { seedFile, seedMember, seedSite, seedSpace } from '../../test/harness'
 import { authHeaders as auth, authKey, makeRouteApp, mintKey, mintUser } from '../../test/route-fixtures'
 
+test('admin site filters apply to owners, combined filters, and pagination totals', async () => {
+  const { app, db, kv, env } = makeRouteApp()
+  await mintUser(db, kv, 'admin', { role: 'superadmin' })
+  await mintUser(db, kv, 'owner')
+  await mintUser(db, kv, 'other')
+  await seedSpace(db, { id: 'space', slug: 'space', createdBy: 'owner' })
+  await seedSite(db, { id: 'first', spaceId: 'space', ownerId: 'owner', slug: 'first', visibility: 'team' })
+  await seedSite(db, { id: 'second', spaceId: 'space', ownerId: 'owner', slug: 'second', visibility: 'private' })
+  await seedSite(db, { id: 'third', spaceId: 'space', ownerId: 'other', slug: 'third', visibility: 'team' })
+  await db.update(sites).set({ status: 'archived' }).where(eq(sites.id, 'second'))
+  const list = async (query: string) => {
+    const res = await app.request(`/api/admin/sites?${query}`, { headers: auth('admin') }, env)
+    expect(res.status).toBe(200)
+    return res.json() as Promise<{ sites: { id: string }[]; total: number }>
+  }
+  const owned = await list('ownerId=owner')
+  expect(owned.sites.map((site) => site.id).sort()).toEqual(['first', 'second'])
+  expect(owned.total).toBe(2)
+  expect(await list('ownerId=owner&status=active&visibility=team')).toMatchObject({
+    sites: [{ id: 'first' }],
+    total: 1,
+  })
+  expect(await list('ownerId=owner&page=2')).toMatchObject({ sites: [], total: 2 })
+  expect(await list('ownerId=missing')).toMatchObject({ sites: [], total: 0 })
+  expect((await list('')).total).toBe(3)
+})
+
 describe('DELETE /api/admin/sites/:id', () => {
   test('an R2 failure leaves the site archived and retryable', async () => {
     const { app, db, kv, env, r2 } = makeRouteApp()

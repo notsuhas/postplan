@@ -103,7 +103,7 @@ interface StatsData {
 
 type LoaderData =
   | { tab: 'overview'; data: StatsData }
-  | { tab: 'sites'; data: SitesData }
+  | { tab: 'sites'; data: SitesData; users: AdminUser[] }
   | { tab: 'spaces'; data: AdminSpace[] }
   | { tab: 'users'; data: AdminUser[] }
   | { tab: 'invites'; data: InvitesData }
@@ -145,12 +145,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
     const status = url.searchParams.get('status') ?? ''
     const visibility = url.searchParams.get('visibility') ?? ''
+    const ownerId = url.searchParams.get('ownerId') ?? ''
     const page = url.searchParams.get('page') ?? '1'
     const qs = new URLSearchParams()
     if (status) qs.set('status', status)
     if (visibility) qs.set('visibility', visibility)
+    if (ownerId) qs.set('ownerId', ownerId)
     qs.set('page', page)
-    const data = await api.get<SitesData>(`/api/admin/sites?${qs.toString()}`)
+    const [data, users] = await Promise.all([
+      api.get<SitesData>(`/api/admin/sites?${qs.toString()}`),
+      api.get<AdminUser[]>('/api/admin/users'),
+    ])
     // Clamp an out-of-range page (e.g. after deleting the last row of the last page) to the last
     // valid page so the admin never lands on an empty ghost page. Re-throwing the redirect through
     // the catch below is a no-op (a Response isn't an ApiError), and the redirected load lands
@@ -161,7 +166,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       qs.set('tab', 'sites')
       throw redirect(`/admin?${qs.toString()}`)
     }
-    return { tab, data } satisfies LoaderData
+    return { tab, data, users } satisfies LoaderData
   } catch (err) {
     // 401 → login; 403 (non-superadmin) bubbles to the route ErrorBoundary.
     if (err instanceof ApiError && err.status === 401) throw redirect('/login')
@@ -397,15 +402,22 @@ const VISIBILITY_OPTIONS: Visibility[] = ['unlisted', 'private', 'members', 'tea
 const ALL = 'all'
 
 // ── Sites tab ───────────────────────────────────────────────────────────────
-function SitesPanel({ data }: { data: SitesData }) {
+interface ISitesPanel {
+  data: SitesData
+  users: AdminUser[]
+}
+
+function SitesPanel(props: ISitesPanel) {
+  const { data, users } = props
   const [searchParams, setSearchParams] = useSearchParams()
   const mutate = useMutation()
 
   const status = searchParams.get('status') ?? ALL
   const visibility = searchParams.get('visibility') ?? ALL
+  const ownerId = searchParams.get('ownerId') ?? ALL
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize))
 
-  function setFilter(key: 'status' | 'visibility', value: string) {
+  function setFilter(key: 'status' | 'visibility' | 'ownerId', value: string) {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       if (value === ALL) next.delete(key)
@@ -426,6 +438,19 @@ function SitesPanel({ data }: { data: SitesData }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
+        <Select value={ownerId} onValueChange={(value) => setFilter('ownerId', value)}>
+          <SelectTrigger size="sm" className="w-64" aria-label="Filter by user">
+            <SelectValue placeholder="All users" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All users</SelectItem>
+            {users.map((user) => (
+              <SelectItem key={user.id} value={user.id}>
+                {user.email}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={status} onValueChange={(v) => setFilter('status', v)}>
           <SelectTrigger size="sm" className="w-36">
             <SelectValue placeholder="Status" />
@@ -818,7 +843,9 @@ export function Component() {
         <TabsContent value="overview">
           {loaderData.tab === 'overview' && <StatsPanel data={loaderData.data} />}
         </TabsContent>
-        <TabsContent value="sites">{loaderData.tab === 'sites' && <SitesPanel data={loaderData.data} />}</TabsContent>
+        <TabsContent value="sites">
+          {loaderData.tab === 'sites' && <SitesPanel data={loaderData.data} users={loaderData.users} />}
+        </TabsContent>
         <TabsContent value="spaces">
           {loaderData.tab === 'spaces' && <SpacesPanel spaces={loaderData.data} />}
         </TabsContent>
