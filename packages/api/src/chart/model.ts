@@ -13,6 +13,11 @@ export type ChartData = {
 export type Freshness = 'fresh' | 'aging' | 'stale' | 'unknown'
 
 const DEFAULT_STALE_SEC = 24 * 60 * 60
+const MAX_CHART_CELLS = 20_000
+
+function oversized(columns: number, rows: number): boolean {
+  return columns > MAX_CHART_CELLS || columns * rows > MAX_CHART_CELLS
+}
 
 /** Green until staleAfter, amber up to twice that, red after. */
 export function deriveFreshness(data: Pick<ChartData, 'refreshedAt' | 'staleAfter'>, now: number): Freshness {
@@ -46,6 +51,9 @@ export function parseChartData(raw: unknown): ChartData | string {
   if (!Array.isArray(doc.columns) || !doc.columns.every((c) => typeof c === 'string'))
     return 'chart data needs a "columns" array of names'
   if (!Array.isArray(doc.rows) || !doc.rows.every((r) => Array.isArray(r))) return 'chart data needs a "rows" array'
+  if (oversized(doc.columns.length, doc.rows.length)) return 'chart data exceeds 20,000 cells; aggregate further'
+  const columnCount = doc.columns.length
+  if (!doc.rows.every((r) => r.length === columnCount)) return 'chart rows must match the column count'
   const str = (v: unknown) => (typeof v === 'string' ? v : undefined)
   return {
     columns: doc.columns,
@@ -60,9 +68,16 @@ export function parseChartData(raw: unknown): ChartData | string {
 
 function fromObjects(items: unknown[]): ChartData | string {
   const columns: string[] = []
+  const seen = new Set<string>()
   for (const item of items) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return 'chart data must be an array of objects'
-    for (const key of Object.keys(item)) if (!columns.includes(key)) columns.push(key)
+    for (const key of Object.keys(item)) {
+      if (!seen.has(key)) {
+        seen.add(key)
+        columns.push(key)
+      }
+    }
+    if (oversized(columns.length, items.length)) return 'chart data exceeds 20,000 cells; aggregate further'
   }
   const rows = items.map((item) => columns.map((c) => (item as Record<string, unknown>)[c] ?? null))
   return { columns, rows }

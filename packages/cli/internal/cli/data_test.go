@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,66 @@ func dataServer(t *testing.T, caps string, putStatus int) (func() []capturedReq,
 }
 
 func TestDataPush(t *testing.T) {
+	t.Run("sparse columns are bounded before dense row allocation", func(t *testing.T) {
+		objects := make([]map[string]int, 200)
+		for i := range objects {
+			objects[i] = map[string]int{fmt.Sprintf("c%d", i): i}
+		}
+		raw, err := json.Marshal(objects)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := parseChartData(raw, "d.json"); err == nil || !strings.Contains(err.Error(), "cells") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("empty query results and piped CSV are supported", func(t *testing.T) {
+		empty, err := parseChartData([]byte(`[]`), "d.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := json.Marshal(empty)
+		if err != nil || !strings.Contains(string(encoded), `"columns":[]`) {
+			t.Fatalf("empty = %s, %v", encoded, err)
+		}
+		piped, err := parseChartData([]byte("a,b\n1,2\n"), "-")
+		if err != nil || len(piped.Rows) != 1 {
+			t.Fatalf("piped = %v, %v", piped, err)
+		}
+	})
+	t.Run("malformed JSON never makes a request", func(t *testing.T) {
+		for _, body := range []string{`[{"a":1}`, `[{"a":1}] trailing`, `[`, `[{"a":1},]`, `[{"a":1e500}]`, `[{"a":{"nested":[1e500]}}]`} {
+			reqs, url := dataServer(t, `["write"]`, 200)
+			c, _ := newTestClient(url, "tok")
+			if err := c.data([]string{"push", "team/kpis", "rev", writeTemp(t, "d.json", body)}); err == nil {
+				t.Fatalf("accepted %q", body)
+			}
+			if len(reqs()) != 0 {
+				t.Fatal("malformed data reached the server")
+			}
+		}
+	})
+
+	t.Run("CSV non-finite values stay text and encode", func(t *testing.T) {
+		reqs, url := dataServer(t, `["write"]`, 200)
+		c, _ := newTestClient(url, "tok")
+		if err := c.data([]string{"push", "team/kpis", "rev", writeTemp(t, "d.csv", "a\nNaN\nInf\n-Inf\n")}); err != nil {
+			t.Fatal(err)
+		}
+		var doc chartDoc
+		if err := json.Unmarshal(reqs()[1].body, &doc); err != nil {
+			t.Fatal(err)
+		}
+		if doc.Rows[0][0] != "NaN" || doc.Rows[1][0] != "Inf" || doc.Rows[2][0] != "-Inf" {
+			t.Fatalf("rows = %v", doc.Rows)
+		}
+	})
+
+	t.Run("stdin is bounded before parsing or authentication", func(t *testing.T) {
+		if _, err := readDataFile("-", strings.NewReader(strings.Repeat("x", maxInputBytes+1))); err == nil {
+			t.Fatal("accepted oversized input")
+		}
+	})
 	t.Run("csv becomes typed rows, sent with the minted data token", func(t *testing.T) {
 		reqs, url := dataServer(t, `["read","create","write"]`, 201)
 		c, out := newTestClient(url, "login-tok")

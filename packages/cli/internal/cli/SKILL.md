@@ -378,6 +378,7 @@ const c = postplan.db.collection('shared-metrics')
 const off = c.onCreate(e => addRow(e))   // e = {type, collection, id, createdBy, at}
 c.onUpdate(e => refresh(e.id))
 c.onDelete(e => removeRow(e.id))
+c.onReady(() => refreshAll()) // Read a snapshot after the stream connects or reconnects.
 
 off()   // every subscribe returns its own unsubscribe; the connection itself
         // closes only once the LAST subscription on the page is gone
@@ -432,7 +433,7 @@ postplan data push team/kpis revenue revenue.csv --sql revenue.sql --source "Sno
 
 - `kind`: `line` (default), `bar`, `area`, `dot`, `number` (last row's `y`), `table`. `x`/`y` default to
   the first two columns; `color` splits series by a column. ISO dates become a time axis.
-- One query per chart, aggregated before pushing: each push is capped at 100 KB. Re-push to refresh;
+- One query per chart, aggregated before pushing: each push is capped at 100 KB and 20,000 cells. Re-push to refresh;
   no redeploy. The badge turns amber after `--stale-after` (default 24h) and red at twice that.
 - To refresh on a schedule, put the queries and `postplan data push` in a cron job or GitHub Action
   that holds the warehouse secrets (log in there with `POSTPLAN_TOKEN`).

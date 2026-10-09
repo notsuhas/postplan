@@ -1,13 +1,14 @@
 import * as Plot from '@observablehq/plot'
 import { type ChartData, deriveFreshness, parseChartData, parseCsv, relativeAge, toCsv, toRecords } from './model'
 
-// <pp-chart chart="revenue" kind="line" x="week" y="revenue" color="region" label="Revenue">
-// Data comes from `postplan data push` (live via postplan.db) or a site file via src="data/x.json|csv".
+// Charts read pushed data through postplan.db or a site file through src.
 
 type ChartsDb = {
   get: (id: string) => Promise<{ data?: unknown }>
   onCreate: (cb: (e: { id: string }) => void) => () => void
   onUpdate: (cb: (e: { id: string }) => void) => () => void
+  onDelete: (cb: (e: { id: string }) => void) => () => void
+  onReady: (cb: () => void) => () => void
 }
 
 const COLLECTION = 'shared-charts'
@@ -78,6 +79,7 @@ class PPChart extends HTMLElement {
   private failed = false
   private cleanup: (() => void)[] = []
   private width = 0
+  private loadVersion = 0
 
   connectedCallback() {
     this.render()
@@ -85,7 +87,12 @@ class PPChart extends HTMLElement {
     const db = this.getAttribute('chart') && chartsDb()
     if (db) {
       const mine = (e: { id: string }) => e.id === this.getAttribute('chart') && this.load()
-      this.cleanup.push(db.onUpdate(mine), db.onCreate(mine))
+      this.cleanup.push(
+        db.onUpdate(mine),
+        db.onCreate(mine),
+        db.onDelete(mine),
+        db.onReady(() => this.load()),
+      )
     }
     const tick = setInterval(() => this.data && this.render(), 60_000)
     this.cleanup.push(() => clearInterval(tick))
@@ -97,14 +104,17 @@ class PPChart extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.loadVersion++
     for (const off of this.cleanup.splice(0)) off()
   }
 
   private async load() {
+    const version = ++this.loadVersion
     try {
-      this.show(await this.fetchData())
+      const result = await this.fetchData()
+      if (version === this.loadVersion && this.isConnected) this.show(result)
     } catch (err) {
-      this.fail(err instanceof Error ? err.message : String(err))
+      if (version === this.loadVersion && this.isConnected) this.fail(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -113,7 +123,7 @@ class PPChart extends HTMLElement {
     if (src) {
       const res = await fetch(src)
       if (!res.ok) return `couldn't load ${src} (${res.status})`
-      return /\.csv(\?|$)/i.test(src) ? parseCsv(await res.text()) : parseChartData(await res.json())
+      return parseChartData(/\.csv(\?|$)/i.test(src) ? parseCsv(await res.text()) : await res.json())
     }
     const id = this.getAttribute('chart')
     if (!id) return 'set chart="<id>" (from postplan data push) or src="data.json"'
@@ -136,6 +146,7 @@ class PPChart extends HTMLElement {
   }
 
   private fail(message: string) {
+    this.data = null
     this.failed = true
     this.message = message
     this.render()
@@ -187,7 +198,9 @@ class PPChart extends HTMLElement {
     const table = el('table', 'pp-chart__table')
     const head = el('tr')
     const numeric = data.columns.map((_, i) => data.rows.some((r) => typeof r[i] === 'number'))
-    data.columns.forEach((c, i) => head.append(el('th', numeric[i] ? 'pp-chart__num' : undefined, c)))
+    data.columns.forEach((c, i) => {
+      head.append(el('th', numeric[i] ? 'pp-chart__num' : undefined, c))
+    })
     table.append(el('thead'), el('tbody'))
     table.tHead?.append(head)
     for (const row of data.rows.slice(0, MAX_TABLE_ROWS)) {

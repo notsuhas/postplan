@@ -29,6 +29,10 @@ test('relativeAge rounds to the largest unit', () => {
 })
 
 describe('parseChartData', () => {
+  test('bounds sparse expansion before allocating dense rows', () => {
+    expect(parseChartData(Array.from({ length: 200 }, (_, i) => ({ [`c${i}`]: i })))).toContain('20,000 cells')
+    expect(parseChartData({ columns: ['a', 'b'], rows: [[1]] })).toContain('column count')
+  })
   test('a pushed doc keeps its provenance and drops wrongly typed fields', () => {
     const doc = parseChartData({ columns: ['a'], rows: [[1]], sql: 'select 1', source: 7, staleAfter: '1h' })
     expect(doc).toEqual({

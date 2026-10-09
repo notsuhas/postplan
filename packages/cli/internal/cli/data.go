@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"postplan/internal/argparse"
@@ -20,6 +21,8 @@ const (
 	chartCollection = "shared-charts"
 	maxChartBytes   = 100_000
 	maxSQLBytes     = 20_000
+	maxInputBytes   = 1_000_000
+	maxChartCells   = 20_000
 	defaultStaleIn  = 24 * time.Hour
 )
 
@@ -65,7 +68,7 @@ func (c *client) data(argv []string) error {
 		return err
 	}
 	if p, present := flags["sql"]; present {
-		sql, err := os.ReadFile(p.(string))
+		sql, err := readLimitedFile(p.(string), maxSQLBytes)
 		if err != nil {
 			return fmt.Errorf("Can't read --sql: %v", err)
 		}
@@ -86,7 +89,10 @@ func (c *client) data(argv []string) error {
 	doc.StaleAfter = int(stale.Seconds())
 	doc.RefreshedAt = time.Now().UTC().Format(time.RFC3339)
 
-	payload, _ := json.Marshal(doc)
+	payload, err := json.Marshal(doc)
+	if err != nil {
+		return fmt.Errorf("Can't encode chart data: %v", err)
+	}
 	if len(payload) > maxChartBytes {
 		return fmt.Errorf("Chart data is %d bytes; the limit is %d. Aggregate further (fewer rows or columns) before pushing.", len(payload), maxChartBytes)
 	}
@@ -153,21 +159,41 @@ func (c *client) authedWith(token, method, path string, body io.Reader) (*http.R
 
 func readDataFile(file string, stdin io.Reader) ([]byte, error) {
 	if file == "-" {
-		return io.ReadAll(stdin)
+		return readLimited(stdin, maxInputBytes)
 	}
-	b, err := os.ReadFile(file)
+	b, err := readLimitedFile(file, maxInputBytes)
 	if err != nil {
 		return nil, fmt.Errorf("Can't read %s: %v", file, err)
 	}
 	return b, nil
 }
 
+func readLimitedFile(path string, limit int) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return readLimited(f, limit)
+}
+
+func readLimited(r io.Reader, limit int) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, int64(limit)+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > limit {
+		return nil, fmt.Errorf("Input is over %d bytes; aggregate further before pushing", limit)
+	}
+	return b, nil
+}
+
 // parseChartData accepts CSV (by extension) or JSON: an array of objects, or {columns, rows}.
 func parseChartData(raw []byte, name string) (*chartDoc, error) {
-	if strings.HasSuffix(strings.ToLower(name), ".csv") {
+	trimmed := bytes.TrimSpace(raw)
+	if strings.HasSuffix(strings.ToLower(name), ".csv") || (name == "-" && len(trimmed) > 0 && trimmed[0] != '[' && trimmed[0] != '{') {
 		return parseCSV(raw)
 	}
-	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) > 0 && trimmed[0] == '{' {
 		var tbl struct {
 			Columns []string `json:"columns"`
@@ -175,6 +201,9 @@ func parseChartData(raw []byte, name string) (*chartDoc, error) {
 		}
 		if err := json.Unmarshal(trimmed, &tbl); err != nil || len(tbl.Columns) == 0 {
 			return nil, fmt.Errorf("JSON must be an array of objects or {\"columns\": [...], \"rows\": [[...]]}")
+		}
+		if err := validateChartSize(len(tbl.Columns), len(tbl.Rows)); err != nil {
+			return nil, err
 		}
 		for i, r := range tbl.Rows {
 			if len(r) != len(tbl.Columns) {
@@ -187,7 +216,7 @@ func parseChartData(raw []byte, name string) (*chartDoc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("JSON must be an array of objects or {\"columns\": [...], \"rows\": [[...]]}")
 	}
-	var columns []string
+	columns := []string{}
 	index := map[string]int{}
 	for _, o := range objs {
 		for _, f := range o {
@@ -196,6 +225,9 @@ func parseChartData(raw []byte, name string) (*chartDoc, error) {
 				columns = append(columns, f.key)
 			}
 		}
+	}
+	if err := validateChartSize(len(columns), len(objs)); err != nil {
+		return nil, err
 	}
 	rows := make([][]any, len(objs))
 	for i, o := range objs {
@@ -208,6 +240,13 @@ func parseChartData(raw []byte, name string) (*chartDoc, error) {
 	return &chartDoc{Columns: columns, Rows: rows, RowCount: len(rows)}, nil
 }
 
+func validateChartSize(columns, rows int) error {
+	if columns > maxChartCells || (columns > 0 && rows > maxChartCells/columns) {
+		return fmt.Errorf("Chart exceeds %d cells; aggregate further before pushing", maxChartCells)
+	}
+	return nil
+}
+
 type field struct {
 	key   string
 	value any
@@ -215,6 +254,9 @@ type field struct {
 
 // orderedObjects decodes an array of flat objects keeping each object's key order.
 func orderedObjects(raw []byte) ([][]field, error) {
+	if !json.Valid(raw) {
+		return nil, fmt.Errorf("invalid JSON")
+	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
 	if tok, err := dec.Token(); err != nil || tok != json.Delim('[') {
@@ -235,6 +277,9 @@ func orderedObjects(raw []byte) ([][]field, error) {
 			if err := dec.Decode(&value); err != nil {
 				return nil, err
 			}
+			if err := validateChartValue(value); err != nil {
+				return nil, err
+			}
 			obj = append(obj, field{key: tok.(string), value: value})
 		}
 		if _, err := dec.Token(); err != nil {
@@ -245,6 +290,29 @@ func orderedObjects(raw []byte) ([][]field, error) {
 	return out, nil
 }
 
+func validateChartValue(value any) error {
+	switch v := value.(type) {
+	case json.Number:
+		n, err := v.Float64()
+		if err != nil || math.IsNaN(n) || math.IsInf(n, 0) {
+			return fmt.Errorf("Chart contains a number outside the supported finite range")
+		}
+	case []any:
+		for _, item := range v {
+			if err := validateChartValue(item); err != nil {
+				return err
+			}
+		}
+	case map[string]any:
+		for _, item := range v {
+			if err := validateChartValue(item); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func parseCSV(raw []byte) (*chartDoc, error) {
 	records, err := csv.NewReader(bytes.NewReader(raw)).ReadAll()
 	if err != nil {
@@ -252,6 +320,9 @@ func parseCSV(raw []byte) (*chartDoc, error) {
 	}
 	if len(records) == 0 {
 		return nil, fmt.Errorf("CSV is empty; the first row must be the column names")
+	}
+	if err := validateChartSize(len(records[0]), len(records)-1); err != nil {
+		return nil, err
 	}
 	rows := make([][]any, 0, len(records)-1)
 	for _, rec := range records[1:] {
@@ -269,7 +340,7 @@ func csvValue(cell string) any {
 	if cell == "" {
 		return nil
 	}
-	if n, err := strconv.ParseFloat(cell, 64); err == nil {
+	if n, err := strconv.ParseFloat(cell, 64); err == nil && !math.IsNaN(n) && !math.IsInf(n, 0) {
 		return n
 	}
 	return cell
