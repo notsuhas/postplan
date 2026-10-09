@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { ReactElement, RefObject } from 'react'
 import { Spinner } from '@/components/ui/states'
 import type { MediaKind } from '@/hooks/useMediaKind'
 import { AudioView } from './AudioView'
@@ -14,7 +14,7 @@ interface IMediaPane {
 }
 
 // fallow-ignore-next-line private-type-leak -- Component props are intentionally module-private.
-export function MediaPane(props: IMediaPane) {
+export function MediaPane(props: IMediaPane): ReactElement {
   const { kind, src, fileName, audioRef, videoRef } = props
   switch (kind) {
     case 'probing':
@@ -26,8 +26,8 @@ export function MediaPane(props: IMediaPane) {
     case 'audio':
       return <AudioView src={src} fileName={fileName} audioRef={audioRef} />
     case 'video':
-      return <VideoView key={src} src={src} fileName={fileName} videoRef={videoRef} />
+      return <VideoView src={src} fileName={fileName} videoRef={videoRef} />
     case 'image':
-      return <ImageView key={src} src={src} fileName={fileName} />
+      return <ImageView src={src} fileName={fileName} />
   }
 }

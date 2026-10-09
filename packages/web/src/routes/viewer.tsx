@@ -611,8 +611,9 @@ function Viewer() {
         {/* The loading overlay lives inside this wrapper so its coords match the iframe viewport. */}
         <div className="relative flex min-h-0 min-w-0 flex-1 justify-center bg-muted/20">
           <div className="relative h-full w-full">
-            {mediaKind !== 'document' ? (
+            {isMedia ? (
               <MediaPane
+                key={mediaSrc}
                 kind={mediaKind}
                 src={mediaSrc}
                 fileName={(entryPath ?? '').split('/').pop() ?? ''}
