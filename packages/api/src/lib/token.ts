@@ -16,9 +16,9 @@ function payload(userId: string, scope: string, exp: number): string {
 }
 
 /**
- * Returns "<expUnixSec>.<userId>.<base64url(hmac)>" binding `userId` + `scope` for
- * `ttlSec` seconds. The HMAC covers userId + scope + exp, so the token is only valid for
- * the user it was minted for.
+ * Returns "<expUnixSec>.<userId>.<base64url(hmac)>" binding `userId` + `scope` for at least
+ * `ttlSec` seconds (up to `ttlSec + alignSec` when aligned). The HMAC covers userId + scope + exp,
+ * so the token is only valid for the user it was minted for.
  */
 export async function signToken(
   secret: string,
