@@ -418,6 +418,7 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
     user.id,
     `${spaceSlug}/${siteSlug}`,
     CONTENT_TOKEN_TTL,
+    CONTENT_TOKEN_TTL,
   )}/${spaceSlug}/${siteSlug}/`
 
   // Manifest gate: only someone who can REPLACE the content (owner / editor) gets the

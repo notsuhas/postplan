@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, setSystemTime, test } from 'bun:test'
 import type { SessionUser } from '../../types'
 import { canDiscover, checkAccess } from '../access'
 import { isValidSlug, slugifyHandle } from '../slug'
@@ -92,6 +92,19 @@ describe('signToken / verifyToken', () => {
   test('valid round-trip returns the bound userId', async () => {
     const t = await signToken(secret, uid, 'sam/site', 300)
     expect(await verifyToken(secret, 'sam/site', t)).toBe(uid)
+  })
+  test('aligned mints within one window are identical and live at least ttl', async () => {
+    try {
+      setSystemTime(new Date(7_201_000))
+      const first = await signToken(secret, uid, 'sam/site', 3600, 3600)
+      setSystemTime(new Date(7_200_000 + 1_800_000))
+      const second = await signToken(secret, uid, 'sam/site', 3600, 3600)
+      expect(second).toBe(first)
+      setSystemTime(new Date(7_200_000 + 1_800_000 + 3_600_000 - 1000))
+      expect(await verifyToken(secret, 'sam/site', second)).toBe(uid)
+    } finally {
+      setSystemTime()
+    }
   })
   test('wrong scope → null', async () => {
     const t = await signToken(secret, uid, 'sam/site', 300)

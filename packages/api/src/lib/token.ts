@@ -20,8 +20,16 @@ function payload(userId: string, scope: string, exp: number): string {
  * `ttlSec` seconds. The HMAC covers userId + scope + exp, so the token is only valid for
  * the user it was minted for.
  */
-export async function signToken(secret: string, userId: string, scope: string, ttlSec = 300): Promise<string> {
-  const exp = Math.floor(Date.now() / 1000) + ttlSec
+export async function signToken(
+  secret: string,
+  userId: string,
+  scope: string,
+  ttlSec = 300,
+  alignSec?: number,
+): Promise<string> {
+  // Rounding exp up to a window makes repeat mints identical, so URLs carrying the token stay cacheable.
+  const earliest = Math.floor(Date.now() / 1000) + ttlSec
+  const exp = alignSec ? Math.ceil(earliest / alignSec) * alignSec : earliest
   const mac = await hmacSign(secret, payload(userId, scope, exp))
   return `${exp}.${b64urlEncode(enc.encode(userId).buffer as ArrayBuffer)}.${mac}`
 }
