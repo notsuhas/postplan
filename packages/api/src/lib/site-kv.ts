@@ -1,21 +1,16 @@
-import { and, eq, like, ne, or, sql } from 'drizzle-orm'
+import { and, eq, like, sql } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
+import { utf8Bytes } from '../../../shared/kv'
 import { siteKv } from '../db/schema'
 
 // Storage behind `window.storage` (the API Claude artifacts expose): string values under string keys,
 // either personal to the viewer or shared by everyone who can open the site. Nothing is stored
-// unless a page asks; rows go with the site.
+// unless a page asks; rows go with the site, and personal rows with their user.
 
-const KV_MAX_KEY = 200
-export const KV_MAX_VALUE = 1_000_000
-/** Per site, all scopes, keys plus values, in characters. */
+/** UTF-8 bytes of keys plus values. */
 export const KV_SITE_QUOTA = 20_000_000
-
-const KEY_RE = /^[^\s/\\]+$/
-
-export function validKvKey(key: string): boolean {
-  return key.length > 0 && key.length <= KV_MAX_KEY && KEY_RE.test(key)
-}
+/** Per viewer, personal keys only, so one viewer can't fill the site. */
+export const KV_OWNER_QUOTA = 5_000_000
 
 /** The row owner for a scope: the viewer for personal keys, '' for shared ones. */
 export const kvOwner = (shared: boolean, viewerId: string): string => (shared ? '' : viewerId)
@@ -41,19 +36,18 @@ export async function listKv(db: DrizzleD1Database, siteId: string, ownerId: str
   return rows.map((r) => r.key)
 }
 
-/** Upsert; false when the site would go over its quota. */
+/** Upsert in ONE statement, so concurrent writes can't jointly pass the quota; false when over it. */
 export async function setKv(db: DrizzleD1Database, siteId: string, ownerId: string, key: string, value: string) {
-  const [{ used }] = await db
-    .select({ used: sql<number>`coalesce(sum(length(${siteKv.key}) + length(${siteKv.value})), 0)` })
-    .from(siteKv)
-    .where(and(eq(siteKv.siteId, siteId), or(ne(siteKv.ownerId, ownerId), ne(siteKv.key, key))))
-  if (used + key.length + value.length > KV_SITE_QUOTA) return false
-  const updatedAt = new Date().toISOString()
-  await db
-    .insert(siteKv)
-    .values({ siteId, ownerId, key, value, updatedAt })
-    .onConflictDoUpdate({ target: [siteKv.siteId, siteKv.ownerId, siteKv.key], set: { value, updatedAt } })
-  return true
+  const bytes = utf8Bytes(key) + utf8Bytes(value)
+  const others = sql`siteId = ${siteId} AND NOT (ownerId = ${ownerId} AND key = ${key})`
+  const rows = await db.all<{ key: string }>(sql`
+    INSERT INTO site_kv (siteId, ownerId, key, value, bytes, updatedAt)
+    SELECT ${siteId}, ${ownerId}, ${key}, ${value}, ${bytes}, ${new Date().toISOString()}
+    WHERE (SELECT coalesce(sum(bytes), 0) FROM site_kv WHERE ${others}) + ${bytes} <= ${KV_SITE_QUOTA}
+      AND (${ownerId} = '' OR (SELECT coalesce(sum(bytes), 0) FROM site_kv WHERE ${others} AND ownerId = ${ownerId}) + ${bytes} <= ${KV_OWNER_QUOTA})
+    ON CONFLICT (siteId, ownerId, key) DO UPDATE SET value = excluded.value, bytes = excluded.bytes, updatedAt = excluded.updatedAt
+    RETURNING key`)
+  return rows.length === 1
 }
 
 export async function deleteKv(db: DrizzleD1Database, siteId: string, ownerId: string, key: string) {

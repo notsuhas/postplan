@@ -498,6 +498,7 @@ export const siteKv = sqliteTable(
     ownerId: text('ownerId').notNull(),
     key: text('key').notNull(),
     value: text('value').notNull(),
+    bytes: integer('bytes').notNull(),
     updatedAt: text('updatedAt').notNull(),
   },
   (t) => [primaryKey({ columns: [t.siteId, t.ownerId, t.key] })],

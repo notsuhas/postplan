@@ -19,6 +19,7 @@
 // request. The socket outlives the iframe document, so an in-site navigation resumes from the
 // cursor we kept rather than replaying from nothing.
 
+import { KV_MAX_KEY, KV_MAX_VALUE_BYTES, utf8Bytes, validKvKey } from '../../../shared/kv'
 import { readHello } from './frameChannel'
 
 const COLLECTION_RE = /^[a-zA-Z0-9_-]{1,64}$/
@@ -29,9 +30,6 @@ const NEEDS_DATA = new Set(['create', 'put'])
 const STREAM_OPS = new Set(['subscribe', 'unsubscribe'])
 const OPS = new Set(['create', 'get', 'list', 'put', 'delete', 'subscribe', 'unsubscribe', 'kv'])
 // window.storage: get/set/delete one key, or list keys by prefix, in the personal or shared scope.
-const KV_ACTIONS: Record<string, string> = { get: 'GET', set: 'PUT', delete: 'DELETE', list: 'GET' }
-const MAX_KV_KEY = 200
-const MAX_KV_VALUE = 1_000_000
 const OP_METHOD: Record<string, string> = { create: 'POST', get: 'GET', list: 'GET', put: 'PUT', delete: 'DELETE' }
 // Pre-check only — the server's 100KB byte cap is authoritative.
 const MAX_DATA_CHARS = 110_000
@@ -58,23 +56,40 @@ function docRequest(req: BrokerRequest): HttpRequest {
   return { path, method: OP_METHOD[req.op], body: NEEDS_DATA.has(req.op) ? req.data : undefined }
 }
 
-function kvRequest(req: BrokerRequest): HttpRequest {
-  const base = `/api/_data/_kv/${req.shared ? 'shared' : 'personal'}`
-  if (req.action === 'list') return { path: `${base}?prefix=${encodeURIComponent(req.prefix ?? '')}`, method: 'GET' }
-  const path = `${base}/${encodeURIComponent(req.key ?? '')}`
-  return { path, method: KV_ACTIONS[req.action ?? ''], body: req.action === 'set' ? { value: req.value } : undefined }
+type KvCall =
+  | { action: 'get' | 'delete'; shared: boolean; key: string }
+  | { action: 'set'; shared: boolean; key: string; value: string }
+  | { action: 'list'; shared: boolean; prefix: string }
+
+/** A well-formed window.storage call (same limits the server enforces), or why it isn't one. */
+function parseKv(req: BrokerRequest): KvCall | string {
+  if (req.shared !== undefined && typeof req.shared !== 'boolean') return 'invalid scope'
+  const shared = req.shared === true
+  if (req.action === 'list') {
+    const prefix = req.prefix ?? ''
+    return typeof prefix === 'string' && prefix.length <= KV_MAX_KEY
+      ? { action: 'list', shared, prefix }
+      : 'invalid prefix'
+  }
+  if (req.action !== 'get' && req.action !== 'set' && req.action !== 'delete') return 'unknown storage action'
+  if (!validKvKey(req.key)) return 'invalid key'
+  if (req.action !== 'set') return { action: req.action, shared, key: req.key }
+  if (typeof req.value !== 'string' || utf8Bytes(req.value) > KV_MAX_VALUE_BYTES) return 'invalid value'
+  return { action: 'set', shared, key: req.key, value: req.value }
 }
 
-function validateKv(req: BrokerRequest): string | null {
-  if (!req.action || !(req.action in KV_ACTIONS)) return 'unknown storage action'
-  if (req.shared !== undefined && typeof req.shared !== 'boolean') return 'invalid scope'
-  if (req.action === 'list')
-    return req.prefix === undefined || (typeof req.prefix === 'string' && req.prefix.length <= MAX_KV_KEY)
-      ? null
-      : 'invalid prefix'
-  if (typeof req.key !== 'string' || req.key.length === 0 || req.key.length > MAX_KV_KEY) return 'invalid key'
-  if (req.action === 'set' && (typeof req.value !== 'string' || req.value.length > MAX_KV_VALUE)) return 'invalid value'
-  return null
+function kvRequest(call: KvCall): HttpRequest {
+  const base = `/api/_data/_kv/${call.shared ? 'shared' : 'personal'}`
+  switch (call.action) {
+    case 'list':
+      return { path: `${base}?prefix=${encodeURIComponent(call.prefix)}`, method: 'GET' }
+    case 'get':
+      return { path: `${base}/${encodeURIComponent(call.key)}`, method: 'GET' }
+    case 'delete':
+      return { path: `${base}/${encodeURIComponent(call.key)}`, method: 'DELETE' }
+    case 'set':
+      return { path: `${base}/${encodeURIComponent(call.key)}`, method: 'PUT', body: { value: call.value } }
+  }
 }
 
 export type BrokerSite = { spaceSlug: string; siteSlug: string }
@@ -144,6 +159,10 @@ export function createDbBroker(
   }
 
   async function execute(req: BrokerRequest): Promise<{ ok: boolean; status: number; body: unknown }> {
+    if (req.op === 'kv') {
+      const call = parseKv(req)
+      return typeof call === 'string' ? { ok: false, status: 400, body: { error: call } } : send(kvRequest(call))
+    }
     const bad = validate(req)
     if (bad) return { ok: false, status: 400, body: { error: bad } }
     if (req.op === 'subscribe') return subscribe(req)
@@ -151,7 +170,14 @@ export function createDbBroker(
       closeStream()
       return { ok: true, status: 200, body: null }
     }
-    const { path, method, body: payload } = req.op === 'kv' ? kvRequest(req) : docRequest(req)
+    return send(docRequest(req))
+  }
+
+  async function send({
+    path,
+    method,
+    body: payload,
+  }: HttpRequest): Promise<{ ok: boolean; status: number; body: unknown }> {
     const call = async (t: string) =>
       deps.fetchFn(path, {
         method,
@@ -169,7 +195,6 @@ export function createDbBroker(
 
   function validate(req: BrokerRequest): string | null {
     if (!OPS.has(req.op)) return 'unknown operation'
-    if (req.op === 'kv') return validateKv(req)
     if (STREAM_OPS.has(req.op))
       return req.cursor === undefined || typeof req.cursor === 'string' ? null : 'invalid cursor'
     if (typeof req.collection !== 'string' || !COLLECTION_RE.test(req.collection)) return 'invalid collection'

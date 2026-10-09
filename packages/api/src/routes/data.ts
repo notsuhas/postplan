@@ -6,7 +6,8 @@ import { type ChangeLogRow, type DocumentRow, type Site, documents, sites } from
 import { type DataCapability, type DataClaims, hasCap, signDataToken, verifyDataToken } from '../lib/data-token'
 import { canViewerRead, readsEveryCreator } from '../lib/data-visibility'
 import { authorizeViewerById, fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
-import { deleteKv, getKv, kvOwner, listKv, setKv, KV_MAX_VALUE, validKvKey } from '../lib/site-kv'
+import { KV_MAX_VALUE_BYTES, utf8Bytes, validKvKey } from '../../../shared/kv'
+import { deleteKv, getKv, kvOwner, listKv, setKv } from '../lib/site-kv'
 import { requireAuth } from '../middleware/auth'
 import {
   changesAfter,
@@ -134,6 +135,55 @@ function credential(c: DataCtx): string | null {
   return sentinel === WS_PROTOCOL && token ? token : null
 }
 
+// window.storage gets its own sub-app and capability table, mounted BEFORE the method gate: every
+// viewer may read (`read`) and write (`create`) its personal keys and the site's shared ones, as in
+// Claude artifacts. Anything under /_kv it doesn't route falls through to the gate below as usual.
+const kvApi = new Hono<DataEnv>()
+const KV_CAP: Record<string, DataCapability> = { GET: 'read', PUT: 'create', DELETE: 'create' }
+
+kvApi.use('/:scope/*', async (c, next) => {
+  const scope = c.req.param('scope')
+  if (scope !== 'personal' && scope !== 'shared') return c.json({ error: 'not found' }, 404)
+  const cap = KV_CAP[c.req.method]
+  if (!cap || !hasCap(c.get('claims'), cap)) return c.json({ error: 'forbidden' }, 403)
+  await next()
+})
+
+const kvShared = (c: DataCtx) => c.req.param('scope') === 'shared'
+const kvOwnerOf = (c: DataCtx) => kvOwner(kvShared(c), c.get('claims').viewerId)
+
+kvApi.get('/:scope', async (c) => {
+  const keys = await listKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), c.req.query('prefix') ?? '')
+  return c.json({ keys })
+})
+
+kvApi.get('/:scope/:key', async (c) => {
+  const key = c.req.param('key')
+  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
+  const value = await getKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), key)
+  return value === null ? c.json({ error: 'not found' }, 404) : c.json({ key, value, shared: kvShared(c) })
+})
+
+kvApi.put('/:scope/:key', async (c) => {
+  const key = c.req.param('key')
+  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
+  const body = (await c.req.json().catch(() => null)) as { value?: unknown } | null
+  if (typeof body?.value !== 'string') return c.json({ error: 'value must be a string' }, 400)
+  if (utf8Bytes(body.value) > KV_MAX_VALUE_BYTES) return c.json({ error: 'value too large' }, 413)
+  const stored = await setKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), key, body.value)
+  if (!stored) return c.json({ error: 'storage quota exceeded' }, 413)
+  return c.json({ key, value: body.value, shared: kvShared(c) })
+})
+
+kvApi.delete('/:scope/:key', async (c) => {
+  const key = c.req.param('key')
+  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
+  await deleteKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), key)
+  return c.json({ key, deleted: true, shared: kvShared(c) })
+})
+
+dataApi.route('/_kv', kvApi)
+
 // Method → required capability, enforced structurally for every current AND future route on
 // this surface — a new endpoint cannot ship without a capability check. POST maps to `create`
 // (every viewer may submit attributed documents); PUT/DELETE stay behind `write` (owner-only).
@@ -144,65 +194,10 @@ const METHOD_CAP: Record<string, DataCapability> = {
   PUT: 'write',
   DELETE: 'write',
 }
-// window.storage (/_kv): reads need `read`, writes `create` — every viewer may keep personal keys
-// and write shared ones, as in Claude artifacts. Everything else maps by method.
-const KV_PATH = /^\/api\/_data\/_kv\/(personal|shared)(\/|$)/
 dataApi.use('*', async (c, next) => {
-  const cap = KV_PATH.test(c.req.path) ? (c.req.method === 'GET' ? 'read' : 'create') : METHOD_CAP[c.req.method]
+  const cap = METHOD_CAP[c.req.method]
   if (!cap || !hasCap(c.get('claims'), cap)) return c.json({ error: 'forbidden' }, 403)
   await next()
-})
-
-/** The owner for this request's scope, or null for anything but personal/shared. */
-function kvOwnerOf(c: DataCtx): string | null {
-  const scope = c.req.param('scope')
-  if (scope !== 'personal' && scope !== 'shared') return null
-  return kvOwner(scope === 'shared', c.get('claims').viewerId)
-}
-
-dataApi.get('/_kv/:scope', async (c) => {
-  const owner = kvOwnerOf(c)
-  if (owner === null) return c.json({ error: 'not found' }, 404)
-  const keys = await listKv(getDb(c), c.get('claims').siteId, owner, c.req.query('prefix') ?? '')
-  return c.json({ keys })
-})
-
-dataApi.get('/_kv/:scope/:key', async (c) => {
-  const owner = kvOwnerOf(c)
-  if (owner === null) return c.json({ error: 'not found' }, 404)
-  const { siteId } = c.get('claims')
-  const key = c.req.param('key')
-  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
-  const value = await getKv(getDb(c), siteId, owner, key)
-  return value === null ? c.json({ error: 'not found' }, 404) : c.json({ key, value })
-})
-
-dataApi.put('/_kv/:scope/:key', async (c) => {
-  const owner = kvOwnerOf(c)
-  if (owner === null) return c.json({ error: 'not found' }, 404)
-  const { siteId } = c.get('claims')
-  const key = c.req.param('key')
-  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
-  const raw = await c.req.text()
-  if (raw.length > KV_MAX_VALUE + 64) return c.json({ error: 'value too large' }, 413)
-  let body: { value?: unknown } | null = null
-  try {
-    body = JSON.parse(raw)
-  } catch {}
-  if (typeof body?.value !== 'string') return c.json({ error: 'value must be a string' }, 400)
-  if (body.value.length > KV_MAX_VALUE) return c.json({ error: 'value too large' }, 413)
-  const stored = await setKv(getDb(c), siteId, owner, key, body.value)
-  return stored ? c.json({ key, value: body.value }) : c.json({ error: 'site storage quota exceeded' }, 413)
-})
-
-dataApi.delete('/_kv/:scope/:key', async (c) => {
-  const owner = kvOwnerOf(c)
-  if (owner === null) return c.json({ error: 'not found' }, 404)
-  const { siteId } = c.get('claims')
-  const key = c.req.param('key')
-  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
-  await deleteKv(getDb(c), siteId, owner, key)
-  return c.json({ key, deleted: true })
 })
 
 // Catch-up replay. Registered BEFORE the /:collection routes so the static segment wins — a

@@ -145,7 +145,7 @@ describe('request surface', () => {
   })
 
   test.each([
-    [{ action: 'set', key: 'a b/c', value: 'v' }, 'PUT', '/api/_data/_kv/personal/a%20b%2Fc', '{"value":"v"}'],
+    [{ action: 'set', key: 'todo:1é', value: 'v' }, 'PUT', '/api/_data/_kv/personal/todo%3A1%C3%A9', '{"value":"v"}'],
     [{ action: 'get', key: 'k', shared: true }, 'GET', '/api/_data/_kv/shared/k', undefined],
     [{ action: 'delete', key: 'k' }, 'DELETE', '/api/_data/_kv/personal/k', undefined],
     [{ action: 'list', prefix: 'todo:', shared: true }, 'GET', '/api/_data/_kv/shared?prefix=todo%3A', undefined],
@@ -164,6 +164,9 @@ describe('request surface', () => {
     [{ action: 'set', key: 'k', value: { evil: true } }],
     [{ action: 'get', key: 'k'.repeat(201) }],
     [{ action: 'get', key: 'k', shared: 'yes' }],
+    [{ action: 'set', key: 'a b', value: 'v' }],
+    [{ action: 'set', key: 'a/b', value: 'v' }],
+    [{ action: 'set', key: 'k', value: '字'.repeat(400_000) }],
   ])('ATTACK: a malformed window.storage request %j → 400, no fetch', async (req) => {
     const h = await ready(mintOk)
     h.port.postMessage({ id: 10, op: 'kv', ...req })
