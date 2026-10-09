@@ -52,6 +52,14 @@ describe('contentType — full MIME table (W0-4 characterization)', () => {
     expect(contentType('song.flac', null)).toBe('audio/flac')
     expect(contentType('song.aac', null)).toBe('audio/aac')
   })
+  test('video extensions resolve to their video MIME regardless of stored type', () => {
+    expect(contentType('explainer.mp4', 'application/octet-stream')).toBe('video/mp4')
+    expect(contentType('CLIP.M4V', null)).toBe('video/mp4')
+    expect(contentType('take.mov', null)).toBe('video/quicktime')
+  })
+  test('video extensions stay out of the audio set', () => {
+    for (const ext of ['mp4', 'm4v', 'mov']) expect(AUDIO_EXTENSIONS.has(ext)).toBe(false)
+  })
 })
 
 describe('audioExtFromPart — voice-upload part → audio extension', () => {

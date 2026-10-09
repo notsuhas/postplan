@@ -48,7 +48,7 @@ export function Composer({
   // pending anchor here so every select/pinpoint puts the caret back in the box.
   focusOn?: unknown
   className?: string
-  // Audio view only: inserts a `[m:ss] ` prefix for the player's current position. `getPrefix`
+  // Audio/video views only: inserts a `[m:ss] ` prefix for the player's current position. `getPrefix`
   // is called at click time (not render time) so it always reflects the latest playback position.
   timestampButton?: { label: string; getPrefix: () => string }
   // Lazily fetch the users this composer may @-mention (called once, on the first `@`). Absent →

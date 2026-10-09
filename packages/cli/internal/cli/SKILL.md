@@ -103,6 +103,7 @@ postplan deploy report.html                                  # → /<you>/report
 postplan deploy ./dist --space docs --name api-reference --visibility members
 postplan deploy ./call-feedback                              # folder w/ index.html + audio/*.wav → a page with players
 postplan deploy clip.mp3                                     # a single audio file → a playable audio page
+postplan deploy explainer.mp4                                # a single video file → a playable video page
 ```
 
 ### Markdown
@@ -111,16 +112,18 @@ Deploy a Markdown file directly, or use `index.md` as a folder landing page (`in
 
 Fenced `mermaid` blocks render automatically with a bundled renderer and click-to-enlarge. No CDN or HTML wrapper is needed. Invalid diagrams retain their source. Raw HTML, user scripts, and remote images remain blocked in Markdown.
 
-### Hosting media (audio, images, PDFs, fonts)
-A site is just its files, so any static asset in the folder is hosted and served with the correct type — images (png/jpg/jpeg/gif/webp/avif/svg/ico), PDFs, fonts, and **audio** (mp3, wav, m4a, ogg, flac, aac, webm). Reference them from your HTML with **relative paths** and they resolve against the page:
+### Hosting media (audio, video, images, PDFs, fonts)
+A site is just its files, so any static asset in the folder is hosted and served with the correct type — images (png/jpg/jpeg/gif/webp/avif/svg/ico), PDFs, fonts, **audio** (mp3, wav, m4a, ogg, flac, aac, webm), and **video** (mp4, m4v, mov, webm). Reference them from your HTML with **relative paths** and they resolve against the page:
 
 ```html
 <audio src="audio/clip.mp3" controls></audio>
+<video src="explainer.mp4" controls playsinline></video>
 <img src="pic.png">
 ```
 
-- **Audio streams with seeking** — audio is served with HTTP byte-range support, so `<audio>` players can scrub and play without downloading the whole file first.
+- **Audio and video stream with seeking** — media is served with HTTP byte-range support, so `<audio>` and `<video>` players can scrub and play without downloading the whole file first.
 - **A lone audio file is playable on its own** — `postplan deploy clip.mp3` (no HTML) opens as a real audio player.
+- **A lone video file is playable on its own** — `postplan deploy explainer.mp4` opens in a video player with open-original and download controls. Prefer H.264 mp4 for the widest browser support.
 - Standalone images open in a viewer with fit-to-screen, zoom, open-original and download controls. Image bytes are unchanged.
 - **Limits**: 20 MB per file, 200 files and 100 MB total per deploy.
 

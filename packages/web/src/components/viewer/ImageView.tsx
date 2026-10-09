@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { MediaToolbar } from './MediaToolbar'
 
 interface IImageView {
   src: string
@@ -11,16 +12,10 @@ export function ImageView(props: IImageView) {
   const { src, fileName } = props
   const [zoom, setZoom] = useState(1)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const downloadUrl = new URL(src)
-  downloadUrl.searchParams.set('download', '1')
 
   return (
     <div className="flex size-full flex-col">
-      <div
-        className="flex flex-wrap items-center justify-center gap-2 border-b p-2"
-        role="toolbar"
-        aria-label="Image controls"
-      >
+      <MediaToolbar src={src} fileName={fileName} label="Image controls">
         <Button
           variant="outline"
           size="sm"
@@ -45,17 +40,7 @@ export function ImageView(props: IImageView) {
         <Button variant="outline" size="sm" onClick={() => setZoom(1)}>
           Fit to screen
         </Button>
-        <Button variant="outline" size="sm" asChild>
-          <a href={src} target="_blank" rel="noreferrer">
-            Open original
-          </a>
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <a href={downloadUrl.href} download={fileName}>
-            Download
-          </a>
-        </Button>
-      </div>
+      </MediaToolbar>
       <section className="relative min-h-0 flex-1 overflow-auto" aria-label="Image preview">
         {status === 'loading' && (
           <p className="absolute inset-x-0 p-4 text-center text-sm" role="status">

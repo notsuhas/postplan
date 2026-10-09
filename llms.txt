@@ -62,8 +62,8 @@ For any other update, first run `postplan read <space/site> --pull <dir>` and de
 
 ## Capabilities
 
-- Deploy a single file or a folder with HTML, Markdown, images, PDFs, fonts, and audio.
-- Markdown supports native Mermaid fences and `index.md` landing pages. Standalone images, including AVIF, have fit, zoom, original and download controls.
+- Deploy a single file or a folder with HTML, Markdown, images, PDFs, fonts, audio, and video.
+- Markdown supports native Mermaid fences and `index.md` landing pages. Standalone images, including AVIF, have fit, zoom, original and download controls. Standalone videos (mp4, m4v, mov, webm) open in a native player.
 - Use `unlisted`, `private`, `members`, or `team` visibility.
 - Pull exact source with `postplan read <space/site> --pull <dir>` and safely redeploy it.
 - Read anchored comments, reply to threads, and check notifications from the terminal.

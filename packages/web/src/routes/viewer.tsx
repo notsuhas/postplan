@@ -4,9 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { type LoaderFunctionArgs, useLoaderData, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
-import { isAudioFile } from '@/lib/audio'
-import { isImageFile } from '@/lib/image'
-import { ImageView } from '@/components/viewer/ImageView'
+import { useMediaKind } from '@/hooks/useMediaKind'
+import { MediaPane } from '@/components/viewer/MediaPane'
 import { attachDbBroker } from '@/lib/dbBroker'
 import { comments, paintAnchors, type PendingAnchor, pendingToInput, type Thread } from '@/lib/comments'
 import { feedback } from '@/lib/feedback'
@@ -19,7 +18,6 @@ import { recordVisit } from '@/lib/recents'
 import type { Me } from '@/lib/types'
 import { deepLinkReady, railFromSearch, type RevealRequest } from '@/lib/viewerCommands'
 import { loadViewer, type PrefetchResult, type ViewerLoaderData } from '@/lib/viewerLoader'
-import { AudioView } from '@/components/viewer/AudioView'
 import { Spinner } from '@/components/ui/states'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { ViewerTopBar } from '@/components/viewer/ViewerTopBar'
@@ -58,6 +56,7 @@ function Viewer() {
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   // Latest file path reported by the iframe's 'ready' intent, stashed unconditionally so the
   // me-resolution effect below can flush it even when 'ready' beats the /api/auth/me fetch on a
   // fresh load (see the recordVisit gate in the intent handler). NOT arbiter.current.readyPath:
@@ -92,13 +91,11 @@ function Viewer() {
   // the concrete file this URL serves — at the root that's the API's indexPath (root index.html or
   // the lone-upload fallback, e.g. recording.webm), so audio detection, the player src, and comment
   // anchoring work at the root URL too. null = the site has no known root entry (never guess).
-  // Audio has no HTML document to frame — it gets a native player instead of the sandboxed
-  // iframe, and (unlike the iframe src) no ?postplan_annotate param: that flag only triggers the
-  // HTML-injection transform in content.ts, which never applies to audio.
-  const isAudio = useMemo(() => entryPath !== null && isAudioFile(entryPath), [entryPath])
-  const isImage = entryPath !== null && isImageFile(entryPath)
-  const isMedia = isAudio || isImage
+  // Media has no HTML document to frame, so it gets a native player and no ?postplan_annotate param.
   const mediaSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
+  const mediaKind = useMediaKind(entryPath, mediaSrc)
+  const isMedia = mediaKind !== 'document'
+  const isPlayable = mediaKind === 'audio' || mediaKind === 'video'
 
   // Is the comments rail on screen. It gates the on-page HIGHLIGHTS again (the rail is the panel
   // that explains them, so they live and die with it) but NOT commenting: selecting text still
@@ -396,7 +393,7 @@ function Viewer() {
   // Read on demand (an event handler, not a subscription) — never causes a re-render, so the
   // timestamp button always inserts whatever the player's position is AT CLICK TIME with no
   // state/effect plumbing.
-  const getCurrentTime = useCallback(() => audioRef.current?.currentTime ?? 0, [])
+  const getCurrentTime = useCallback(() => (videoRef.current ?? audioRef.current)?.currentTime ?? 0, [])
 
   // ⌘K / Ctrl-K opens the command palette here too, mirroring the AppShell dashboard chrome.
   // (Keydown only reaches the parent when focus is outside the sandboxed iframe; the header
@@ -614,10 +611,15 @@ function Viewer() {
         {/* The loading overlay lives inside this wrapper so its coords match the iframe viewport. */}
         <div className="relative flex min-h-0 min-w-0 flex-1 justify-center bg-muted/20">
           <div className="relative h-full w-full">
-            {isAudio ? (
-              <AudioView src={mediaSrc} fileName={(entryPath ?? '').split('/').pop() ?? ''} audioRef={audioRef} />
-            ) : isImage ? (
-              <ImageView key={mediaSrc} src={mediaSrc} fileName={(entryPath ?? '').split('/').pop() ?? ''} />
+            {isMedia ? (
+              <MediaPane
+                key={mediaSrc}
+                kind={mediaKind}
+                src={mediaSrc}
+                fileName={(entryPath ?? '').split('/').pop() ?? ''}
+                audioRef={audioRef}
+                videoRef={videoRef}
+              />
             ) : (
               <iframe
                 ref={iframeRef}
@@ -701,7 +703,7 @@ function Viewer() {
             onSendFeedback={site.authenticated ? sendFeedback : undefined}
             onClose={closeRail}
             onStartComment={startPageComment}
-            getCurrentTime={isAudio ? getCurrentTime : undefined}
+            getCurrentTime={isPlayable ? getCurrentTime : undefined}
             // Highlight clicks take over from the deep link once one has happened (see revealThread):
             // the link is one-shot at mount and carries a constant nonce, while a click re-requests
             // the same thread every time and bumps the nonce to say so. Both are stable references —

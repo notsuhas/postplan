@@ -317,9 +317,8 @@ export function ReviewRail({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
-        {/* Both creation paths get named (#112). Keyed on getCurrentTime, which is the one prop
-            that is still genuinely audio-only — the audio view has no DOM to select text in, so
-            offering it a "select text" path would be a lie. */}
+        {/* Both creation paths get named (#112). Keyed on getCurrentTime, set only for audio and
+            video — players have no DOM to select text in, so offering a "select text" path would be a lie. */}
         {active.length === 0 && !composing && (
           <p className="px-1 py-8 text-center text-muted-foreground text-sm">
             {filter !== 'open'

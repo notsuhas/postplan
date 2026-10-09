@@ -4,6 +4,13 @@ import type { Release } from './bake'
 
 export const RELEASES: Release[] = [
   {
+    "slug": "video",
+    "title": "Host and play video",
+    "date": "2026-10-09T12:00:00.000Z",
+    "featured": false,
+    "bodyHtml": "<p>Deploy an mp4, m4v, mov, or webm file and Postplan opens it in a video player.</p>\n<ul>\n<li>Seek anywhere without downloading the whole file</li>\n<li>Open the original or download it from the toolbar</li>\n<li>Comments on a video can insert the current <code>[m:ss]</code> timestamp, like audio</li>\n</ul>\n<p>Files are still limited to 20 MB each.</p>\n"
+  },
+  {
     "slug": "review-and-cli",
     "title": "Easier reviews and a more reliable CLI",
     "version": "1.2.0",
@@ -123,4 +130,4 @@ export const RELEASES: Release[] = [
   }
 ]
 
-export const NEWEST_RELEASE_DATE: string | null = "2026-10-06T16:30:00.000Z"
+export const NEWEST_RELEASE_DATE: string | null = "2026-10-09T12:00:00.000Z"
