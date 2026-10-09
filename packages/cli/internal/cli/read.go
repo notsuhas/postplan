@@ -60,7 +60,7 @@ func (c *client) read(argv []string) error {
 
 	// contentUrl always ends with '/'; append the in-site path (empty -> site root / single file).
 	// raw=1 returns the stored source, without the scripts Postplan injects into served pages.
-	cres, err := c.http.Get(meta.ContentURL + encodePath(file) + "?raw=1")
+	cres, err := c.fetchContent(meta.ContentURL + encodePath(file) + "?raw=1")
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func (c *client) pullTree(space, name, dir, contentURL string, files []string, v
 		if dest != root && !strings.HasPrefix(dest, root+string(os.PathSeparator)) {
 			return fmt.Errorf("refusing to write outside %s: %s", dir, rel)
 		}
-		cres, err := c.http.Get(contentURL + encodePath(rel) + "?raw=1")
+		cres, err := c.fetchContent(contentURL + encodePath(rel) + "?raw=1")
 		if err != nil {
 			return err
 		}

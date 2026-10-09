@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -85,7 +87,63 @@ func localPath(path string) (string, error) {
 	if !filepath.IsAbs(path) {
 		return "", fmt.Errorf("path must be absolute, got %q", path)
 	}
+	path = resolved(path)
+	if home, err := os.UserHomeDir(); err == nil {
+		if rel, err := filepath.Rel(path, resolved(home)); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return "", fmt.Errorf("Refusing to deploy %s: it is your home directory or contains it. Pass the specific folder to publish.", path)
+		}
+	}
+	if filepath.Dir(path) == path {
+		return "", fmt.Errorf("Refusing to deploy the filesystem root.")
+	}
 	return path, nil
+}
+
+func resolved(path string) string {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	return filepath.Clean(path)
+}
+
+const (
+	mcpDeployMaxFiles = 2000
+	mcpDeployMaxBytes = 100 * 1024 * 1024
+)
+
+// checkDeploySize walks the tree deploy would upload and refuses oversized ones before any request.
+func checkDeploySize(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("No such file or directory: %s", path)
+	}
+	count := 0
+	var total int64
+	check := func(file string, info fs.FileInfo) error {
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("Refusing to deploy a non-regular file: %s", file)
+		}
+		count++
+		total += info.Size()
+		if count > mcpDeployMaxFiles {
+			return fmt.Errorf("%s has too many files; the limit here is %d. Deploy a more specific folder or use the postplan CLI.", path, mcpDeployMaxFiles)
+		}
+		if total > mcpDeployMaxBytes {
+			return fmt.Errorf("%s exceeds the %d MB limit. Deploy a more specific folder or use the postplan CLI.", path, mcpDeployMaxBytes>>20)
+		}
+		return nil
+	}
+	if !info.IsDir() {
+		return check(path, info)
+	}
+	_, pulled := readPullMarker(path)
+	return walkTree(path, pulled, func(file string, entry fs.DirEntry) error {
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		return check(file, info)
+	})
 }
 
 var mcpTools = []mcpTool{
@@ -94,7 +152,7 @@ var mcpTools = []mcpTool{
 		Title: "Deploy to Postplan",
 		Description: "Publish a local file or folder (HTML, markdown, images, PDFs, video, any static files) to Postplan and return its shareable URL. " +
 			"A folder is served with index.html (or index.md) at its root; a single file is served at the site root. " +
-			"Dotfiles, .git and node_modules are skipped. If the site name already exists you must pass replace: true to publish a new version; earlier versions stay restorable with rollback. " +
+			"Dotfiles, .git and node_modules are skipped; at most 2,000 files and 100 MB. If the site name already exists you must pass replace: true, which replaces the live content (earlier versions stay restorable with rollback). " +
 			"New sites default to unlisted visibility; a replace keeps the existing tier unless visibility is set.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{
 "path":{"type":"string","description":"Absolute path (or ~/...) to the file or folder on this machine."},
@@ -105,7 +163,7 @@ var mcpTools = []mcpTool{
 "notes":{"type":"string","description":"Change notes recorded on this version."},
 "feedback_batch":{"type":"string","description":"ID of the claimed feedback batch this deploy addresses; targets that batch's site and version."}
 },"required":["path"],"additionalProperties":false}`),
-		Annotations: mcpAnnotations{},
+		Annotations: mcpAnnotations{DestructiveHint: true, OpenWorldHint: true},
 		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
 			var a struct {
 				Path          string `json:"path"`
@@ -123,6 +181,9 @@ var mcpTools = []mcpTool{
 			if err != nil {
 				return "", err
 			}
+			if err := checkDeploySize(path); err != nil {
+				return "", err
+			}
 			argv := []string{"--json"}
 			argv = withFlag(argv, "name", a.Name)
 			argv = withFlag(argv, "space", a.Space)
@@ -132,7 +193,12 @@ var mcpTools = []mcpTool{
 			if a.Replace {
 				argv = append(argv, "--yes")
 			}
-			return runOutput(c.deploy(append(argv, "--", path)), out)
+			err = c.deploy(append(argv, "--", path))
+			if errors.Is(err, errNeedsConfirmation) {
+				exists := strings.TrimSuffix(strings.TrimPrefix(err.Error(), errNeedsConfirmation.Error()+": "), " Replace?")
+				return "", fmt.Errorf("%s. Call deploy again with replace: true to publish over it (earlier versions stay restorable).", exists)
+			}
+			return runOutput(err, out)
 		},
 	},
 	{
@@ -153,13 +219,13 @@ var mcpTools = []mcpTool{
 		Name:  "comments",
 		Title: "Read review comments",
 		Description: "Read a site's review comment threads as a markdown digest grouped by file. Each thread heading ends with its thread ID, which reply needs. " +
-			"Open comments are context, not a work queue: act on feedback batches (see the feedback tool) unless the user asks otherwise.",
+			"Open comments are context, not a work queue: act on feedback batches (see feedback_list) unless the user asks otherwise.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{
 "site":` + siteSchema + `,
 "file":{"type":"string","description":"Only threads on this in-site file path, e.g. index.html."},
 "open_only":{"type":"boolean","description":"Hide resolved threads."}
 },"required":["site"],"additionalProperties":false}`),
-		Annotations: mcpAnnotations{ReadOnlyHint: true, IdempotentHint: true},
+		Annotations: mcpAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: true},
 		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
 			var a struct {
 				Site     string `json:"site"`
@@ -188,7 +254,7 @@ var mcpTools = []mcpTool{
 "site":` + siteSchema + `,
 "file":{"type":"string","description":"In-site file path, e.g. index.html or docs/guide.md. Omit for the site root."}
 },"required":["site"],"additionalProperties":false}`),
-		Annotations: mcpAnnotations{ReadOnlyHint: true, IdempotentHint: true},
+		Annotations: mcpAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: true},
 		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
 			var a struct {
 				Site string `json:"site"`
@@ -238,59 +304,98 @@ var mcpTools = []mcpTool{
 		},
 	},
 	{
-		Name:  "feedback",
-		Title: "Feedback batches",
-		Description: "Work the review queue. Reviewers send comments as feedback batches; these are the only comments an agent should act on automatically. " +
-			"Actions: list (pending batches, optionally for one site); wait (claim the next batch, polling up to timeout_seconds, max 50; returns a 'no feedback' message on timeout, so call again to keep waiting); " +
-			"claim (claim batch_id); complete (mark batch_id done, passing the version you deployed). " +
-			"Loop: claim, edit, deploy with replace: true and feedback_batch, reply to threads, then complete.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{
-"action":{"type":"string","enum":["list","wait","claim","complete"]},
-"site":` + siteSchema + `,
-"batch_id":{"type":"string","description":"Batch ID. Required for claim and complete."},
-"version":{"type":"integer","minimum":0,"description":"For complete: the site version that addresses the batch."},
-"timeout_seconds":{"type":"integer","minimum":1,"maximum":50,"default":20,"description":"For wait: how long to poll before returning."}
-},"required":["action"],"additionalProperties":false}`),
-		Annotations: mcpAnnotations{},
+		Name:  "feedback_list",
+		Title: "List feedback batches",
+		Description: "List feedback batches reviewers have sent and that are ready to claim, optionally for one site. " +
+			"Feedback batches are the only comments an agent should act on automatically. Loop: feedback_claim (or feedback_wait), edit, deploy with replace: true and feedback_batch, reply to threads, then feedback_complete.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"site":` + siteSchema + `},"additionalProperties":false}`),
+		Annotations: mcpAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: true},
 		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
 			var a struct {
-				Action  string `json:"action"`
+				Site string `json:"site"`
+			}
+			if err := decodeArgs(raw, &a); err != nil {
+				return "", err
+			}
+			return runOutput(c.feedback(siteArgs([]string{"list", "--json"}, a.Site)), out)
+		},
+	},
+	{
+		Name:  "feedback_wait",
+		Title: "Wait for feedback",
+		Description: "Wait up to timeout_seconds (max 50) for a reviewer to send feedback, then claim and return that batch with its comments. " +
+			"On timeout it returns a 'no feedback' message without claiming anything; call again to keep listening.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{
+"site":` + siteSchema + `,
+"timeout_seconds":{"type":"integer","minimum":1,"maximum":50,"default":20,"description":"How long to poll before returning."}
+},"additionalProperties":false}`),
+		Annotations: mcpAnnotations{OpenWorldHint: true},
+		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
+			var a struct {
 				Site    string `json:"site"`
-				BatchID string `json:"batch_id"`
-				Version *int   `json:"version"`
 				Timeout *int   `json:"timeout_seconds"`
 			}
 			if err := decodeArgs(raw, &a); err != nil {
 				return "", err
 			}
-			switch a.Action {
-			case "list":
-				return runOutput(c.feedback(siteArgs([]string{"list", "--json"}, a.Site)), out)
-			case "wait":
-				timeout := 20
-				if a.Timeout != nil {
-					timeout = *a.Timeout
-				}
-				if timeout < 1 || timeout > 50 {
-					return "", fmt.Errorf("timeout_seconds must be between 1 and 50")
-				}
-				text, err := runOutput(c.feedback(siteArgs([]string{"wait", "--json", "--timeout", strconv.Itoa(timeout) + "s"}, a.Site)), out)
-				if err == nil && text == "null" {
-					text = fmt.Sprintf("No feedback received within %ds. Call wait again to keep listening.", timeout)
-				}
-				return text, err
-			case "claim", "complete":
-				if err := need("batch_id", a.BatchID); err != nil {
-					return "", err
-				}
-				argv := []string{a.Action, "--json"}
-				if a.Action == "complete" && a.Version != nil {
-					argv = append(argv, "--version", strconv.Itoa(*a.Version))
-				}
-				return runOutput(c.feedback(append(argv, "--", a.BatchID)), out)
-			default:
-				return "", fmt.Errorf("action must be one of list, wait, claim, complete")
+			timeout := 20
+			if a.Timeout != nil {
+				timeout = *a.Timeout
 			}
+			if timeout < 1 || timeout > 50 {
+				return "", fmt.Errorf("timeout_seconds must be between 1 and 50")
+			}
+			text, err := runOutput(c.feedback(siteArgs([]string{"wait", "--json", "--timeout", strconv.Itoa(timeout) + "s"}, a.Site)), out)
+			if err == nil && text == "null" {
+				text = fmt.Sprintf("No feedback received within %ds. Call feedback_wait again to keep listening.", timeout)
+			}
+			return text, err
+		},
+	},
+	{
+		Name:        "feedback_claim",
+		Title:       "Claim a feedback batch",
+		Description: "Claim one feedback batch from feedback_list so no other agent works on it. Returns the batch with its comments.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"batch_id":{"type":"string","description":"Batch ID from feedback_list."}},"required":["batch_id"],"additionalProperties":false}`),
+		Annotations: mcpAnnotations{OpenWorldHint: true},
+		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
+			var a struct {
+				BatchID string `json:"batch_id"`
+			}
+			if err := decodeArgs(raw, &a); err != nil {
+				return "", err
+			}
+			if err := need("batch_id", a.BatchID); err != nil {
+				return "", err
+			}
+			return runOutput(c.feedback([]string{"claim", "--json", "--", a.BatchID}), out)
+		},
+	},
+	{
+		Name:        "feedback_complete",
+		Title:       "Complete a feedback batch",
+		Description: "Mark a claimed feedback batch as done, linking the site version you deployed to address it.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{
+"batch_id":{"type":"string","description":"The claimed batch ID."},
+"version":{"type":"integer","minimum":0,"description":"Site version that addresses the batch (from versions or the deploy)."}
+},"required":["batch_id"],"additionalProperties":false}`),
+		Annotations: mcpAnnotations{},
+		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
+			var a struct {
+				BatchID string `json:"batch_id"`
+				Version *int   `json:"version"`
+			}
+			if err := decodeArgs(raw, &a); err != nil {
+				return "", err
+			}
+			if err := need("batch_id", a.BatchID); err != nil {
+				return "", err
+			}
+			argv := []string{"complete", "--json"}
+			if a.Version != nil {
+				argv = append(argv, "--version", strconv.Itoa(*a.Version))
+			}
+			return runOutput(c.feedback(append(argv, "--", a.BatchID)), out)
 		},
 	},
 	{
@@ -321,7 +426,7 @@ var mcpTools = []mcpTool{
 "version":{"type":"integer","minimum":0,"description":"Version number to restore (see versions)."},
 "notes":{"type":"string","description":"Change notes recorded on the new version."}
 },"required":["site","version"],"additionalProperties":false}`),
-		Annotations: mcpAnnotations{},
+		Annotations: mcpAnnotations{DestructiveHint: true},
 		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
 			var a struct {
 				Site    string `json:"site"`
@@ -398,17 +503,17 @@ const mcpReadLimit = 200 * 1024
 // capText returns body as text, cut at a rune boundary under limit with a note; binary bodies are refused.
 func capText(body []byte, limit int) (string, error) {
 	total := len(body)
+	if !utf8.Valid(body) || bytes.IndexByte(body, 0) >= 0 {
+		return "", fmt.Errorf("This file is binary (%d bytes); open it in a browser instead.", total)
+	}
 	if total > limit {
 		body = body[:limit]
 		for i := 0; i < utf8.UTFMax-1 && len(body) > 0; i++ {
-			if r, _ := utf8.DecodeLastRune(body); r != utf8.RuneError {
+			if r, n := utf8.DecodeLastRune(body); r != utf8.RuneError || n > 1 {
 				break
 			}
 			body = body[:len(body)-1]
 		}
-	}
-	if !utf8.Valid(body) || bytes.IndexByte(body, 0) >= 0 {
-		return "", fmt.Errorf("This file is binary (%d bytes); open it in a browser instead.", total)
 	}
 	if total > limit {
 		return fmt.Sprintf("%s\n\n[truncated: showing %d of %d bytes]", body, len(body), total), nil

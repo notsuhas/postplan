@@ -80,7 +80,7 @@ func (c *client) feedbackList(argv []string) error {
 	if err := argparse.ValidateFlags(flags, "json"); err != nil || len(positional) > 1 {
 		return fmt.Errorf(feedbackUsage)
 	}
-	batches, err := c.fetchFeedback(context.Background(), positional)
+	batches, err := c.fetchFeedback(c.ctx, positional)
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func (c *client) feedbackWait(argv []string) error {
 		interval = parsed
 	}
 	var deadline time.Time
-	ctx := context.Background()
+	ctx := c.ctx
 	if raw, present := flags["timeout"]; present {
 		value, ok := raw.(string)
 		timeout, err := time.ParseDuration(value)
@@ -177,9 +177,16 @@ func (c *client) feedbackWait(argv []string) error {
 			if !deadline.IsZero() && !timeNow().Before(deadline) {
 				return timeoutResult()
 			}
-			resp, err := c.authed("POST", "/api/feedback/"+url.PathEscape(candidate.ID)+"/claim", strings.NewReader(""), map[string]string{"Idempotency-Key": operationKey(nil, "wait-claim")})
-			if err != nil {
+			// A cancelled or timed-out wait must never claim: nobody is left to receive the batch.
+			if ctx.Err() == context.DeadlineExceeded {
+				return timeoutResult()
+			} else if err := ctx.Err(); err != nil {
 				return err
+			}
+			claimKey := operationKey(nil, "wait-claim")
+			resp, err := c.authedContext(ctx, "POST", "/api/feedback/"+url.PathEscape(candidate.ID)+"/claim", strings.NewReader(""), map[string]string{"Idempotency-Key": claimKey})
+			if err != nil {
+				return claimRecoveryError(candidate.ID, claimKey, err)
 			}
 			if resp.StatusCode == http.StatusConflict {
 				// Another agent claimed it, or the site changed. Re-list instead of acting on stale work.
@@ -189,13 +196,13 @@ func (c *client) feedbackWait(argv []string) error {
 			if !ok(resp) {
 				detail := bodySlice(resp)
 				resp.Body.Close()
-				return fmt.Errorf("Could not claim feedback (%d): %s", resp.StatusCode, detail)
+				return claimRecoveryError(candidate.ID, claimKey, fmt.Errorf("claim request failed (%d): %s", resp.StatusCode, detail))
 			}
 			var batch feedbackBatch
 			err = json.NewDecoder(resp.Body).Decode(&batch)
 			resp.Body.Close()
 			if err != nil {
-				return err
+				return claimRecoveryError(candidate.ID, claimKey, fmt.Errorf("claim response could not be read: %w", err))
 			}
 			if flags["json"] == true {
 				return json.NewEncoder(c.out).Encode(batch)
@@ -215,6 +222,22 @@ func (c *client) feedbackWait(argv []string) error {
 		}
 		c.sleep(delay)
 	}
+}
+
+type feedbackClaimRecoveryError struct {
+	batchID string
+	key     string
+	err     error
+}
+
+func (e *feedbackClaimRecoveryError) Error() string {
+	return fmt.Sprintf("Feedback %s may have been claimed; retry postplan feedback claim %s --idempotency-key %s to recover: %v", e.batchID, e.batchID, e.key, e.err)
+}
+
+func (e *feedbackClaimRecoveryError) Unwrap() error { return e.err }
+
+func claimRecoveryError(batchID, key string, err error) error {
+	return &feedbackClaimRecoveryError{batchID: batchID, key: key, err: err}
 }
 
 func (c *client) feedbackBatchByID(id string) (*feedbackBatch, error) {

@@ -3,16 +3,22 @@ package cli
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"postplan/internal/argparse"
 	"strings"
 )
 
-// prompt writes a question to the output sink and reads one trimmed line from the input source.
-func (c *client) prompt(question string) string {
+var errNeedsConfirmation = errors.New("Confirmation needed")
+
+// prompt writes a question to the output sink and reads one trimmed line; non-interactive clients get an error instead.
+func (c *client) prompt(question string) (string, error) {
+	if c.nonInteractive {
+		return "", fmt.Errorf("%w: %s", errNeedsConfirmation, strings.TrimSuffix(strings.TrimSpace(question), " (y/N)"))
+	}
 	fmt.Fprint(c.out, question)
 	line, _ := bufio.NewReader(c.in).ReadString('\n')
-	return strings.TrimSpace(line)
+	return strings.TrimSpace(line), nil
 }
 
 // splitSpaceSlug parses a `<space/slug>` target into exactly two non-empty segments. A loose
@@ -50,7 +56,10 @@ func (c *client) del(argv []string) error {
 		return err
 	}
 	if flags["yes"] != true {
-		ans := c.prompt(fmt.Sprintf("Delete %s/%s? (y/N) ", space, name))
+		ans, err := c.prompt(fmt.Sprintf("Delete %s/%s? (y/N) ", space, name))
+		if err != nil {
+			return err
+		}
 		if strings.ToLower(ans) != "y" {
 			fmt.Fprintln(c.out, "Cancelled.")
 			return nil

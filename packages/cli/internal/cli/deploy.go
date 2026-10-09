@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"mime/multipart"
 	"os"
@@ -19,13 +20,26 @@ type deployEntry struct {
 	rel string // POSIX in-site path
 }
 
+type uploadLimits struct {
+	files int
+	bytes int64
+}
+
 // walk lists regular files under dir recursively. It always skips VCS/build noise (.git,
 // node_modules, .DS_Store) and NEVER follows symlinks - a symlink could point outside the deploy
 // root (e.g. /etc/passwd or ~/.ssh) and leak its target. Unless includeHidden is set it also skips
 // dotfiles/dot-dirs (.env, .npmrc, .netrc, …) so secrets aren't uploaded by accident.
 func walk(dir string, includeHidden bool) ([]string, error) {
 	var out []string
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	err := walkTree(dir, includeHidden, func(path string, d fs.DirEntry) error {
+		out = append(out, path)
+		return nil
+	})
+	return out, err
+}
+
+func walkTree(dir string, includeHidden bool, visit func(string, fs.DirEntry) error) error {
+	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -46,14 +60,10 @@ func walk(dir string, includeHidden bool) ([]string, error) {
 			return nil // don't follow symlinks (target may escape the deploy root)
 		}
 		if !d.IsDir() {
-			out = append(out, path)
+			return visit(path, d)
 		}
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 // personalSpace resolves the caller's personal space - the default target when --space is omitted.
@@ -172,6 +182,9 @@ func (c *client) deploy(argv []string) error {
 	if len(entries) == 0 {
 		return fmt.Errorf("No files to upload.")
 	}
+	if c.uploadLimits != nil && len(entries) > c.uploadLimits.files {
+		return fmt.Errorf("Deploy exceeds the %d file limit.", c.uploadLimits.files)
+	}
 
 	// Name/space default from the pull marker (redeploy targets the same site) before falling back to
 	// the derived name / the caller's personal space — an editor's personal space is NOT where the
@@ -237,11 +250,11 @@ func (c *client) deploy(argv []string) error {
 		if !ex.CanReplace {
 			return fmt.Errorf("%s/%s is taken by another user.", space, name)
 		}
-		if !assumeYes && c.nonInteractive {
-			return fmt.Errorf("%s/%s already exists. Retry with replace: true to overwrite it (earlier versions stay restorable).", space, name)
-		}
 		if !assumeYes {
-			ans := c.prompt(fmt.Sprintf("Site exists at %s/%s. Replace? (y/N) ", space, name))
+			ans, err := c.prompt(fmt.Sprintf("Site exists at %s/%s. Replace? (y/N) ", space, name))
+			if err != nil {
+				return err
+			}
 			if strings.ToLower(ans) != "y" {
 				fmt.Fprintln(c.out, "Cancelled.")
 				return nil
@@ -271,11 +284,22 @@ func (c *client) deploy(argv []string) error {
 	if feedbackBatchID != "" {
 		_ = mw.WriteField("feedbackBatchId", feedbackBatchID)
 	}
+	var uploadedBytes int64
 	for _, e := range entries {
-		data, err := os.ReadFile(e.abs)
+		if err := c.ctx.Err(); err != nil {
+			return err
+		}
+		var data []byte
+		var err error
+		if c.uploadLimits != nil {
+			data, err = readDeployFile(e.abs, c.uploadLimits.bytes-uploadedBytes)
+		} else {
+			data, err = os.ReadFile(e.abs)
+		}
 		if err != nil {
 			return err
 		}
+		uploadedBytes += int64(len(data))
 		fw, err := mw.CreateFormFile("files", e.rel)
 		if err != nil {
 			return err
@@ -293,6 +317,9 @@ func (c *client) deploy(argv []string) error {
 		for _, e := range entries {
 			fmt.Fprintf(c.out, "  %s\n", e.rel)
 		}
+	}
+	if err := c.ctx.Err(); err != nil {
+		return err
 	}
 	uploadPath := "/api/upload/" + space + "/" + name
 	if replace {
@@ -322,4 +349,24 @@ func (c *client) deploy(argv []string) error {
 	}
 	fmt.Fprintf(c.out, "✓ Deployed → %s\n", result.URL)
 	return nil
+}
+
+func readDeployFile(path string, remaining int64) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("Refusing to deploy a non-regular file: %s", path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, remaining+1))
+	if int64(len(data)) > remaining {
+		return nil, fmt.Errorf("Deploy exceeds the upload size limit.")
+	}
+	return data, err
 }

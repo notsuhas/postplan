@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -42,7 +45,7 @@ func mcpSession(t *testing.T, connect func(io.Writer) *client, lines ...string) 
 	}
 	replies := map[string]rpcReply{}
 	scanner := bufio.NewScanner(&out)
-	scanner.Buffer(nil, 4*1024*1024)
+	scanner.Buffer(nil, 32*1024*1024)
 	for scanner.Scan() {
 		var r rpcReply
 		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil || r.JSONRPC != "2.0" {
@@ -122,11 +125,11 @@ func TestMCPSession(t *testing.T) {
 		if tool.InputSchema["type"] != "object" || tool.Description == "" {
 			t.Fatalf("tool %s: schema=%v", tool.Name, tool.InputSchema)
 		}
-		if tool.Annotations.DestructiveHint != (tool.Name == "delete") {
+		if tool.Annotations.DestructiveHint != (tool.Name == "delete" || tool.Name == "deploy" || tool.Name == "rollback") {
 			t.Fatalf("tool %s destructiveHint = %v", tool.Name, tool.Annotations.DestructiveHint)
 		}
 	}
-	if got := strings.Join(names, ","); got != "deploy,list,comments,read,reply,feedback,versions,rollback,delete,fork" {
+	if got := strings.Join(names, ","); got != "deploy,list,comments,read,reply,feedback_list,feedback_wait,feedback_claim,feedback_complete,versions,rollback,delete,fork" {
 		t.Fatalf("tools = %s", got)
 	}
 
@@ -167,7 +170,7 @@ func TestMCPToolErrors(t *testing.T) {
 		{"unknown argument", "versions", `{"site":"a/b","bogus":1}`, "tok", "bogus"},
 		{"missing site", "versions", `{}`, "tok", "site"},
 		{"existing site needs replace", "deploy", `{"path":"` + filepath.Join(dir, "notes.md") + `"}`, "tok", "replace: true"},
-		{"wait timeout bounded", "feedback", `{"action":"wait","timeout_seconds":600}`, "tok", "between 1 and 50"},
+		{"wait timeout bounded", "feedback_wait", `{"timeout_seconds":600}`, "tok", "between 1 and 50"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -200,7 +203,7 @@ func TestMCPToolsWrapCommands(t *testing.T) {
 	for i, call := range []string{
 		toolCall(1, "list", `{}`),
 		toolCall(2, "reply", `{"site":"team/r","thread_id":"t1","message":"--dash leading","tag":"claude"}`),
-		toolCall(3, "feedback", `{"action":"wait","site":"team/r","timeout_seconds":1}`),
+		toolCall(3, "feedback_wait", `{"site":"team/r","timeout_seconds":1}`),
 	} {
 		id := string(rune('1' + i))
 		replies[id] = mcpSession(t, testConnect(srv.URL, "tok"), call)[id]
@@ -301,27 +304,185 @@ func TestMCPLegacyResultsStayLegacy(t *testing.T) {
 	}
 }
 
-func TestMCPCancelledCallGetsNoReply(t *testing.T) {
+// cancelMidCall starts a call whose first request blocks, cancels it, then releases the server.
+func cancelMidCall(t *testing.T, handler func(w http.ResponseWriter, r *http.Request), call string) string {
+	t.Helper()
+	entered := make(chan struct{}, 1)
 	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-release
-		io.WriteString(w, `[]`)
+		select {
+		case entered <- struct{}{}:
+			<-release
+		default:
+		}
+		handler(w, r)
 	}))
 	t.Cleanup(srv.Close)
 	inR, inW := io.Pipe()
 	var out bytes.Buffer
 	done := make(chan error)
 	go func() { done <- serveMCP(inR, &out, testConnect(srv.URL, "tok")) }()
-	fmt.Fprintln(inW, toolCall(7, "list", `{}`))
+	fmt.Fprintln(inW, call)
+	<-entered
 	fmt.Fprintln(inW, `{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}`)
 	fmt.Fprintln(inW, `{"jsonrpc":"2.0","id":8,"method":"ping"}`)
 	inW.Close()
-	close(release)
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(out.String(), `"id":7`) || !strings.Contains(out.String(), `"id":8`) {
-		t.Fatalf("out = %s", out.String())
+	close(release)
+	return out.String()
+}
+
+func TestMCPCancelStopsWork(t *testing.T) {
+	t.Run("cancelled deploy never uploads", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "notes.md"), "# hi")
+		var mu sync.Mutex
+		uploaded := false
+		out := cancelMidCall(t, func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.URL.Path == "/api/spaces/mine":
+				io.WriteString(w, `[{"slug":"me","type":"personal"}]`)
+			case strings.HasSuffix(r.URL.Path, "/exists"):
+				io.WriteString(w, `{"exists":false}`)
+			default:
+				mu.Lock()
+				uploaded = true
+				mu.Unlock()
+				io.WriteString(w, `{"url":"https://g/me/notes"}`)
+			}
+		}, toolCall(7, "deploy", `{"path":"`+filepath.Join(dir, "notes.md")+`"}`))
+		mu.Lock()
+		defer mu.Unlock()
+		if uploaded || strings.Contains(out, `"id":7`) || !strings.Contains(out, `"id":8`) {
+			t.Fatalf("uploaded=%v out=%s", uploaded, out)
+		}
+	})
+
+	t.Run("cancelled wait never claims", func(t *testing.T) {
+		var mu sync.Mutex
+		claimed := false
+		out := cancelMidCall(t, func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/claim") {
+				mu.Lock()
+				claimed = true
+				mu.Unlock()
+			}
+			io.WriteString(w, `[{"id":"b1","site":{"space":"team","slug":"r"},"items":[]}]`)
+		}, toolCall(7, "feedback_wait", `{"timeout_seconds":5}`))
+		mu.Lock()
+		defer mu.Unlock()
+		if claimed || strings.Contains(out, `"id":7`) {
+			t.Fatalf("claimed=%v out=%s", claimed, out)
+		}
+	})
+}
+
+func TestMCPWireEdgeCases(t *testing.T) {
+	huge := `{"jsonrpc":"2.0","id":1,"method":"ping","params":{"pad":"` + strings.Repeat("x", mcpMaxLine) + `"}}`
+	replies := mcpSession(t, testConnect("http://unused", "tok"),
+		huge,
+		`{"jsonrpc":"2.0","id":2,"method":"ping"}`,
+		`[{"jsonrpc":"2.0","id":3,"method":"ping"}]`,
+		`{"jsonrpc":"2.0","id":4,"result":{}}`,
+		`{"jsonrpc":"2.0","id":{"x":1},"method":"ping"}`,
+		`{"jsonrpc":"1.0","id":6,"method":"ping"}`,
+		`{"jsonrpc":"2.0","id":7,"method":"initialize","params":{"protocolVersion":"2025-03-26"}}`,
+		`{"jsonrpc":"2.0","id":8,"method":"ping","params":{`+modernMeta+`}}`,
+	)
+	if string(replies["2"].Result) != "{}" {
+		t.Fatalf("server stopped serving after an oversized line: %+v", replies)
+	}
+	if replies["null"].Error == nil || replies["null"].Error.Code != -32600 {
+		t.Fatalf("oversized/batch/object-id must get -32600 with a null id: %+v", replies["null"])
+	}
+	for _, id := range []string{"4", "6"} {
+		if e := replies[id].Error; e == nil || e.Code != -32600 {
+			t.Fatalf("id %s = %+v", id, replies[id])
+		}
+	}
+	if !strings.Contains(string(replies["7"].Result), `"protocolVersion":"2025-11-25"`) {
+		t.Fatalf("2025-03-26 needs batching, so it must not be negotiated: %s", replies["7"].Result)
+	}
+	if e := replies["8"].Error; e == nil || e.Code != -32601 {
+		t.Fatalf("modern ping = %+v", replies["8"])
+	}
+}
+
+func TestReadNeverLeaksContentURL(t *testing.T) {
+	srv, _ := recordingServer(t, func(r *capturedReq) (int, string) {
+		return 200, `{"contentUrl":"http://127.0.0.1:1/c/SECRET-TOKEN/","files":["a.md"],"contentVersion":1}`
+	})
+	c, _ := newTestClient(srv.URL, "tok")
+	for _, argv := range [][]string{{"team/r"}, {"team/r", "--pull", t.TempDir()}} {
+		err := c.read(argv)
+		if err == nil || strings.Contains(err.Error(), "SECRET-TOKEN") {
+			t.Fatalf("read %v error = %v", argv, err)
+		}
+	}
+}
+
+func TestMCPDeployPathSafety(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, path := range []string{"/", home, filepath.Dir(home), "~"} {
+		if _, err := localPath(path); err == nil {
+			t.Fatalf("localPath(%q) should refuse", path)
+		}
+	}
+	if _, err := localPath(filepath.Join(home, "site")); err != nil {
+		t.Fatalf("a folder inside home must be allowed: %v", err)
+	}
+
+	many := t.TempDir()
+	for i := 0; i <= mcpDeployMaxFiles; i++ {
+		writeFile(t, filepath.Join(many, fmt.Sprintf("f%d.txt", i)), "x")
+	}
+	if err := checkDeploySize(many); err == nil || !strings.Contains(err.Error(), "files") {
+		t.Fatalf("file cap: %v", err)
+	}
+	big := filepath.Join(t.TempDir(), "big.bin")
+	f, err := os.Create(big)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Truncate(mcpDeployMaxBytes + 1) // sparse, so the test stays fast
+	f.Close()
+	if err := checkDeploySize(big); err == nil || !strings.Contains(err.Error(), "MB") {
+		t.Fatalf("byte cap: %v", err)
+	}
+}
+
+func TestMCPAnnotationsAndInstructions(t *testing.T) {
+	for _, name := range []string{"read", "comments", "deploy"} {
+		if !findTool(name).Annotations.OpenWorldHint {
+			t.Fatalf("%s should set openWorldHint", name)
+		}
+	}
+	if !findTool("feedback_list").Annotations.ReadOnlyHint || findTool("feedback_claim").Annotations.ReadOnlyHint {
+		t.Fatal("feedback_list is read-only; claiming is not")
+	}
+	if !strings.Contains(mcpInstructions, "untrusted") {
+		t.Fatal("instructions must flag site content as untrusted")
+	}
+}
+
+func TestPromptFailsWhenNonInteractive(t *testing.T) {
+	srv, reqs := recordingServer(t, func(r *capturedReq) (int, string) {
+		return 200, `[{"version":1,"current":true,"files":[]}]`
+	})
+	c := newMCPClient(srv.URL, "tok", io.Discard)
+	if err := c.del([]string{"team/r"}); !errors.Is(err, errNeedsConfirmation) {
+		t.Fatalf("delete = %v", err)
+	}
+	if err := c.rollback([]string{"team/r", "0"}); !errors.Is(err, errNeedsConfirmation) {
+		t.Fatalf("rollback = %v", err)
+	}
+	for _, r := range *reqs {
+		if r.method != "GET" {
+			t.Fatalf("a mutating request went out without confirmation: %+v", r)
+		}
 	}
 }
 

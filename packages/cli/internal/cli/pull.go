@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -17,14 +18,29 @@ type pullMarker struct {
 }
 
 const (
-	pullMarkerDir  = ".postplan"
-	pullMarkerFile = "pull.json"
+	pullMarkerDir      = ".postplan"
+	pullMarkerFile     = "pull.json"
+	maxPullMarkerBytes = 64 * 1024
 )
 
 // readPullMarker returns the marker a prior --pull wrote under dir, or (nil,false) if absent/unreadable.
 func readPullMarker(dir string) (*pullMarker, bool) {
-	data, err := os.ReadFile(filepath.Join(dir, pullMarkerDir, pullMarkerFile))
+	path := filepath.Join(dir, pullMarkerDir, pullMarkerFile)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxPullMarkerBytes {
+		return nil, false
+	}
+	f, err := os.Open(path)
 	if err != nil {
+		return nil, false
+	}
+	defer f.Close()
+	info, err = f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, false
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maxPullMarkerBytes+1))
+	if err != nil || len(data) > maxPullMarkerBytes {
 		return nil, false
 	}
 	var m pullMarker

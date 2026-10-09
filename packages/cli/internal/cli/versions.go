@@ -96,7 +96,10 @@ func (c *client) rollback(argv []string) error {
 		return err
 	}
 	if flags["yes"] != true {
-		answer := c.prompt(fmt.Sprintf("Restore %s/%s from v%d as v%d? (y/N) ", space, site, version, current+1))
+		answer, err := c.prompt(fmt.Sprintf("Restore %s/%s from v%d as v%d? (y/N) ", space, site, version, current+1))
+		if err != nil {
+			return err
+		}
 		if strings.ToLower(answer) != "y" {
 			fmt.Fprintln(c.out, "Cancelled.")
 			return nil
