@@ -1,32 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { formatTimestamp, isAudioFile, timestampPrefix } from '../audio'
-
-describe('isAudioFile', () => {
-  test('recognizes every extension the content worker serves as audio', () => {
-    expect(isAudioFile('song.mp3')).toBe(true)
-    expect(isAudioFile('track.wav')).toBe(true)
-    expect(isAudioFile('voice.m4a')).toBe(true)
-    expect(isAudioFile('clip.ogg')).toBe(true)
-    expect(isAudioFile('clip.oga')).toBe(true)
-    expect(isAudioFile('song.flac')).toBe(true)
-    expect(isAudioFile('song.aac')).toBe(true)
-  })
-  test('recognizes webm — the MediaRecorder default container (W0-2)', () => {
-    expect(isAudioFile('take.webm')).toBe(true)
-  })
-  test('is case-insensitive on the extension', () => {
-    expect(isAudioFile('SONG.MP3')).toBe(true)
-  })
-  test('a nested path still resolves off the final extension', () => {
-    expect(isAudioFile('a/b/track.wav')).toBe(true)
-  })
-  test('non-audio files, and the extensionless/empty splat, are false', () => {
-    expect(isAudioFile('index.html')).toBe(false)
-    expect(isAudioFile('photo.png')).toBe(false)
-    expect(isAudioFile('README')).toBe(false)
-    expect(isAudioFile('')).toBe(false)
-  })
-})
+import { formatTimestamp, timestampPrefix } from '../audio'
 
 describe('formatTimestamp', () => {
   test('formats seconds as m:ss with zero-padded seconds', () => {

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ImageView } from '../ImageView'
-import { isImageFile } from '@/lib/image'
+import { fileKindOf } from '@/lib/media'
 
 test('image controls zoom, reset, and preserve the original protected URL', () => {
   render(<ImageView src="https://content.test/_t/token/sp/site/picture.avif" fileName="picture.avif" />)
@@ -29,6 +29,6 @@ test('broken images show a useful error', () => {
 
 test('image detection covers supported formats without treating HTML as an image', () => {
   for (const ext of ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico'])
-    expect(isImageFile(`PHOTO.${ext.toUpperCase()}`)).toBe(true)
-  expect(isImageFile('photo.png.html')).toBe(false)
+    expect(fileKindOf(`PHOTO.${ext.toUpperCase()}`)).toBe('image')
+  expect(fileKindOf('photo.png.html')).toBe('document')
 })

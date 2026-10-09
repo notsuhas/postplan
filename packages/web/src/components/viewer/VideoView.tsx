@@ -1,5 +1,5 @@
 import { type RefObject, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { MediaToolbar } from './MediaToolbar'
 
 interface IVideoView {
   src: string
@@ -11,27 +11,10 @@ interface IVideoView {
 export function VideoView(props: IVideoView) {
   const { src, fileName, videoRef } = props
   const [failed, setFailed] = useState(false)
-  const downloadUrl = new URL(src)
-  downloadUrl.searchParams.set('download', '1')
 
   return (
     <div className="flex size-full flex-col">
-      <div
-        className="flex flex-wrap items-center justify-center gap-2 border-b p-2"
-        role="toolbar"
-        aria-label="Video controls"
-      >
-        <Button variant="outline" size="sm" asChild>
-          <a href={src} target="_blank" rel="noreferrer">
-            Open original
-          </a>
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <a href={downloadUrl.href} download={fileName}>
-            Download
-          </a>
-        </Button>
-      </div>
+      <MediaToolbar src={src} fileName={fileName} label="Video controls" />
       <section className="flex min-h-0 flex-1 items-center justify-center p-4" aria-label="Video preview">
         {failed ? (
           <p className="text-center text-sm" role="alert">
