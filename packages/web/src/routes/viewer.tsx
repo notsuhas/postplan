@@ -1,6 +1,6 @@
 import { FRAME_NONCE_PARAM } from '../../../shared/frame'
 import { useViewerComments } from '@/hooks/useViewerComments'
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
@@ -79,7 +79,9 @@ function Viewer() {
       onConnect: () => setFrameEpoch((n) => n + 1),
     }),
   )
-  useEffect(() => {
+  // Layout effects run in the same task as the commit that inserts the iframe, so the listener exists
+  // before the frame can possibly post its one-shot hello.
+  useLayoutEffect(() => {
     window.addEventListener('message', channel.onWindowMessage)
     return () => {
       window.removeEventListener('message', channel.onWindowMessage)
@@ -212,7 +214,7 @@ function Viewer() {
   // postplan.db credential broker: the injected SDK in the iframe hands us a MessagePort; we
   // execute its data-plane requests with OUR token so no credential ever enters the untrusted
   // frame. Bound to THIS site — the page cannot ask for another site's data.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!site.authenticated) return
     const broker = attachDbBroker({
       site: { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug },
@@ -221,10 +223,6 @@ function Viewer() {
     })
     return broker.dispose
   }, [site.authenticated, site.spaceSlug, site.siteSlug, frameNonce])
-
-  // The frame navigates only after the listeners above exist: a page's one-shot hello can't be lost.
-  const [listening, setListening] = useState(false)
-  useEffect(() => setListening(true), [])
 
   // The rail's reveal has two producers: the one-shot deep link below and clicks on a painted
   // highlight. A click is the source the nonce was built for — the same thread can be clicked over
@@ -631,7 +629,7 @@ function Viewer() {
                 // keeps native controls/scrollbars consistent with the light canvas.
                 className="size-full border-0 bg-white"
                 style={{ colorScheme: 'light' }}
-                src={listening ? src : undefined}
+                src={src}
                 title={site.title ?? site.siteSlug}
                 onLoad={() => setLoaded(true)}
                 // allow-top-navigation-by-user-activation: lets the directory-listing links (target=_top)

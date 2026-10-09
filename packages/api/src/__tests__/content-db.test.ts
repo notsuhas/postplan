@@ -79,10 +79,10 @@ describe('postplan.db injection', () => {
   })
 
   test('injectDb falls back sanely when the page has no <head>', () => {
-    expect(injectDb('<body class="x"><p>hi</p></body>', 'https://a.example')).toMatch(
+    expect(injectDb('<body class="x"><p>hi</p></body>', 'https://a.example', null)).toMatch(
       /<body class="x"><script>window\.__POSTPLAN_DB__=/,
     )
-    expect(injectDb('<p>bare fragment</p>', 'https://a.example')).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
+    expect(injectDb('<p>bare fragment</p>', 'https://a.example', null)).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
   })
 })
 
@@ -119,9 +119,13 @@ describe('sandboxed pages', () => {
   })
 
   test('the SDK lands before any script in <head>, so page scripts already see it', () => {
-    const out = injectDb('<html><head><script>localStorage.theme</script></head><body></body></html>', 'https://a')
+    const out = injectDb(
+      '<html><head><script>localStorage.theme</script></head><body></body></html>',
+      'https://a',
+      null,
+    )
     expect(out.indexOf('/_postplan/db.js')).toBeLessThan(out.indexOf('localStorage.theme'))
-    expect(injectDb('<header>x</header>', 'https://a')).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
+    expect(injectDb('<header>x</header>', 'https://a', null)).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
   })
 
   test('plain HTML revalidates against an ETag that names the SDK version', async () => {

@@ -297,6 +297,9 @@ the site's own files work. Two things need a small change:
 - Web workers: `new Worker('worker.js')` fails; fetch the script and start it from a Blob URL.
 - Canvas exports (`toDataURL`, html2canvas): load same-site images with `crossorigin="anonymous"`.
 
+`postplan.db` works on pages reached through ordinary links. A page opened by script (`location.href =
+…`) or a GET form loses access; use links between your pages.
+
 ## Saving data from your pages — `postplan.db` (experimental)
 
 Each site gets a small JSON document store, and any HTML page you deploy can use it directly —

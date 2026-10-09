@@ -395,7 +395,7 @@ function dbTags(appOrigin: string, frameNonce: string | null): string {
   return `<script>window.__POSTPLAN_DB__=${json}</script><script src="/_postplan/db.js?v=${POSTPLAN_DB_VERSION}"></script>`
 }
 
-export function injectDb(html: string, appOrigin: string, frameNonce: string | null = null): string {
+export function injectDb(html: string, appOrigin: string, frameNonce: string | null): string {
   const tags = dbTags(appOrigin, frameNonce)
   // Replacement FUNCTIONS so any `$`-sequence inside `tags` is inserted verbatim. db.js loads
   // SYNCHRONOUSLY right after the opening tag, before any page script in <head> can run.

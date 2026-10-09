@@ -328,10 +328,6 @@ describe('viewer wiring — the paint is gated on railOpen (the on-page highligh
     await waitFor(() => expect(lastPaintIds()).toEqual([]))
   })
 
-  // #27, the inverse race of the ?review=1 one below: on a warm-cache load the IFRAME can finish
-  // first, so its one boot postplan:ready is posted before the viewer's listener exists — silently
-  // lost, filePath stays null, and the rail never loads for the initially open page. The listener
-  // effect therefore pings the frame right after attaching; an already-booted client re-announces.
   test("a hello without this mount's nonce never connects, so nothing is painted into it", async () => {
     const { container } = renderViewer('/sp/site?review=1')
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
