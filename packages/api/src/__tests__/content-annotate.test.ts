@@ -67,7 +67,8 @@ describe('annotate injection', () => {
 
     const raw = await app.request(`/_t/${token}/sam/site/`, {}, env)
     const rawBody = await raw.text()
-    expect(rawBody).toBe(HTML)
+    expect(rawBody).not.toContain('__POSTPLAN__=')
+    expect(rawBody).toContain('<p>The quick brown fox.</p>')
     expect(raw.headers.get('etag')).not.toBeNull()
   })
 

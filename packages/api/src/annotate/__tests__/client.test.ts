@@ -27,6 +27,10 @@ const IN_NOTHING = { clientX: 500, clientY: 500 }
 let highlights: Map<string, { ranges: Range[] }>
 let posted: unknown[]
 let restore: () => void
+// The page's end of the frame channel. A synchronous stand-in for MessageChannel, so a command
+// lands (and its reply is recorded) within the same tick the test sends it.
+let pagePort: { onmessage: ((e: { data: unknown }) => void) | null; postMessage: (m: unknown) => void }
+let hellos: unknown[]
 
 beforeAll(async () => {
   const win = new Window({ url: 'https://content.example.com/index.html' }) as unknown as Window & AnyRecord
@@ -51,11 +55,17 @@ beforeAll(async () => {
   win.Element.prototype.getBoundingClientRect = () => ELEMENT_BOX as DOMRect
 
   posted = []
+  hellos = []
   Object.defineProperty(win, 'parent', {
-    value: { postMessage: (msg: unknown) => posted.push(msg) },
+    value: { postMessage: (msg: unknown) => hellos.push(msg) },
     configurable: true,
   })
-  ;(win as AnyRecord).__POSTPLAN__ = { siteId: 's1', filePath: 'index.html', appOrigin: 'https://app.example.com' }
+  ;(win as AnyRecord).__POSTPLAN__ = {
+    siteId: 's1',
+    filePath: 'index.html',
+    appOrigin: 'https://app.example.com',
+    siteRoot: '/sp/site/',
+  }
 
   const g = globalThis as unknown as AnyRecord
   const prev = {
@@ -64,6 +74,14 @@ beforeAll(async () => {
     CSS: g.CSS,
     Highlight: g.Highlight,
     requestAnimationFrame: g.requestAnimationFrame,
+    MessageChannel: g.MessageChannel,
+  }
+  g.MessageChannel = class {
+    port1 = { onmessage: null, postMessage: (m: unknown) => posted.push(m) }
+    port2 = {}
+    constructor() {
+      pagePort = this.port1
+    }
   }
   g.window = win
   g.document = win.document
@@ -81,12 +99,16 @@ beforeAll(async () => {
 
 afterAll(() => restore())
 
-/** Fire a trusted parent→child command the way the real app origin would (or, with `origin`
- *  overridden, the way a hostile embedder would). */
-function send(data: unknown, origin = 'https://app.example.com'): void {
+/** Deliver a command on the port the viewer accepted (or, with `viaWindow`, as a plain window
+ *  message from anyone — which the page must ignore). */
+function send(data: unknown, viaWindow?: string): void {
+  if (!viaWindow) {
+    pagePort.onmessage?.({ data })
+    return
+  }
   const win = (globalThis as unknown as AnyRecord).window as unknown as Window & AnyRecord
   const MessageEventCtor = (win as AnyRecord).MessageEvent as typeof MessageEvent
-  win.dispatchEvent(new MessageEventCtor('message', { data, origin }) as unknown as Event)
+  win.dispatchEvent(new MessageEventCtor('message', { data, origin: viaWindow }) as unknown as Event)
 }
 
 describe('client.ts — a paint IS the highlight: everything sent is lit, an empty paint clears it', () => {
@@ -283,23 +305,6 @@ describe('client.ts — clicking a painted anchor posts postplan:anchor-click', 
 // attaches late (warm-cache load: the iframe finishes before the viewer's effect runs) loses it
 // forever. postplan:ping is the parent's "did I miss it?" probe: the client re-announces, and the
 // parent's arbiter already ignores duplicate readys, so a redundant ping costs nothing.
-describe('client.ts — postplan:ping re-announces postplan:ready (#27)', () => {
-  const readys = () => posted.filter((m) => (m as AnyRecord).type === 'postplan:ready') as AnyRecord[]
-
-  test('a ping from the app origin re-posts postplan:ready with the mounted filePath', () => {
-    const before = readys().length
-    send({ type: 'postplan:ping' })
-    expect(readys()).toHaveLength(before + 1)
-    expect(readys().at(-1)?.filePath).toBe('index.html')
-  })
-
-  test('a ping from any other origin is ignored — same trust rule as paint/focus', () => {
-    const before = readys().length
-    send({ type: 'postplan:ping' }, 'https://evil.example.com')
-    expect(readys()).toHaveLength(before)
-  })
-})
-
 describe('client.ts — postplan:print prints in the frame realm (the parent cannot call print cross-origin)', () => {
   test('a trusted postplan:print calls window.print exactly once; a foreign origin never does', () => {
     const win = (globalThis as unknown as AnyRecord).window as unknown as Window & AnyRecord
@@ -309,7 +314,7 @@ describe('client.ts — postplan:print prints in the frame realm (the parent can
     send({ type: 'postplan:print' })
     expect(printed).toBe(1)
 
-    // Same payload from a hostile origin is ignored — commands are trusted ONLY from the app origin.
+    // Same payload from a hostile origin is ignored — commands are trusted ONLY on the accepted port.
     send({ type: 'postplan:print' }, 'https://evil.example.com')
     expect(printed).toBe(1)
   })
@@ -352,5 +357,11 @@ describe('client.ts — clicking a mermaid diagram opens it in a modal <dialog> 
     expect(document.querySelector('dialog.postplan-lb[open]')).not.toBeNull()
     ;(document.querySelector('dialog.postplan-lb') as HTMLDialogElement).close()
     diagram.remove()
+  })
+})
+
+describe('client.ts — frame channel handshake', () => {
+  test('boot posts one hello to the app origin carrying the nonce slot and a port', () => {
+    expect(hellos).toEqual([{ type: 'postplan:hello', nonce: null }])
   })
 })

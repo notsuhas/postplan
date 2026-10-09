@@ -5,7 +5,6 @@ import { createDbBroker } from '../dbBroker'
 // the request surface (op/param smuggling), and the token lifecycle (401 re-mint). Ports are
 // real MessageChannels; window events are plain event-shaped objects, like parseIntent.test.ts.
 
-const CONTENT = 'https://postplan-content.example.com'
 const NONCE = 'n0nce'
 const iframeWin = {} as Window
 const otherWin = {} as Window
@@ -31,7 +30,7 @@ function makeBroker(
 ) {
   const { calls, fetchFn } = fakeFetch(handler)
   const broker = createDbBroker(
-    { site: SITE, contentOrigin: CONTENT, appOrigin: 'https://app.example.com', nonce: NONCE, getSource: () => source },
+    { site: SITE, appOrigin: 'https://app.example.com', nonce: NONCE, getSource: () => source },
     { fetchFn },
   )
   return { broker, calls }
@@ -60,7 +59,7 @@ function hello(
       notify()
     })
   broker.onWindowMessage({
-    origin: over.origin ?? CONTENT,
+    origin: over.origin ?? 'null',
     source: (over.source ?? iframeWin) as Window,
     data: { type: 'postplan:db-hello', nonce: over.nonce === undefined ? NONCE : over.nonce },
     ports: [ch.port2],

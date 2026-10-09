@@ -1,4 +1,4 @@
-import { BROKER_PARAM } from '../../../shared/broker'
+import { FRAME_NONCE_PARAM } from '../../../shared/frame'
 import { useViewerComments } from '@/hooks/useViewerComments'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useParams, useSearchParams } from 'react-router'
@@ -12,6 +12,7 @@ import { comments, paintAnchors, type PendingAnchor, pendingToInput, type Thread
 import { feedback } from '@/lib/feedback'
 import { type Anchor, initialPopover, stepPopover } from '@/lib/commentPopover'
 import { askStream } from '@/lib/ask'
+import { createFrameChannel } from '@/lib/frameChannel'
 import { type Intent, parseIntent } from '@/lib/parseIntent'
 import { encodePathSegments } from '@/lib/paths'
 import { recordVisit } from '@/lib/recents'
@@ -63,13 +64,28 @@ function Viewer() {
   // that resets to null on navReset, and this deliberately survives it so the OLD file's genuine
   // visit still flushes when Me resolves after a splat nav.
   const lastReadyPathRef = useRef<string | null>(null)
-  const contentOrigin = useMemo(() => new URL(site.contentUrl).origin, [site.contentUrl])
   // Per-mount secret the db broker requires in the hello; it rides the frame URL so only this site's pages hold it.
-  const [brokerNonce] = useState(() => crypto.randomUUID().replaceAll('-', ''))
+  const [frameNonce] = useState(() => crypto.randomUUID().replaceAll('-', ''))
   const src = useMemo(() => {
     const contentUrl = appendPath(site.contentUrl, sitePath)
-    return withAnnotate(contentUrl, site.authenticated ? brokerNonce : null)
-  }, [site.contentUrl, sitePath, site.authenticated, brokerNonce])
+    return withAnnotate(contentUrl, frameNonce)
+  }, [site.contentUrl, sitePath, frameNonce])
+  // Bumped each time a page in the frame proves the nonce, so per-page state (paint, mode) is re-sent.
+  const [frameEpoch, setFrameEpoch] = useState(0)
+  const [channel] = useState(() =>
+    createFrameChannel({
+      nonce: frameNonce,
+      getSource: () => iframeRef.current?.contentWindow,
+      onConnect: () => setFrameEpoch((n) => n + 1),
+    }),
+  )
+  useEffect(() => {
+    window.addEventListener('message', channel.onWindowMessage)
+    return () => {
+      window.removeEventListener('message', channel.onWindowMessage)
+      channel.dispose()
+    }
+  }, [channel])
   // `entryPath` (loader-resolved via resolveEntryPath, mirroring the server's normalizePath) is
   // the concrete file this URL serves — at the root that's the API's indexPath (root index.html or
   // the lone-upload fallback, e.g. recording.webm), so audio detection, the player src, and comment
@@ -133,23 +149,18 @@ function Viewer() {
   // — the reader gets the document exactly as its author wrote it. The text-vs-element mapping (and
   // that an existing element thread still reaches the iframe) is lib/comments' paintAnchors,
   // unit-tested there — this is only the postMessage wiring.
-  // `loaded` is a DEPENDENCY, not just a guard: the client's message listener isn't wired until the
-  // frame has booted, so a paint posted before that is dropped on the floor with nothing to re-fire
-  // it — which is exactly the `?review=1` deep link (rail open and threads in before onLoad).
+  // `frameEpoch` is a DEPENDENCY, not just a guard: a paint sent before the page connects is dropped,
+  // and each newly connected page (in-frame navigation) needs its own.
   const paint = useCallback(() => {
-    const win = iframeRef.current?.contentWindow
-    if (!win || !loaded) return
-    win.postMessage(
-      { type: 'postplan:paint', anchors: railOpen && mode === 'comment' ? paintAnchors(threads) : [] },
-      contentOrigin,
-    )
-  }, [threads, railOpen, mode, loaded, contentOrigin])
+    if (!frameEpoch) return
+    channel.send({ type: 'postplan:paint', anchors: railOpen && mode === 'comment' ? paintAnchors(threads) : [] })
+  }, [threads, railOpen, mode, frameEpoch, channel])
 
   useEffect(() => {
-    if (!loaded || isMedia) return
-    iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:mode', mode }, contentOrigin)
+    if (!frameEpoch || isMedia) return
+    channel.send({ type: 'postplan:mode', mode })
     if (mode === 'experience') dispatchPopover({ type: 'dismiss' })
-  }, [contentOrigin, isMedia, loaded, mode])
+  }, [channel, isMedia, frameEpoch, mode])
 
   // The ask panel's one streaming call. Stable on siteRef alone — the question/anchor/token-sink/
   // signal all come from the caller, so this never needs to change identity within a mount.
@@ -205,12 +216,11 @@ function Viewer() {
     if (!site.authenticated) return
     const broker = attachDbBroker({
       site: { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug },
-      contentOrigin,
-      nonce: brokerNonce,
+      nonce: frameNonce,
       getSource: () => iframeRef.current?.contentWindow,
     })
     return broker.dispose
-  }, [site.authenticated, site.spaceSlug, site.siteSlug, contentOrigin, brokerNonce])
+  }, [site.authenticated, site.spaceSlug, site.siteSlug, frameNonce])
 
   // The rail's reveal has two producers: the one-shot deep link below and clicks on a painted
   // highlight. A click is the source the nonce was built for — the same thread can be clicked over
@@ -225,14 +235,11 @@ function Viewer() {
     setClickFocusRequest({ id: thread.id, nonce: clickRevealNonce.current })
   }, [])
 
-  // Listen for intents from the iframe. parseIntent re-validates origin+source; it is a filter,
-  // not a trust oracle — nothing here writes without a subsequent explicit user action.
+  // Intents from the connected page. parseIntent is a shape filter, not a trust oracle — nothing
+  // here writes without a subsequent explicit user action.
   useEffect(() => {
-    function onMsg(e: MessageEvent) {
-      const intent: Intent | null = parseIntent(e, {
-        origin: contentOrigin,
-        source: iframeRef.current?.contentWindow ?? null,
-      })
+    function onMsg(data: unknown) {
+      const intent: Intent | null = parseIntent(data)
       if (!intent) return
       if (intent.type === 'ready') {
         // Audio has no iframe/'ready'; for HTML this is where the SPA learns the current file.
@@ -307,17 +314,9 @@ function Viewer() {
         )
       }
     }
-    window.addEventListener('message', onMsg)
-    // The other half of the #27 handshake: the client posts its one boot postplan:ready at load, and
-    // on a warm-cache load the iframe can finish BEFORE this listener exists — the ready is lost,
-    // filePath stays null, and the rail never loads for the initially open page. Pinging after
-    // attach makes the order irrelevant: an already-booted client re-announces, while a ping that
-    // beats the load lands on about:blank and is dropped (the boot ready then arrives normally).
-    // Effect re-runs re-ping, which is harmless — the arbiter ignores duplicate readys.
-    iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:ping' }, contentOrigin)
-    return () => window.removeEventListener('message', onMsg)
+    return channel.subscribe(onMsg)
   }, [
-    contentOrigin,
+    channel,
     me,
     site.authenticated,
     site.spaceSlug,
@@ -417,15 +416,12 @@ function Viewer() {
   // long as the rail is open.
   const scrollAnchor = useCallback(
     (thread: Thread) => {
-      const win = iframeRef.current?.contentWindow
-      if (!win) return
       if (thread.anchorType === 'element' && thread.anchor)
-        win.postMessage({ type: 'postplan:focus', selector: thread.anchor.selector }, contentOrigin)
+        channel.send({ type: 'postplan:focus', selector: thread.anchor.selector })
       // Context rides along so focusing lands on the SAME occurrence the paint highlighted.
-      else if (thread.quote)
-        win.postMessage({ type: 'postplan:focus', quote: thread.quote, context: thread.context }, contentOrigin)
+      else if (thread.quote) channel.send({ type: 'postplan:focus', quote: thread.quote, context: thread.context })
     },
-    [contentOrigin],
+    [channel],
   )
 
   // Deep-link contract (a notification click lands here): `?review=1` opens the rail forever — it's
@@ -451,14 +447,14 @@ function Viewer() {
       deepLinkFocused.current ||
       !deepLinkThreadId ||
       !railOpen ||
-      !deepLinkReady({ isMedia, loaded, hasThread: !!target })
+      !deepLinkReady({ isMedia, loaded: frameEpoch > 0, hasThread: !!target })
     )
       return
     deepLinkFocused.current = true
     // Scroll the iframe to the anchor; the rail reveals + scrolls the thread card itself (ReviewRail
     // owns the open/resolved filter, so it can un-hide a resolved target).
     scrollAnchor(target!)
-  }, [deepLinkThreadId, railOpen, loaded, isMedia, threads, scrollAnchor])
+  }, [deepLinkThreadId, railOpen, frameEpoch, isMedia, threads, scrollAnchor])
 
   // Stable identity for ReviewRail's focusRequest prop: an inline object literal here would be a
   // NEW reference on every viewer render (threads loading, `loaded` flipping, …), and ReviewRail's
@@ -597,11 +593,7 @@ function Viewer() {
         mode={mode}
         onModeChange={setMode}
         // Print rides the annotate client's command channel; audio has no document to print.
-        onPrint={
-          isMedia
-            ? undefined
-            : () => iframeRef.current?.contentWindow?.postMessage({ type: 'postplan:print' }, contentOrigin)
-        }
+        onPrint={isMedia ? undefined : () => channel.send({ type: 'postplan:print' })}
       />
 
       {site.authenticated && <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} user={me} />}
@@ -648,11 +640,12 @@ function Viewer() {
                 // sandboxed frame without this flag — required by the Print / Save as PDF action
                 // (the annotate client's postplan:print handler). Also un-blocks alert()/confirm()
                 // for hosted pages, which matches how interactive artifacts behave elsewhere.
+                // No allow-same-origin: every page gets an opaque origin, so sites can't read or script each other.
                 // Granted so copy buttons, fullscreen and video work; camera, mic and location stay off.
                 allow="clipboard-write; fullscreen; autoplay; picture-in-picture"
                 // Hides this entry's URL (and the broker nonce in it) from navigation.entries() of later pages.
                 referrerPolicy="no-referrer"
-                sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-top-navigation-by-user-activation allow-modals allow-downloads"
+                sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-top-navigation-by-user-activation allow-modals allow-downloads"
               />
             )}
             {/* Sibling of the iframe ON PURPOSE: this wrapper is the iframe's own box, so the rect
@@ -720,10 +713,10 @@ function Viewer() {
   )
 }
 
-function withAnnotate(u: string, brokerNonce: string | null): string {
+function withAnnotate(u: string, frameNonce: string | null): string {
   const url = new URL(u)
   url.searchParams.set('postplan_annotate', '1')
-  if (brokerNonce) url.searchParams.set(BROKER_PARAM, brokerNonce)
+  if (frameNonce) url.searchParams.set(FRAME_NONCE_PARAM, frameNonce)
   return url.toString()
 }
 

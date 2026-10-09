@@ -47,7 +47,6 @@ const SITE: ViewerSite = {
   contentUrl: 'about:blank#/sp/site/',
   indexPath: 'index.html',
 }
-const CONTENT_ORIGIN = 'null'
 
 function mkThread(overrides: Partial<Thread> & { id: string }): Thread {
   return {
@@ -96,27 +95,36 @@ function renderViewer(initialPath: string) {
   return { ...render(<RouterProvider router={router} />), router }
 }
 
-// Arms the iframe with a FAKE contentWindow that records every parent→child post. happy-dom's real
-// contentWindow is null with iframe page loading disabled (see the top-of-file note), so paint()'s
-// `if (!win) return` would swallow every postMessage before it happened — a fake is the only way to
-// observe the parent→child channel at all in this harness. Must be installed BEFORE 'ready':
-// viewer.tsx re-reads iframeRef.current.contentWindow fresh on every paint.
+// Stands in for the page in the frame: a fake contentWindow (happy-dom loads no iframe pages) plus
+// the page's end of the frame channel. Arming performs the real handshake — a hello carrying the
+// nonce from the iframe's src — and hands the viewer a synchronous port, so a command or intent
+// lands within the same act() that sends it.
 function armIframe(container: HTMLElement) {
   const iframe = container.querySelector('iframe') as HTMLIFrameElement
   const posted: unknown[] = []
-  const fakeWin = { postMessage: (m: unknown) => posted.push(m) }
+  const fakeWin = { postMessage: () => {} }
   Object.defineProperty(iframe, 'contentWindow', { value: fakeWin, configurable: true })
-  // `source` must be the SAME object parseIntent compares against, and `origin` must match the
-  // site's content origin, or the message is dropped.
-  const send = (data: unknown) =>
+  const port = {
+    onmessage: null as ((e: { data: unknown }) => void) | null,
+    postMessage: (m: unknown) => posted.push(m),
+    close() {},
+  }
+  const nonce = new URL(iframe.getAttribute('src') ?? '').searchParams.get('postplan_frame')
+  act(() => {
     window.dispatchEvent(
-      new MessageEvent('message', { data, origin: CONTENT_ORIGIN, source: iframe.contentWindow as unknown as Window }),
+      new MessageEvent('message', {
+        data: { type: 'postplan:hello', nonce },
+        origin: 'null',
+        source: fakeWin as unknown as Window,
+        ports: [port as unknown as MessagePort],
+      }),
     )
+  })
+  const send = (data: unknown) => port.onmessage?.({ data })
   const paints = () =>
     posted.filter((m) => (m as { type?: string }).type === 'postplan:paint') as { anchors: { id: string }[] }[]
   const lastPaintIds = () => (paints().at(-1)?.anchors ?? []).map((a) => a.id).sort()
-  const pings = () => posted.filter((m) => (m as { type?: string }).type === 'postplan:ping')
-  return { iframe, send, paints, lastPaintIds, pings }
+  return { iframe, send, paints, lastPaintIds, posted }
 }
 
 // The iframe only boots its message listener on load; viewer.tsx gates paint on the same `loaded`
@@ -189,7 +197,8 @@ test('anonymous unlisted viewers can open and read comments without login', asyn
   await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
   const frame = armIframe(container)
   expect(frame.iframe.getAttribute('src')).toContain('postplan_annotate=1')
-  expect(frame.iframe.getAttribute('src')).not.toContain('postplan_broker')
+  // Anonymous viewers still get the frame channel (comments paint), just no db broker.
+  expect(frame.iframe.getAttribute('src')).toContain('postplan_frame=')
   await loadIframe(frame.iframe)
   await act(async () => frame.send({ type: 'postplan:ready', filePath: 'index.html' }))
   fireEvent.click(await screen.findByRole('button', { name: /Comments/ }))
@@ -210,11 +219,11 @@ test('uploaded artifacts are never delegated microphone permission', async () =>
   expect(allow).not.toContain('geolocation')
 })
 
-test('the frame URL carries a per-mount broker nonce for signed-in viewers', async () => {
+test('the frame URL carries a per-mount nonce', async () => {
   const { container } = renderViewer('/sp/site')
   await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
   const src = container.querySelector('iframe')?.getAttribute('src') ?? ''
-  expect(new URL(src).searchParams.get('postplan_broker')).toMatch(/^[0-9a-f]{32}$/)
+  expect(new URL(src).searchParams.get('postplan_frame')).toMatch(/^[0-9a-f]{32}$/)
 })
 
 test('uploaded artifacts can copy to the clipboard and go fullscreen', async () => {
@@ -223,6 +232,12 @@ test('uploaded artifacts can copy to the clipboard and go fullscreen', async () 
   const allow = container.querySelector('iframe')?.getAttribute('allow') ?? ''
   expect(allow).toContain('clipboard-write')
   expect(allow).toContain('fullscreen')
+})
+
+test('each framed page gets an opaque origin (no allow-same-origin)', async () => {
+  const { container } = renderViewer('/sp/site')
+  await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+  expect(container.querySelector('iframe')?.sandbox.contains('allow-same-origin')).toBe(false)
 })
 
 test('uploaded artifacts can download files from the sandboxed viewer', async () => {
@@ -317,17 +332,26 @@ describe('viewer wiring — the paint is gated on railOpen (the on-page highligh
   // first, so its one boot postplan:ready is posted before the viewer's listener exists — silently
   // lost, filePath stays null, and the rail never loads for the initially open page. The listener
   // effect therefore pings the frame right after attaching; an already-booted client re-announces.
-  // The fake contentWindow is armed after mount, so the ping observed here is the one from the
-  // effect's re-run — same unconditional post as the attach-time one.
-  test('the listener effect pings the frame, so a client that loaded first re-announces ready (#27)', async () => {
-    const { container } = renderViewer('/sp/site')
+  test("a hello without this mount's nonce never connects, so nothing is painted into it", async () => {
+    const { container } = renderViewer('/sp/site?review=1')
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
-    const { iframe, send, pings } = armIframe(container)
-    loadIframe(iframe)
-
-    act(() => send({ type: 'postplan:ready', filePath: 'index.html' })) // re-runs the listener effect via `threads`
-
-    await waitFor(() => expect(pings().length).toBeGreaterThan(0))
+    const iframe = container.querySelector('iframe') as HTMLIFrameElement
+    const fakeWin = { postMessage: () => {} }
+    Object.defineProperty(iframe, 'contentWindow', { value: fakeWin, configurable: true })
+    const posted: unknown[] = []
+    const port = { onmessage: null, postMessage: (m: unknown) => posted.push(m), close() {} }
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'postplan:hello', nonce: 'guess' },
+          origin: 'null',
+          source: fakeWin as unknown as Window,
+          ports: [port as unknown as MessagePort],
+        }),
+      )
+    })
+    await waitFor(() => expect(container.querySelector('aside')).not.toBeNull())
+    expect(posted).toEqual([])
   })
 
   // `?review=1` (a notification link) opens the rail before the frame has loaded and before threads

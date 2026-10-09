@@ -70,11 +70,12 @@ describe('postplan.db injection', () => {
     expect(JSON.parse(boot as string)).toEqual({ appOrigin: 'https://postplan.example.com' })
   })
 
-  test('without the flag the bytes stay raw', async () => {
+  test('without the flag the page only gains the SDK (in-memory localStorage)', async () => {
     const { app, db, r2, env } = setup()
     const token = await gatedSite(db, r2, HTML)
     const body = await (await app.request(`/_t/${token}/sam/site/`, {}, env)).text()
-    expect(body).toBe(HTML)
+    expect(body).toContain('window.__POSTPLAN_DB__={"appOrigin":"https://postplan.example.com"}')
+    expect(stripSdk(body)).toBe(HTML)
   })
 
   test('injectDb falls back sanely when the page has no <head>', () => {
@@ -82,5 +83,26 @@ describe('postplan.db injection', () => {
       /<body class="x"><script>window\.__POSTPLAN_DB__=/,
     )
     expect(injectDb('<p>bare fragment</p>', 'https://a.example')).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
+  })
+})
+
+function stripSdk(html: string): string {
+  return html.replace(
+    /<script>window\.__POSTPLAN_DB__=.*?<\/script><script src="\/_postplan\/db\.js\?v=[^"]+"><\/script>/,
+    '',
+  )
+}
+
+describe('sandboxed pages', () => {
+  test('every served document gets an opaque origin and can still fetch its own files', async () => {
+    const { app, db, r2, env } = setup()
+    const token = await gatedSite(db, r2, HTML)
+    for (const path of ['?postplan_annotate=1', '']) {
+      const res = await app.request(`/_t/${token}/sam/site/${path}`, {}, env)
+      const csp = res.headers.get('content-security-policy') ?? ''
+      expect(csp).toContain('sandbox allow-scripts')
+      expect(csp).not.toContain('allow-same-origin')
+      expect(res.headers.get('access-control-allow-origin')).toBe('*')
+    }
   })
 })

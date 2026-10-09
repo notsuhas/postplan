@@ -12,11 +12,17 @@
 //
 // The global is __POSTPLAN_DB__, not __POSTPLAN__ — that one belongs to the annotate overlay.
 
-import { BROKER_PARAM } from '../../../shared/broker'
+import { FRAME_NONCE_PARAM } from '../../../shared/frame'
 import { WS_PROTOCOL } from '../realtime/protocol'
+import { createStorage, storageBlocked } from './storage'
 import { type ChangeEvent, type Frame, type StreamHandlers, type Transport, createSubscriptions } from './subscriptions'
 
-type Boot = { appOrigin?: string; space?: string; site?: string; brokerNonce?: string | null }
+type Boot = {
+  appOrigin?: string
+  space?: string
+  site?: string
+  frameNonce?: string | null
+}
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
 type BrokerReq = {
   id: number
@@ -33,8 +39,8 @@ const REQUEST_TIMEOUT_MS = 15000
 
 const boot = (window as unknown as { __POSTPLAN_DB__?: Boot }).__POSTPLAN_DB__
 // Read before page scripts run, so a router tidying the query string can't drop it; the annotate client reuses it.
-const brokerNonce = new URLSearchParams(location.search).get(BROKER_PARAM)
-if (boot) boot.brokerNonce = brokerNonce
+const frameNonce = new URLSearchParams(location.search).get(FRAME_NONCE_PARAM)
+if (boot) boot.frameNonce = frameNonce
 
 // --- broker transport (hosted pages inside the app viewer) --------------------------------
 
@@ -84,7 +90,7 @@ function connect(appOrigin: string): Promise<MessagePort> {
         else settle(d.id, 'reject', new Error((d.body as { error?: string })?.error || `postplan: ${d.status}`))
       }
     }
-    window.parent.postMessage({ type: 'postplan:db-hello', nonce: brokerNonce }, appOrigin, [ch.port2])
+    window.parent.postMessage({ type: 'postplan:db-hello', nonce: frameNonce }, appOrigin, [ch.port2])
   })
   return connecting
 }
@@ -271,3 +277,11 @@ function collection(name: string) {
 }
 
 ;(window as unknown as { postplan: unknown }).postplan = { db: { collection } }
+
+// --- Web Storage for sandboxed pages -----------------------------------------------------------
+// The page has an opaque origin, so the browser's own storage throws. Give it working in-memory
+// stand-ins for the page's lifetime; persistence belongs in postplan.db, which is explicit.
+if (storageBlocked()) {
+  Object.defineProperty(window, 'localStorage', { value: createStorage(), configurable: true })
+  Object.defineProperty(window, 'sessionStorage', { value: createStorage(), configurable: true })
+}

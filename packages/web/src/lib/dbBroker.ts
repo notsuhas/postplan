@@ -2,8 +2,8 @@
 // UNTRUSTED hosted pages use the data plane without ever holding a credential.
 //
 // Protocol: the SDK injected into the iframe posts {type:'postplan:db-hello'} with a transferred
-// MessagePort. We adopt the port ONLY when the message comes from the content origin AND from
-// the exact iframe window we mounted (same validation discipline as parseIntent). Every
+// MessagePort. We adopt the port ONLY from the exact iframe window we mounted, with an opaque
+// origin and this mount's nonce (same discipline as lib/frameChannel). Every
 // subsequent request arrives on that port, is shape-validated, executed with OUR token against
 // /api/_data, and answered with data only — the bearer token never crosses into the iframe.
 //
@@ -59,7 +59,6 @@ export type DbBroker = { onWindowMessage: (e: MessageEvent) => void; dispose: ()
 export function createDbBroker(
   opts: {
     site: BrokerSite
-    contentOrigin: string
     appOrigin: string
     nonce: string
     getSource: () => Window | null | undefined
@@ -288,7 +287,8 @@ export function createDbBroker(
   }
 
   function onWindowMessage(e: MessageEvent): void {
-    if (e.origin !== opts.contentOrigin) return
+    // Sandboxed pages have an opaque origin; the frame window and the nonce are what identify them.
+    if (e.origin !== 'null') return
     const source = opts.getSource()
     if (!source || e.source !== source) return
     const hello = e.data as { type?: unknown; nonce?: unknown } | null
@@ -344,12 +344,9 @@ function mintError(status: number): string {
 }
 
 /** Wire a broker to the real window for the lifetime of a viewer. */
-export function attachDbBroker(opts: {
-  site: BrokerSite
-  contentOrigin: string
-  nonce: string
-  getSource: () => Window | null | undefined
-}): { dispose: () => void } {
+export function attachDbBroker(opts: { site: BrokerSite; nonce: string; getSource: () => Window | null | undefined }): {
+  dispose: () => void
+} {
   // The app origin is ours — the data plane is reached by relative path, but a WebSocket URL
   // cannot be relative. Taken here so the broker itself stays free of ambient globals.
   const broker = createDbBroker({ ...opts, appOrigin: window.location.origin })

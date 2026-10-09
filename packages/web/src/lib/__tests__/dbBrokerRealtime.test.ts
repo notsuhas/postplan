@@ -9,7 +9,6 @@ import { createDbBroker, reconnectDelay } from '../dbBroker'
 // in-site navigation, and re-auth before the 300s token expires.
 
 const APP = 'https://postplan.example.com'
-const CONTENT = 'https://postplan-content.example.com'
 const NONCE = 'n0nce'
 const iframeWin = {} as Window
 const otherWin = {} as Window
@@ -56,7 +55,7 @@ function makeBroker(handler: Handler, source: Window = iframeWin, reconnectBaseM
     return handler(url, init)
   }) as typeof fetch
   const broker = createDbBroker(
-    { site: SITE, contentOrigin: CONTENT, appOrigin: APP, nonce: NONCE, getSource: () => source },
+    { site: SITE, appOrigin: APP, nonce: NONCE, getSource: () => source },
     {
       fetchFn,
       newSocket: (url: string, protocols: string[]) => {
@@ -80,7 +79,7 @@ function hello(
     received.push(e.data as Record<string, unknown>)
   }
   broker.onWindowMessage({
-    origin: over.origin ?? CONTENT,
+    origin: over.origin ?? 'null',
     source: (over.source ?? iframeWin) as Window,
     data: { type: 'postplan:db-hello', nonce: over.nonce === undefined ? NONCE : over.nonce },
     ports: [ch.port2],

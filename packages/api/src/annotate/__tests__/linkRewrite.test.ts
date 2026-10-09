@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { withAnnotateParam, withBrokerNonce } from '../linkRewrite'
+import { withAnnotateParam, withFrameNonce } from '../linkRewrite'
 
 const base = 'https://example.com/dir/index.html'
 
@@ -39,17 +39,17 @@ describe('withAnnotateParam — same-origin in-frame link rewrite', () => {
   })
 })
 
-describe('withBrokerNonce — the db nonce never leaves the site root', () => {
+describe('withFrameNonce — the db nonce never leaves the site root', () => {
   const root = 'https://c.example/_t/tok/sp/site/'
   test.each([
     [
       'a page in the site keeps it',
       `${root}docs/a.html?postplan_annotate=1`,
-      `${root}docs/a.html?postplan_annotate=1&postplan_broker=n`,
+      `${root}docs/a.html?postplan_annotate=1&postplan_frame=n`,
     ],
     [
       'another site on the same origin loses it',
-      'https://c.example/sp/other/?postplan_broker=n',
+      'https://c.example/sp/other/?postplan_frame=n',
       'https://c.example/sp/other/',
     ],
     ['dot segments out of the root lose it', `${root}../other/`, 'https://c.example/_t/tok/sp/other/'],
@@ -64,10 +64,10 @@ describe('withBrokerNonce — the db nonce never leaves the site root', () => {
       'https://c.example/_t/tok/sp/site',
     ],
   ])('%s', (_name, href, expected) => {
-    expect(withBrokerNonce(href, 'n', root)).toBe(expected)
+    expect(withFrameNonce(href, 'n', root)).toBe(expected)
   })
 
   test('no nonce on this page means none is added', () => {
-    expect(withBrokerNonce(`${root}a.html`, null, root)).toBe(`${root}a.html`)
+    expect(withFrameNonce(`${root}a.html`, null, root)).toBe(`${root}a.html`)
   })
 })

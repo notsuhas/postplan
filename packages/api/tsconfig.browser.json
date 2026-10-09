@@ -10,6 +10,7 @@
     "src/annotate/reflow.ts",
     "src/annotate/selection.ts",
     "src/postplandb/client.ts",
+    "src/postplandb/storage.ts",
     "src/mermaid/client.ts"
   ]
 }

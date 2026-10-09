@@ -186,6 +186,7 @@ async function serve(
   const isHtml = isHtmlFile(path)
 
   const frameAncestors = `frame-ancestors 'self' ${c.env.APP_URL}`
+  const contentCsp = `${frameAncestors}; ${SANDBOX}`
   // The content origin this page is served from — the yardstick for "is this link external?".
   // A link to any OTHER origin is rewritten to open in a new tab (see transformServedHtml).
   const selfOrigin = new URL(c.req.url).origin
@@ -245,7 +246,7 @@ async function serve(
       ? injectAnnotate(withDiagrams, { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot }, nonce)
       : withDiagrams
     const res = c.html(doc, 200, {
-      'content-security-policy': markdownCsp(frameAncestors, nonce),
+      'content-security-policy': markdownCsp(contentCsp, nonce),
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
       ...(nonce ? { 'cache-control': 'no-store' } : {}),
@@ -270,7 +271,8 @@ async function serve(
       siteRoot,
     })
     const res = c.html(injected, 200, {
-      'content-security-policy': frameAncestors,
+      'content-security-policy': contentCsp,
+      'access-control-allow-origin': '*',
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
       'cache-control': 'no-store',
@@ -287,7 +289,10 @@ async function serve(
     )
   }
   headers.set('x-content-type-options', 'nosniff')
-  headers.set('content-security-policy', frameAncestors)
+  headers.set('content-security-policy', contentCsp)
+  // Sandboxed pages have an opaque origin, so their own fetch()/module loads are cross-origin; the
+  // URL is the credential (token in the path, no cookies), so a wildcard grants nothing new.
+  headers.set('access-control-allow-origin', '*')
   // Uploaded HTML lives at a path that carries the gated-content token; no-referrer stops
   // that token leaking to third parties via the Referer header on outbound requests.
   headers.set('referrer-policy', 'no-referrer')
@@ -310,7 +315,7 @@ async function serve(
     isHtml,
     mime,
     view,
-    transformHtml: (response) => transformServedHtml(response, selfOrigin),
+    transformHtml: (response) => transformServedHtml(withDbSdk(response, c.env.APP_URL), selfOrigin),
   })
 }
 
@@ -374,11 +379,13 @@ export function injectAnnotate(
  *  SYNCHRONOUSLY — unlike the passive annotate client, page scripts call `postplan.db` directly,
  *  so the API must exist before any of them run. Boot carries only the app origin (the
  *  postMessage target); the parent decides which site requests bind to — the page can't. */
-export function injectDb(html: string, appOrigin: string): string {
+function dbTags(appOrigin: string): string {
   const json = JSON.stringify({ appOrigin }).replace(/</g, '\\u003c')
-  const tags =
-    `<script>window.__POSTPLAN_DB__=${json}</script>` +
-    `<script src="/_postplan/db.js?v=${POSTPLAN_DB_VERSION}"></script>`
+  return `<script>window.__POSTPLAN_DB__=${json}</script><script src="/_postplan/db.js?v=${POSTPLAN_DB_VERSION}"></script>`
+}
+
+export function injectDb(html: string, appOrigin: string): string {
+  const tags = dbTags(appOrigin)
   // Replacement FUNCTIONS so any `$`-sequence inside `tags` is inserted verbatim (and `$1` stays the
   // captured <body> attributes). db.js loads SYNCHRONOUSLY, so anchor it as early as possible.
   if (html.includes('</head>')) return html.replace('</head>', () => `${tags}</head>`)
@@ -410,6 +417,19 @@ export function isExternalHref(href: string, base: string): boolean {
  *     `allow-popups allow-popups-to-escape-sandbox` sandbox so the new tab actually opens and isn't
  *     itself sandboxed. Only ever applied to HTML the site owns — NOT the directory-listing shell,
  *     whose `target="_top"` app links must stay as-is. */
+/** Streams the SDK into a plain (unannotated) page, so its sandboxed localStorage still works (in memory). */
+function withDbSdk(res: Response, appOrigin: string): Response {
+  let injected = false
+  const prepend = {
+    element(el: Element) {
+      if (injected) return
+      injected = true
+      el.prepend(dbTags(appOrigin), { html: true })
+    },
+  }
+  return new HTMLRewriter().on('head', prepend).on('body', prepend).transform(res)
+}
+
 export function transformServedHtml(res: Response, base: string): Response {
   const rewriter = new HTMLRewriter().on('a[href]', {
     element(el) {
@@ -445,7 +465,12 @@ export { escapeHtml, markdown } from './lib/markdown'
 // In annotate mode a `nonce` is supplied: script-src then admits EXACTLY the two injected tags
 // (never 'unsafe-inline' — an unnonced script in the document still can't run), and style-src
 // additionally allows 'self' so /_postplan/annotate.css loads alongside the inlined shell styles.
-function markdownCsp(frameAncestors: string, nonce: string | null = null): string {
+// Every served document gets an opaque origin: sites can't read each other's storage or script each
+// other, even though they share this host. The flags mirror the viewer iframe's sandbox attribute.
+const SANDBOX =
+  'sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation'
+
+function markdownCsp(contentCsp: string, nonce: string | null = null): string {
   const styleSelf = nonce !== null
   return [
     "default-src 'none'",
@@ -455,7 +480,7 @@ function markdownCsp(frameAncestors: string, nonce: string | null = null): strin
     nonce ? `script-src 'nonce-${nonce}'` : "script-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
-    frameAncestors,
+    contentCsp,
   ].join('; ')
 }
 
