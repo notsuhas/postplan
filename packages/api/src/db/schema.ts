@@ -101,6 +101,8 @@ export const sites = sqliteTable(
     contentVersion: integer('contentVersion').notNull().default(0),
     // Maintained by document insert/delete triggers, including FK-cascade deletes.
     docCount: integer('docCount').notNull().default(0),
+    kvBytes: integer('kvBytes').notNull().default(0),
+    kvCount: integer('kvCount').notNull().default(0),
     lastReplacedBy: text('lastReplacedBy'),
     // Provenance for a forked ("remixed") site: the site it was copied from. Null = deployed
     // directly. SET NULL (never cascade) — a fork's R2 objects are its OWN (fork COPIES the bytes

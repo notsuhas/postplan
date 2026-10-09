@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { validKvKey } from '../../../../shared/kv'
 import { signDataToken } from '../../lib/data-token'
-import { KV_OWNER_QUOTA, KV_SITE_QUOTA } from '../../lib/site-kv'
+import { KV_PERSONAL_QUOTA, KV_SHARED_QUOTA, KV_SITE_KEYS } from '../../lib/site-kv'
 import { type HarnessDb, makeDb, seedMember, seedSite, seedSpace, seedUser } from '../../test/harness'
 import { dataApi } from '../data'
 
@@ -88,24 +89,49 @@ describe('window.storage backend', () => {
     expect((await call(alice, 'PUT', '/personal/cjk', '字'.repeat(400_000))).status).toBe(413)
   })
 
-  test("one viewer can't fill the site: personal keys stop at the per-viewer quota", async () => {
+  test("personal keys stop at the per-viewer quota without touching anyone else's room", async () => {
     const { call, alice, bob } = await scenario()
     const chunk = 'x'.repeat(990_000)
     let i = 0
     while ((await call(alice, 'PUT', `/personal/c${i}`, chunk)).status === 200) i++
-    expect(i).toBe(Math.floor(KV_OWNER_QUOTA / (chunk.length + 3)))
+    expect(i).toBe(Math.floor(KV_PERSONAL_QUOTA / (chunk.length + 3)))
     expect((await call(bob, 'PUT', '/personal/mine', 'still fine')).status).toBe(200)
     expect((await call(bob, 'PUT', '/shared/also', 'fine')).status).toBe(200)
   })
 
-  test('the site quota caps everything together, and overwriting only counts the new size', async () => {
-    const { call, alice } = await scenario()
+  test("shared keys have their own pool, so filling it can't starve personal keys", async () => {
+    const { call, alice, bob } = await scenario()
     const chunk = 'x'.repeat(990_000)
     let i = 0
     while ((await call(alice, 'PUT', `/shared/c${i}`, chunk)).status === 200) i++
-    expect(i).toBe(Math.floor(KV_SITE_QUOTA / (chunk.length + 3)))
+    expect(i).toBe(Math.floor(KV_SHARED_QUOTA / (chunk.length + 3)))
+    expect((await call(bob, 'PUT', '/personal/mine', chunk)).status).toBe(200)
+    // Overwriting only counts the new size.
     expect((await call(alice, 'PUT', '/shared/c0', 'small')).status).toBe(200)
     expect((await call(alice, 'PUT', `/shared/c${i}`, chunk)).status).toBe(200)
+  })
+
+  test('a site holds a bounded number of keys; existing ones can still be updated', async () => {
+    const { db, call, alice } = await scenario()
+    await db.run(sql`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${KV_SITE_KEYS})
+      INSERT INTO site_kv (siteId, ownerId, key, value, bytes, updatedAt) SELECT 'site1', '', 'k' || i, 'v', 3, '' FROM n`)
+    expect((await call(alice, 'PUT', '/shared/one-more', 'v')).status).toBe(413)
+    expect((await call(alice, 'PUT', '/shared/k1', 'updated')).status).toBe(200)
+    expect((await call(alice, 'GET', '/shared?prefix=k')).body?.keys).toHaveLength(1000)
+  })
+
+  test('the site counters follow inserts, updates and deletes', async () => {
+    const { db, call, alice } = await scenario()
+    const totals = async () =>
+      (
+        await db.all<{ kvBytes: number; kvCount: number }>(sql`SELECT kvBytes, kvCount FROM sites WHERE id = 'site1'`)
+      )[0]
+    await call(alice, 'PUT', '/personal/k', 'abc')
+    expect(await totals()).toEqual({ kvBytes: 4, kvCount: 1 })
+    await call(alice, 'PUT', '/personal/k', 'abcdef')
+    expect(await totals()).toEqual({ kvBytes: 7, kvCount: 1 })
+    await call(alice, 'DELETE', '/personal/k')
+    expect(await totals()).toEqual({ kvBytes: 0, kvCount: 0 })
   })
 
   test('a deleted user takes their personal keys with them', async () => {
@@ -125,11 +151,20 @@ describe('window.storage backend', () => {
     expect((await call(readOnly, 'DELETE', '/shared/k')).status).toBe(403)
   })
 
-  test("anything under /_kv that isn't a storage route still needs write", async () => {
+  test('/_kv is terminal: nothing under it reaches the document routes', async () => {
     const { call, alice } = await scenario()
-    // These fall through to the document routes (collection `_kv`), which keep the owner-only rule.
-    expect((await call(alice, 'PUT', '/shared', 'v')).status).toBe(403)
-    expect((await call(alice, 'DELETE', '/personal')).status).toBe(403)
+    expect((await call(alice, 'PUT', '/shared', 'v')).status).toBe(404)
+    expect((await call(alice, 'DELETE', '/personal')).status).toBe(404)
+    expect((await call(alice, 'POST', '', 'v')).status).toBe(404)
     expect((await call(alice, 'PUT', '/team/k', 'v')).status).toBe(404)
+  })
+
+  test('dot keys are refused, and HEAD reads like GET', async () => {
+    const { call, alice } = await scenario()
+    for (const key of ['.', '..', 'tab\there', 'nul\u0000']) expect(validKvKey(key)).toBe(false)
+    // An encoded dot segment never even reaches the key route: URL parsing collapses it.
+    expect((await call(alice, 'PUT', '/personal/%2E%2E', 'v')).status).toBeGreaterThanOrEqual(400)
+    await call(alice, 'PUT', '/personal/k', 'v')
+    expect((await call(alice, 'HEAD', '/personal/k')).status).toBe(200)
   })
 })

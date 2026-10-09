@@ -166,6 +166,7 @@ describe('request surface', () => {
     [{ action: 'get', key: 'k', shared: 'yes' }],
     [{ action: 'set', key: 'a b', value: 'v' }],
     [{ action: 'set', key: 'a/b', value: 'v' }],
+    [{ action: 'get', key: '..' }],
     [{ action: 'set', key: 'k', value: '字'.repeat(400_000) }],
   ])('ATTACK: a malformed window.storage request %j → 400, no fetch', async (req) => {
     const h = await ready(mintOk)

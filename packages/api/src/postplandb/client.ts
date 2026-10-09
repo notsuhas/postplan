@@ -12,6 +12,7 @@
 //
 // The global is __POSTPLAN_DB__, not __POSTPLAN__ — that one belongs to the annotate overlay.
 
+import type { KvMessage } from '../../../shared/kv'
 import { WS_PROTOCOL } from '../realtime/protocol'
 import { createStorage, isSandboxed, needsBlobDownload, saveViaBlob } from './sandbox'
 import { type ChangeEvent, type Frame, type StreamHandlers, type Transport, createSubscriptions } from './subscriptions'
@@ -26,11 +27,6 @@ type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; time
 type BrokerReq = {
   id: number
   op: string
-  action?: string
-  shared?: boolean
-  key?: string
-  value?: string
-  prefix?: string
   collection?: string
   docId?: string
   data?: unknown
@@ -96,7 +92,7 @@ function connect(appOrigin: string): Promise<MessagePort> {
   return connecting
 }
 
-async function brokerCall(appOrigin: string, req: Omit<BrokerReq, 'id'>): Promise<unknown> {
+async function brokerCall(appOrigin: string, req: Omit<BrokerReq, 'id'> | KvMessage): Promise<unknown> {
   const p = await connect(appOrigin)
   const id = ++seq
   return new Promise((resolve, reject) => {
@@ -300,18 +296,19 @@ if (isSandboxed()) {
 // Opt-in, async persistence: personal keys belong to the viewer, `shared` ones to everyone who can
 // open the site. Saved only when a page calls `set`; requests go through the viewer's broker.
 
-function kv(action: string, fields: Omit<BrokerReq, 'id' | 'op' | 'action'>): Promise<unknown> {
+function kv(message: KvMessage): Promise<unknown> {
   if (!boot?.appOrigin || window.parent === window)
     return Promise.reject(new Error('window.storage: open this site through the Postplan app'))
-  return brokerCall(boot.appOrigin, { op: 'kv', action, ...fields })
+  return brokerCall(boot.appOrigin, message)
 }
 
 Object.defineProperty(window, 'storage', {
   value: {
-    get: (key: string, shared = false) => kv('get', { key, shared }),
-    set: (key: string, value: string, shared = false) => kv('set', { key, value: String(value), shared }),
-    delete: (key: string, shared = false) => kv('delete', { key, shared }),
-    list: (prefix = '', shared = false) => kv('list', { prefix, shared }),
+    get: (key: string, shared = false) => kv({ op: 'kv', action: 'get', key, shared }),
+    set: (key: string, value: string, shared = false) =>
+      kv({ op: 'kv', action: 'set', key, value: String(value), shared }),
+    delete: (key: string, shared = false) => kv({ op: 'kv', action: 'delete', key, shared }),
+    list: (prefix = '', shared = false) => kv({ op: 'kv', action: 'list', prefix, shared }),
   },
   configurable: true,
 })

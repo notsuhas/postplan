@@ -32,7 +32,8 @@ import type { AppEnv, Bindings, SessionUser } from '../types'
 // Every security-critical value (siteId, viewer identity, capabilities) is derived from the
 // verified token — never from a client-supplied request field.
 
-const COLLECTION_RE = /^[a-zA-Z0-9_-]{1,64}$/
+// A leading underscore is reserved for built-in routes (/_sync, /_kv), never a document collection.
+const COLLECTION_RE = /^[a-zA-Z0-9-][a-zA-Z0-9_-]{0,63}$/
 const DOCID_RE = /^[a-zA-Z0-9_-]{1,128}$/
 const MAX_JSON_BYTES = 100_000
 const DEFAULT_LIMIT = 50
@@ -137,9 +138,9 @@ function credential(c: DataCtx): string | null {
 
 // window.storage gets its own sub-app and capability table, mounted BEFORE the method gate: every
 // viewer may read (`read`) and write (`create`) its personal keys and the site's shared ones, as in
-// Claude artifacts. Anything under /_kv it doesn't route falls through to the gate below as usual.
+// Claude artifacts. It is terminal: nothing under /_kv ever reaches the document routes.
 const kvApi = new Hono<DataEnv>()
-const KV_CAP: Record<string, DataCapability> = { GET: 'read', PUT: 'create', DELETE: 'create' }
+const KV_CAP: Record<string, DataCapability> = { GET: 'read', HEAD: 'read', PUT: 'create', DELETE: 'create' }
 
 kvApi.use('/:scope/*', async (c, next) => {
   const scope = c.req.param('scope')
@@ -181,6 +182,8 @@ kvApi.delete('/:scope/:key', async (c) => {
   await deleteKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), key)
   return c.json({ key, deleted: true, shared: kvShared(c) })
 })
+
+kvApi.all('*', (c) => c.json({ error: 'not found' }, 404))
 
 dataApi.route('/_kv', kvApi)
 
