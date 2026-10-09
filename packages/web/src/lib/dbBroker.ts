@@ -293,10 +293,17 @@ export function createDbBroker(
     if (!source || e.source !== source) return
     const hello = e.data as { type?: unknown; nonce?: unknown } | null
     if (hello?.type !== 'postplan:db-hello') return
-    // The frame may have navigated to another site on the shared content origin; only the page we loaded holds the nonce.
-    if (hello.nonce !== opts.nonce) return
     const p = e.ports?.[0]
     if (!p) return
+    // The frame may have navigated to another site on the shared content origin; only the page we loaded holds the nonce.
+    if (hello.nonce !== opts.nonce) {
+      p.postMessage({
+        type: 'postplan:db-error',
+        error: 'postplan.db is unavailable on this page — open it from a link in the site',
+      })
+      p.close()
+      return
+    }
     port?.close()
     port = p
     p.onmessage = (msg) => onPortMessage(p, msg)

@@ -15,7 +15,7 @@ import { type Intent, parseIntent } from '@/lib/parseIntent'
 import { encodePathSegments } from '@/lib/paths'
 import { recordVisit } from '@/lib/recents'
 import type { Me } from '@/lib/types'
-import { deepLinkReady, railFromSearch, type RevealRequest } from '@/lib/viewerCommands'
+import { addressBarFor, deepLinkReady, railFromSearch, type RevealRequest } from '@/lib/viewerCommands'
 import { loadViewer, type PrefetchResult, type ViewerLoaderData } from '@/lib/viewerLoader'
 import { AudioView } from '@/components/viewer/AudioView'
 import { Spinner } from '@/components/ui/states'
@@ -245,9 +245,15 @@ function Viewer() {
         if (decision.kind === 'ignore') return
         if (state.readyPath !== intent.filePath) return
         lastReadyPathRef.current = intent.filePath
-        syncAddressBar(
-          intent.filePath === entryPath ? routerPath : sitePathUrl(site.spaceSlug, site.siteSlug, intent.filePath),
-        )
+        // In-frame navigation bypasses the router; mirror it so reload and share open the same file.
+        const nextUrl = addressBarFor(window.location, {
+          routerPath,
+          entryPath,
+          spaceSlug: site.spaceSlug,
+          siteSlug: site.siteSlug,
+          filePath: intent.filePath,
+        })
+        if (nextUrl) window.history.replaceState(window.history.state, '', nextUrl)
         // Every in-iframe navigation fires 'ready' with the real current file — the only place the
         // SPA learns it, since the URL doesn't change on in-page navigation. Skip until Me resolves
         // (never record to an unknown/shared-machine user); the me-effect below flushes the ref once
@@ -721,16 +727,6 @@ function Viewer() {
       </div>
     </div>
   )
-}
-
-// In-frame navigation bypasses the router; mirror it so reload and share open the same file.
-function syncAddressBar(path: string): void {
-  if (window.location.pathname === path) return
-  window.history.replaceState(window.history.state, '', path + window.location.search + window.location.hash)
-}
-
-function sitePathUrl(spaceSlug: string, siteSlug: string, filePath: string): string {
-  return `/${spaceSlug}/${siteSlug}/${encodePathSegments(filePath)}`
 }
 
 function withAnnotate(u: string, brokerNonce: string | null): string {

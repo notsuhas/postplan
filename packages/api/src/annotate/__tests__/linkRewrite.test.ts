@@ -59,4 +59,16 @@ describe('withAnnotateParam — same-origin in-frame link rewrite', () => {
       'https://c.example/sp/site/sub/a.html?postplan_annotate=1&postplan_broker=abc',
     )
   })
+
+  test('broker nonce is stripped on a link under a different gated token', () => {
+    const cur = 'https://c.example/_t/tok/sp/site/index.html?postplan_broker=abc'
+    expect(withAnnotateParam('/_t/other/sp/site/a.html', cur, cur)).toBe(
+      'https://c.example/_t/other/sp/site/a.html?postplan_annotate=1',
+    )
+  })
+
+  test('a site root without a trailing slash fails safe (no nonce)', () => {
+    const cur = 'https://c.example/sp/site/index.html?postplan_broker=abc'
+    expect(withAnnotateParam('/sp/site', cur, cur)).toBe('https://c.example/sp/site?postplan_annotate=1')
+  })
 })

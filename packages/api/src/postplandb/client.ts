@@ -31,6 +31,8 @@ const HELLO_TIMEOUT_MS = 5000
 const REQUEST_TIMEOUT_MS = 15000
 
 const boot = (window as unknown as { __POSTPLAN_DB__?: Boot }).__POSTPLAN_DB__
+// Read before page scripts run, so a router tidying the query string can't drop it.
+const brokerNonce = new URLSearchParams(location.search).get('postplan_broker')
 
 // --- broker transport (hosted pages inside the app viewer) --------------------------------
 
@@ -80,8 +82,7 @@ function connect(appOrigin: string): Promise<MessagePort> {
         else settle(d.id, 'reject', new Error((d.body as { error?: string })?.error || `postplan: ${d.status}`))
       }
     }
-    const nonce = new URLSearchParams(location.search).get('postplan_broker')
-    window.parent.postMessage({ type: 'postplan:db-hello', nonce }, appOrigin, [ch.port2])
+    window.parent.postMessage({ type: 'postplan:db-hello', nonce: brokerNonce }, appOrigin, [ch.port2])
   })
   return connecting
 }

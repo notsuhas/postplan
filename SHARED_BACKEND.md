@@ -55,6 +55,11 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
 
 ## Known limitations
 
+- **Shared content origin** — every site is served from one origin, so a hostile site that the viewer
+  navigates to inside the frame can still script a same-origin window it holds a reference to (e.g. a
+  popup's `opener` after `history.back()`) and use that page's `postplan.db`. The broker nonce stops
+  the direct handshake; per-site origins are the real fix.
+
 - **Standalone tabs** — a site opened directly on the content origin has no parent frame, so
   `postplan.db` calls fail with a clear "open this site through the Postplan app" error. By design
   for now.
