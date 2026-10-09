@@ -239,23 +239,18 @@ async function serve(
     const annotate = c.req.query('postplan_annotate') === '1'
     const hasMermaid = html.includes('<code class="language-mermaid">')
     const nonce = annotate || hasMermaid ? crypto.randomUUID().replace(/-/g, '') : null
-    const rendered = renderMarkdownDoc(path, html)
-    const withDiagrams = hasMermaid
-      ? rendered.replace(
-          '</body>',
-          `<script nonce="${nonce}" src="/_postplan/mermaid.js?v=${MERMAID_VERSION}" defer></script></body>`,
-        )
-      : rendered
-    const res = c.html(withDiagrams, 200, {
+    const res = c.html(renderMarkdownDoc(path, html), 200, {
       'content-security-policy': markdownCsp(contentCsp, nonce),
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
       ...(nonce ? { 'cache-control': 'no-store' } : {}),
     })
-    const late = annotate
-      ? annotateTags({ siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot, frameNonce }, nonce)
-      : undefined
-    return transformServedHtml(injectTags(res, { late }), selfOrigin)
+    const late =
+      (hasMermaid ? `<script nonce="${nonce}" src="/_postplan/mermaid.js?v=${MERMAID_VERSION}" defer></script>` : '') +
+      (annotate
+        ? annotateTags({ siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot, frameNonce }, nonce)
+        : '')
+    return transformServedHtml(late ? injectTags(res, { late }) : res, selfOrigin)
   }
 
   // Annotate mode: gated HTML + ?postplan_annotate=1 → stream the body through, injecting the annotate
@@ -359,11 +354,7 @@ export function isHtmlFile(path: string): boolean {
   return /\.html?$/i.test(path)
 }
 
-/** Inject the annotate client + boot payload into an HTML document. The payload is the trusted
- *  server-resolved context (siteId, resolved files.path, parent origin); `<` is escaped so a
- *  path can't break out of the inline script. Inserted before </body> (else </head>, else end).
- *  `nonce` (rendered markdown only) stamps both script tags so they pass that branch's
- *  script-src 'nonce-…' CSP; uploaded HTML passes null and keeps its permissive policy. */
+/** The annotate client's tags; `nonce` stamps them for rendered markdown's script-src CSP. */
 function annotateTags(
   payload: { siteId: string; filePath: string; appOrigin: string; siteRoot: string; frameNonce: string | null },
   nonce: string | null = null,
@@ -399,12 +390,13 @@ export function isExternalHref(href: string, base: string): boolean {
 
 /** Streams Postplan's tags into a served page with an HTML-aware parser (comments and quoted `>`
  *  can't fool it). `early` (the SDK) lands before any page script can run: at the opening of <head>
- *  or <body>, else before the first <script>, else at the end of a script-less fragment. `late`
+ *  or <body>, else before the first live <script> (not one inside <template>), else at the end of a script-less fragment. `late`
  *  (the passive annotate client) goes just before </body>, else at the end. */
 export function injectTags(res: Response, tags: { early?: string; late?: string }): Response {
   const { early, late } = tags
   let placedEarly = !early
   let placedLate = !late
+  let inTemplate = 0
   const rewriter = new HTMLRewriter()
   if (early) {
     const into = {
@@ -417,9 +409,17 @@ export function injectTags(res: Response, tags: { early?: string; late?: string 
     rewriter
       .on('head', into)
       .on('body', into)
+      .on('template', {
+        element(el) {
+          inTemplate++
+          el.onEndTag(() => {
+            inTemplate--
+          })
+        },
+      })
       .on('script', {
         element(el) {
-          if (placedEarly) return
+          if (placedEarly || inTemplate) return
           placedEarly = true
           el.before(early, { html: true })
         },

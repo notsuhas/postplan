@@ -377,6 +377,12 @@ describe("injectTags — HTML-aware placement of Postplan's tags", () => {
     )
   })
 
+  test('a script inside <template> never runs, so the SDK skips it for the first live one', async () => {
+    expect(await run('<template><script>t()</script></template><script>real()</script>', { early: '<i>E</i>' })).toBe(
+      '<template><script>t()</script></template><i>E</i><script>real()</script>',
+    )
+  })
+
   test('a script-less fragment still gets both, at the end, keeping the doctype first', async () => {
     const out = await run('<!doctype html><p>bare</p><a href="f.csv" download>f</a>', {
       early: '<i>E</i>',
