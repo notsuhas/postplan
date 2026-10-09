@@ -1,5 +1,3 @@
-import { encodePathSegments } from './paths'
-
 // The viewer's remaining outbound decisions (slice B-wire): plain functions over plain data, no
 // React, no DOM, no globals — the component only calls these and executes the result. Extracted
 // for the same reason lib/commentPopover.ts was: each used to be an inline decision in viewer.tsx
@@ -43,21 +41,4 @@ export function shouldReveal(
 ): boolean {
   if (!request || !hasTarget) return false
   return request.nonce !== lastHandledNonce
-}
-
-/** Address bar for an in-frame navigation, or null to leave it. The path comes from the untrusted frame. */
-export function addressBarFor(
-  current: { pathname: string; search: string },
-  nav: { routerPath: string; entryPath: string | null; spaceSlug: string; siteSlug: string; filePath: string },
-): string | null {
-  if (nav.filePath.split('/').some((seg) => seg === '' || seg === '.' || seg === '..')) return null
-  const path =
-    nav.filePath === nav.entryPath
-      ? nav.routerPath
-      : `/${nav.spaceSlug}/${nav.siteSlug}/${encodePathSegments(nav.filePath)}`
-  if (path === current.pathname) return null
-  const params = new URLSearchParams(current.search)
-  params.delete('thread')
-  const query = params.toString()
-  return query ? `${path}?${query}` : path
 }

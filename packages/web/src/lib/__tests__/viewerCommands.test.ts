@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { addressBarFor, deepLinkReady, railFromSearch, shouldReveal } from '../viewerCommands'
+import { deepLinkReady, railFromSearch, shouldReveal } from '../viewerCommands'
 
 // Slice B-wire — the viewer's remaining inline decisions, extracted so each is pinned by a test
 // instead of living silently in viewer.tsx (mirrors lib/commentPopover.ts).
@@ -56,27 +56,5 @@ describe('shouldReveal — reveal-request gate keyed on NONCE not id (slice C1b,
   test('no request, or a target that has not arrived, never reveals', () => {
     expect(shouldReveal(null, 1, true)).toBe(false)
     expect(shouldReveal({ id: 't1', nonce: 2 }, 1, false)).toBe(false)
-  })
-})
-
-describe('addressBarFor — in-frame navigation mirrored into the address bar', () => {
-  const nav = { routerPath: '/sp/site', entryPath: 'index.html', spaceSlug: 'sp', siteSlug: 'site' }
-  const at = (pathname: string, search = '') => ({ pathname, search })
-
-  test.each([
-    ['another file → its encoded path', at('/sp/site'), 'docs/a b.html', '/sp/site/docs/a%20b.html'],
-    ['back to the entry file → the route the viewer was opened on', at('/sp/site/x.html'), 'index.html', '/sp/site'],
-    ['already there → leave it', at('/sp/site/x.html'), 'x.html', null],
-    ['entry file on load → leave it', at('/sp/site'), 'index.html', null],
-    ['dot segments from a hostile frame → leave it', at('/sp/site'), '../../settings', null],
-    ['empty segment → leave it', at('/sp/site'), 'a//b.html', null],
-  ])('%s', (_name, current, filePath, expected) => {
-    expect(addressBarFor(current, { ...nav, filePath })).toBe(expected)
-  })
-
-  test('keeps review=1 but drops a thread deep link that belonged to the previous file', () => {
-    expect(addressBarFor(at('/sp/site', '?review=1&thread=t1'), { ...nav, filePath: 'p2.html' })).toBe(
-      '/sp/site/p2.html?review=1',
-    )
   })
 })

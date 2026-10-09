@@ -1,6 +1,6 @@
 import { useViewerComments } from '@/hooks/useViewerComments'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { type LoaderFunctionArgs, useLoaderData, useLocation, useParams, useSearchParams } from 'react-router'
+import { type LoaderFunctionArgs, useLoaderData, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
 import { isAudioFile } from '@/lib/audio'
@@ -15,7 +15,7 @@ import { type Intent, parseIntent } from '@/lib/parseIntent'
 import { encodePathSegments } from '@/lib/paths'
 import { recordVisit } from '@/lib/recents'
 import type { Me } from '@/lib/types'
-import { addressBarFor, deepLinkReady, railFromSearch, type RevealRequest } from '@/lib/viewerCommands'
+import { deepLinkReady, railFromSearch, type RevealRequest } from '@/lib/viewerCommands'
 import { loadViewer, type PrefetchResult, type ViewerLoaderData } from '@/lib/viewerLoader'
 import { AudioView } from '@/components/viewer/AudioView'
 import { Spinner } from '@/components/ui/states'
@@ -52,7 +52,6 @@ function Viewer() {
   // content URL so a deep link / the directory-listing fallback opens that specific file; '' = root.
   const sitePath = useParams()['*'] ?? ''
   const [searchParams] = useSearchParams()
-  const routerPath = useLocation().pathname
   const wantRailOpen = railFromSearch(searchParams)
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -245,15 +244,6 @@ function Viewer() {
         if (decision.kind === 'ignore') return
         if (state.readyPath !== intent.filePath) return
         lastReadyPathRef.current = intent.filePath
-        // In-frame navigation bypasses the router; mirror it so reload and share open the same file.
-        const nextUrl = addressBarFor(window.location, {
-          routerPath,
-          entryPath,
-          spaceSlug: site.spaceSlug,
-          siteSlug: site.siteSlug,
-          filePath: intent.filePath,
-        })
-        if (nextUrl) window.history.replaceState(window.history.state, '', nextUrl)
         // Every in-iframe navigation fires 'ready' with the real current file — the only place the
         // SPA learns it, since the URL doesn't change on in-page navigation. Skip until Me resolves
         // (never record to an unknown/shared-machine user); the me-effect below flushes the ref once
@@ -338,8 +328,6 @@ function Viewer() {
     setThreads,
     revealThread,
     mode,
-    entryPath,
-    routerPath,
   ])
 
   useEffect(() => {

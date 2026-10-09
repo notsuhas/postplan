@@ -60,10 +60,17 @@ describe('withAnnotateParam — same-origin in-frame link rewrite', () => {
     )
   })
 
-  test('broker nonce is stripped on a link under a different gated token', () => {
+  test('broker nonce follows a same-site link from the gated path to the public one', () => {
     const cur = 'https://c.example/_t/tok/sp/site/index.html?postplan_broker=abc'
-    expect(withAnnotateParam('/_t/other/sp/site/a.html', cur, cur)).toBe(
-      'https://c.example/_t/other/sp/site/a.html?postplan_annotate=1',
+    expect(withAnnotateParam('/sp/site/a.html', cur, cur)).toBe(
+      'https://c.example/sp/site/a.html?postplan_annotate=1&postplan_broker=abc',
+    )
+  })
+
+  test('broker nonce never follows an external <base href>, even with a matching path', () => {
+    const cur = 'https://c.example/sp/site/index.html?postplan_broker=abc'
+    expect(withAnnotateParam('a.html', 'https://evil.example/sp/site/', cur)).toBe(
+      'https://evil.example/sp/site/a.html?postplan_annotate=1',
     )
   })
 

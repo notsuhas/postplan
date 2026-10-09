@@ -30,17 +30,19 @@ export function withAnnotateParam(href: string, base: string, current: string = 
   url.searchParams.set('postplan_annotate', '1')
   // The db broker nonce must never reach another site on the shared content origin.
   const nonce = currentUrl.searchParams.get(BROKER_PARAM)
-  const prefix = sitePrefix(url.pathname)
-  if (nonce && prefix !== null && prefix === sitePrefix(currentUrl.pathname)) url.searchParams.set(BROKER_PARAM, nonce)
+  const site = siteOf(url.pathname)
+  if (nonce && url.origin === currentUrl.origin && site !== null && site === siteOf(currentUrl.pathname))
+    url.searchParams.set(BROKER_PARAM, nonce)
   else url.searchParams.delete(BROKER_PARAM)
   return url.toString()
 }
 
 const BROKER_PARAM = 'postplan_broker'
 
-/** `space/site`, or `_t/<token>/space/site` for gated paths; null when the path is too short. */
-function sitePrefix(pathname: string): string | null {
+/** `space/site` for a site path, gated (`/_t/<token>/…`) or not; null when the path is too short. */
+function siteOf(pathname: string): string | null {
   const segs = pathname.split('/').filter(Boolean)
-  const n = segs[0] === '_t' ? 4 : 2
-  return segs.length > n || (segs.length === n && pathname.endsWith('/')) ? segs.slice(0, n).join('/') : null
+  const at = segs[0] === '_t' ? 2 : 0
+  const complete = segs.length > at + 2 || (segs.length === at + 2 && pathname.endsWith('/'))
+  return complete ? segs.slice(at, at + 2).join('/') : null
 }
