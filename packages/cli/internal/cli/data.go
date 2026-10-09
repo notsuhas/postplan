@@ -124,7 +124,7 @@ func (c *client) mintDataToken(space, site string) (string, error) {
 	case resp.StatusCode == 404:
 		return "", fmt.Errorf("Site %s/%s not found (or postplan.db is off on this instance).", space, site)
 	case resp.StatusCode == 403:
-		return "", fmt.Errorf("You can't write data to %s/%s; only its owner can.", space, site)
+		return "", fmt.Errorf("Not allowed to push data to %s/%s. Only the site owner can, and an API key also needs a data grant for it.", space, site)
 	case !ok(resp):
 		return "", fmt.Errorf("Couldn't get a data token (%d): %s", resp.StatusCode, bodySlice(resp))
 	}
