@@ -51,6 +51,8 @@ import type { AppEnv, SessionUser } from '../types'
 // relative sub-resources, so it must outlast a real viewing session — 5min broke long views
 // and lazily-loaded assets. Re-minted on every viewer load.
 const CONTENT_TOKEN_TTL = 60 * 60 // 1h
+// Expiry rounds up to this window, so repeat views reuse one URL and the browser can cache assets.
+const CONTENT_TOKEN_WINDOW = 60 * 60
 
 export const sites = new Hono<AppEnv>()
 
@@ -418,6 +420,7 @@ sites.get('/:spaceSlug/:siteSlug', async (c) => {
     user.id,
     `${spaceSlug}/${siteSlug}`,
     CONTENT_TOKEN_TTL,
+    CONTENT_TOKEN_WINDOW,
   )}/${spaceSlug}/${siteSlug}/`
 
   // Manifest gate: only someone who can REPLACE the content (owner / editor) gets the
