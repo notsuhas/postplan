@@ -236,6 +236,9 @@ function resolveTarget(
   const actingAsEditor = !isOwner
   if (actingAsEditor && facts.existing.status === 'archived') return c.json({ error: 'site archived' }, 403)
   if (actingAsEditor && expectedVersion === null) return c.json({ error: 'expectedVersion required' }, 400)
+  if (expectedVersion !== null && expectedVersion !== facts.existing.contentVersion) {
+    return c.json({ error: 'site changed', contentVersion: facts.existing.contentVersion }, 409)
+  }
   if (facts.oldFiles.length > 0 && c.req.query('replace') !== 'true') {
     return c.json({ error: 'site exists', conflict: true }, 409)
   }

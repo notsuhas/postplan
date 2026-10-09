@@ -29,6 +29,8 @@ import { slackEvents } from './routes/slack-events'
 import { spaces } from './routes/spaces'
 import { stars } from './routes/stars'
 import { upload } from './routes/upload'
+import { mcpAuth } from './routes/mcp-auth'
+import { fetchWithCloudMcp } from './mcp/worker'
 import { users } from './routes/users'
 import type { AppEnv, Bindings } from './types'
 
@@ -80,6 +82,7 @@ app.get('/.well-known/agents.json', (c) => {
     homepage: origin,
     documentation: `${origin}/llms.txt`,
     skill: `${origin}/skills/postplan-cli/SKILL.md`,
+    mcp: { url: `${origin}/api/mcp`, transport: 'streamable-http' },
     health: `${origin}/api/health`,
     capabilities: [
       'deploy',
@@ -143,6 +146,7 @@ app.get('/api/config', async (c) => {
   })
 })
 app.route('/api/auth', auth)
+app.route('/api/oauth', mcpAuth)
 app.route('/api/spaces', spaces)
 app.route('/api/sites', sites)
 app.route('/api', feedback)
@@ -196,18 +200,7 @@ const DAILY_PURGE_CRON = '0 3 * * *'
 // lib/retention.ts for the delete shapes and how it preserves stats.ts's all-time totals.
 export default {
   async fetch(request, env, executionCtx) {
-    const shareShell = await siteShareShell(request, env)
-    if (shareShell) return shareShell
-    const pathname = new URL(request.url).pathname
-    if (
-      pathname.startsWith('/api/') ||
-      pathname === '/llms.txt' ||
-      pathname.startsWith('/skills/') ||
-      pathname.startsWith('/.well-known/')
-    ) {
-      return app.fetch(request, env, executionCtx)
-    }
-    return env.ASSETS.fetch(request)
+    return fetchWithCloudMcp(request, env, executionCtx, fetchApp)
   },
   async scheduled(event, env, _ctx) {
     const db = sessionDb(env.POSTPLAN_DB, 'first-unconstrained')
@@ -218,3 +211,18 @@ export default {
     await cachedStats(env.POSTPLAN_SESSIONS, db, (p) => p.then(() => {}))
   },
 } satisfies ExportedHandler<Bindings>
+
+async function fetchApp(request: Request, env: Bindings, executionCtx: ExecutionContext): Promise<Response> {
+  const shareShell = await siteShareShell(request, env)
+  if (shareShell) return shareShell
+  const pathname = new URL(request.url).pathname
+  if (
+    pathname.startsWith('/api/') ||
+    pathname === '/llms.txt' ||
+    pathname.startsWith('/skills/') ||
+    pathname.startsWith('/.well-known/')
+  ) {
+    return app.fetch(request, env, executionCtx)
+  }
+  return env.ASSETS.fetch(request)
+}

@@ -1,10 +1,14 @@
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { ApiKeyGrants } from './lib/api-key'
 import type { OgCard } from './lib/og-image'
+import type { OAuthHelpers } from '@cloudflare/workers-oauth-provider'
+import { DELEGATED_USER } from './lib/delegated-user'
 
 /** Worker bindings + secrets/vars. Secrets come from `.dev.vars` locally and
  *  `wrangler secret put` in prod; plain vars can live in wrangler.jsonc `vars`. */
 export interface Bindings {
+  OAUTH_PROVIDER?: OAuthHelpers
+  [DELEGATED_USER]?: SessionUser
   POSTPLAN_DB: D1Database
   POSTPLAN_FILES: R2Bucket
   POSTPLAN_SESSIONS: KVNamespace
@@ -73,6 +77,7 @@ export interface SessionUser {
 // (session cookie / KV CLI token / D1 api key), not the two-bucket analytics tag.
 export type Credential =
   | { kind: 'session' | 'cli'; user: SessionUser }
+  | { kind: 'oauth'; user: SessionUser }
   | { kind: 'key'; user: SessionUser; keyId: string; grants: ApiKeyGrants }
 
 /** Hono context variables set by middleware. */
@@ -86,7 +91,7 @@ export interface Variables {
   // 'web' = session cookie. Drives CLI-usage analytics. Absent on unauthenticated routes. A
   // D1-key-authenticated request is also tagged 'cli' here (no cookie + a Bearer token) — key-vs-
   // CLI analytics is a separate, not-yet-built slice (would need an events-table migration).
-  authKind: 'cli' | 'web'
+  authKind: 'cli' | 'web' | 'mcp'
 }
 
 export type AppEnv = { Bindings: Bindings; Variables: Variables }

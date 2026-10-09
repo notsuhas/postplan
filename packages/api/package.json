@@ -15,12 +15,15 @@
     "deploy:content": "bun run build:mermaid && bun run build:annotate && bun run build:db && wrangler deploy --config wrangler.content.jsonc"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.3",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@workos-inc/node": "^10.13.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.5",
     "marked": "^18.0.11",
     "mermaid": "12.0.0",
-    "workers-og": "^0.0.27"
+    "workers-og": "^0.0.27",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.10",

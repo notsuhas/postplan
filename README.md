@@ -64,6 +64,12 @@ Audio sites carry a mic badge across the dashboard, and `postplan comments` pref
 
 The hosted app also ships a public `/scratch/` workspace with three no-login sample sites, so visitors can inspect real output before installing anything.
 
+## Cloud MCP
+
+Connect your assistant to `https://<your-postplan-host>/api/mcp`, then sign in and approve access. Claude web/Desktop supports this as a custom connector; Claude Code, Cursor, and Codex can use the same URL. The server runs in Postplan's existing Cloudflare Worker and uses its sessions KV; no extra Worker, database migration, secret, or running laptop is required.
+
+Cloud tools publish file contents, read source and comments, manage feedback, and restore versions. Upload requests are capped at 4 MB and 200 files. Revoke access from **MCP connections** in the account menu. [Setup and tool details](packages/cli/internal/cli/SKILL.md#cloud-mcp).
+
 ## CLI
 
 ```bash
@@ -94,7 +100,7 @@ The bundled skill teaches your agent to drive Postplan. Install it into **any** 
 npx skills add notsuhas/postplan   # installs the postplan-cli skill universally (Codex, Cursor, OpenCode, Claude Code …)
 ```
 
-The `curl … /api/install | sh` line already installs the skill into detected Claude Code, Codex, Cursor, OpenCode, and shared Agent Skills directories. The skill only wraps the `postplan` CLI, so any shell-capable agent works with or without it.
+The `curl … /api/install | sh` line already installs the skill into detected Claude Code, Codex, Cursor, OpenCode, and shared Agent Skills directories. The skill covers the CLI and cloud MCP; shell-capable agents can also use the CLI directly.
 
 | command | what it does |
 |---|---|
