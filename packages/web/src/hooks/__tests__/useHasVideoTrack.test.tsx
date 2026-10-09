@@ -26,7 +26,7 @@ function loadMetadata(probe: HTMLVideoElement, videoWidth: number) {
 
 test('reports a picture only once metadata shows a video track', () => {
   const { result } = renderHook(() => useHasVideoTrack('https://content.test/take.webm'))
-  expect(result.current).toBe(false)
+  expect(result.current).toBeNull()
   loadMetadata(probes[0] as HTMLVideoElement, 1280)
   expect(result.current).toBe(true)
 })
@@ -41,4 +41,10 @@ test('no source means no probe', () => {
   const { result } = renderHook(() => useHasVideoTrack(null))
   expect(result.current).toBe(false)
   expect(probes.length).toBe(0)
+})
+
+test('an unreadable file settles as audio instead of probing forever', () => {
+  const { result } = renderHook(() => useHasVideoTrack('https://content.test/broken.webm'))
+  act(() => probes[0]?.onerror?.(new Event('error')))
+  expect(result.current).toBe(false)
 })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
-// Loads only metadata in a detached <video> and reports whether the source has a picture.
-export function useHasVideoTrack(src: string | null): boolean {
+// Loads only metadata in a detached <video>: null while probing, false for audio-only or unreadable files.
+export function useHasVideoTrack(src: string | null): boolean | null {
   const [result, setResult] = useState<{ src: string; hasVideo: boolean } | null>(null)
 
   useEffect(() => {
@@ -10,13 +10,16 @@ export function useHasVideoTrack(src: string | null): boolean {
     probe.preload = 'metadata'
     probe.muted = true
     probe.onloadedmetadata = () => setResult({ src, hasVideo: probe.videoWidth > 0 })
+    probe.onerror = () => setResult({ src, hasVideo: false })
     probe.src = src
     return () => {
       probe.onloadedmetadata = null
+      probe.onerror = null
       probe.removeAttribute('src')
       probe.load()
     }
   }, [src])
 
-  return result?.src === src && result.hasVideo
+  if (!src) return false
+  return result?.src === src ? result.hasVideo : null
 }

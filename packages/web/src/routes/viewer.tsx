@@ -100,12 +100,13 @@ function Viewer() {
   // iframe, and (unlike the iframe src) no ?postplan_annotate param: that flag only triggers the
   // HTML-injection transform in content.ts, which never applies to audio.
   const mediaSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
-  // .webm opens as audio (voice notes) and switches to video once the probe sees a picture.
+  // .webm is either a voice note or a video; hold the player until the probe knows which.
   const webmHasVideo = useHasVideoTrack(entryPath !== null && isWebmFile(entryPath) ? mediaSrc : null)
-  const isVideo = entryPath !== null && (isVideoFile(entryPath) || webmHasVideo)
-  const isAudio = !isVideo && entryPath !== null && isAudioFile(entryPath)
+  const isProbing = webmHasVideo === null
+  const isVideo = entryPath !== null && (isVideoFile(entryPath) || webmHasVideo === true)
+  const isAudio = !isVideo && !isProbing && entryPath !== null && isAudioFile(entryPath)
   const isImage = entryPath !== null && isImageFile(entryPath)
-  const isMedia = isAudio || isVideo || isImage
+  const isMedia = isAudio || isVideo || isImage || isProbing
 
   // Is the comments rail on screen. It gates the on-page HIGHLIGHTS again (the rail is the panel
   // that explains them, so they live and die with it) but NOT commenting: selecting text still
@@ -621,7 +622,11 @@ function Viewer() {
         {/* The loading overlay lives inside this wrapper so its coords match the iframe viewport. */}
         <div className="relative flex min-h-0 min-w-0 flex-1 justify-center bg-muted/20">
           <div className="relative h-full w-full">
-            {isAudio ? (
+            {isProbing ? (
+              <div className="flex size-full items-center justify-center">
+                <Spinner className="size-6" />
+              </div>
+            ) : isAudio ? (
               <AudioView src={mediaSrc} fileName={(entryPath ?? '').split('/').pop() ?? ''} audioRef={audioRef} />
             ) : isVideo ? (
               <VideoView
