@@ -5,7 +5,7 @@ import { createDbBroker } from '../dbBroker'
 // the request surface (op/param smuggling), and the token lifecycle (401 re-mint). Ports are
 // real MessageChannels; window events are plain event-shaped objects, like parseIntent.test.ts.
 
-const CONTENT = 'https://postplan-content.example.com'
+const NONCE = 'n0nce'
 const iframeWin = {} as Window
 const otherWin = {} as Window
 const SITE = { spaceSlug: 'sam', siteSlug: 'demo' }
@@ -29,13 +29,16 @@ function makeBroker(
   source: Window = iframeWin,
 ) {
   const { calls, fetchFn } = fakeFetch(handler)
-  const broker = createDbBroker({ site: SITE, contentOrigin: CONTENT, getSource: () => source }, { fetchFn })
+  const broker = createDbBroker(
+    { site: SITE, appOrigin: 'https://app.example.com', nonce: NONCE, getSource: () => source },
+    { fetchFn },
+  )
   return { broker, calls }
 }
 
 function hello(
   broker: { onWindowMessage: (e: MessageEvent) => void },
-  over: { origin?: string; source?: unknown } = {},
+  over: { origin?: string; source?: unknown; nonce?: string | null } = {},
 ) {
   const ch = new MessageChannel()
   const received: unknown[] = []
@@ -56,9 +59,9 @@ function hello(
       notify()
     })
   broker.onWindowMessage({
-    origin: over.origin ?? CONTENT,
+    origin: over.origin ?? 'null',
     source: (over.source ?? iframeWin) as Window,
-    data: { type: 'postplan:db-hello' },
+    data: { type: 'postplan:db-hello', nonce: over.nonce === undefined ? NONCE : over.nonce },
     ports: [ch.port2],
   } as unknown as MessageEvent)
   return { port: ch.port1, received, waitFor }
@@ -88,6 +91,17 @@ describe('handshake', () => {
     const h = hello(broker, { source: otherWin })
     await settle()
     expect(h.received).toHaveLength(0)
+    expect(calls).toHaveLength(0)
+  })
+
+  test.each([
+    ['without the nonce (another site navigated into the frame)', null],
+    ['with a wrong nonce', 'guess'],
+  ])('ATTACK: a hello %s is refused without minting', async (_name, nonce) => {
+    const { broker, calls } = makeBroker(mintOk)
+    const h = hello(broker, { nonce })
+    await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'postplan:db-error'))
+    expect(h.received.some((x) => (x as { type?: string }).type === 'postplan:db-ready')).toBe(false)
     expect(calls).toHaveLength(0)
   })
 

@@ -51,8 +51,6 @@ export type Intent =
 
 export type DOMRectLike = { top: number; left: number; width: number; height: number }
 
-export type ExpectedSource = { origin: string; source: MessageEventSource | Window | null }
-
 const MAX_FIELD = 2000 // chars per text field, bounds a single message
 // Mirrors the api's TEXT_CONTEXT_LIMIT: the client captures at that width and the server stores at
 // most that, so anything longer is noise the server would trim anyway.
@@ -91,11 +89,8 @@ const rect = (v: unknown): DOMRectLike | undefined => {
   return { top: num(r.top), left: num(r.left), width: num(r.width), height: num(r.height) }
 }
 
-/** Validate a message event from the content iframe. Returns a typed intent or null. */
-export function parseIntent(event: MessageEvent, expected: ExpectedSource): Intent | null {
-  if (event.origin !== expected.origin) return null
-  if (expected.source && event.source !== expected.source) return null
-  const data = event.data
+/** Shape-check a message from the frame channel. Returns a typed intent or null. */
+export function parseIntent(data: unknown): Intent | null {
   if (!data || typeof data !== 'object') return null
 
   switch ((data as { type?: unknown }).type) {

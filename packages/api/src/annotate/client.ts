@@ -25,13 +25,14 @@
 // command and no per-anchor lit set — badges, and the rect batches that positioned them, are gone.
 // Clicking a painted anchor is what opens its thread in the rail (postplan:anchor-click).
 
-import { withAnnotateParam } from './linkRewrite'
+import { FRAME_HELLO } from '../../../shared/frame'
+import { withAnnotateParam, withFrameNonce } from './linkRewrite'
 import type { TextContext } from '../lib/anchor'
 import { findRange, resolveSelector } from './locator'
 import { anchorIdAtPoint, anchorRanges, type ElementAnchor, installIndexInvalidation, type TextAnchor } from './reflow'
 import { installSelectionCapture, type Rect } from './selection'
 
-type Boot = { siteId: string; filePath: string; appOrigin: string }
+type Boot = { siteId: string; filePath: string; appOrigin: string; siteRoot: string; frameNonce: string | null }
 type PaintAnchor = {
   id: string
   anchorType?: 'text' | 'page' | 'element'
@@ -41,14 +42,24 @@ type PaintAnchor = {
 }
 
 const boot = (window as unknown as { __POSTPLAN__?: Boot }).__POSTPLAN__
+const frameNonce = boot?.frameNonce ?? null
 let mode: 'experience' | 'comment' = 'experience'
 
+// One port to the viewer, handed over with the nonce in the hello; nothing else crosses the frame boundary.
+let port: MessagePort | null = null
+
 function toParent(msg: unknown): void {
-  if (!boot) return
+  port?.postMessage(msg)
+}
+
+function connect(b: Boot): void {
+  const ch = new MessageChannel()
+  port = ch.port1
+  port.onmessage = (e) => fromParent(e.data)
   try {
-    window.parent.postMessage(msg, boot.appOrigin)
+    window.parent.postMessage({ type: FRAME_HELLO, nonce: frameNonce }, b.appOrigin, [ch.port2])
   } catch {
-    /* parent gone / blocked — annotate mode stays inert */
+    /* not framed by the app — annotate mode stays inert */
   }
 }
 
@@ -91,7 +102,11 @@ document.addEventListener(
     const linkTarget = a.getAttribute('target')
     if (linkTarget && linkTarget !== '_self') return
     const rewritten = withAnnotateParam(a.getAttribute('href') ?? '', document.baseURI)
-    if (rewritten && rewritten !== a.href) a.href = rewritten
+    if (!rewritten) return
+    const scoped = boot
+      ? withFrameNonce(rewritten, frameNonce, new URL(boot.siteRoot, window.location.href).href)
+      : rewritten
+    if (scoped !== a.href) a.href = scoped
   },
   true,
 )
@@ -298,13 +313,9 @@ function focus(target: { quote?: string; selector?: string; context?: TextContex
     })
 }
 
-// Paint/focus commands are trusted ONLY from the parent app origin (the inverse of the hostile-
-// iframe rule: here the parent is the trusted side). A stray `postplan:mode` or `postplan:highlight`
-// from a stale cached bundle (the parent no longer sends either) falls through unmatched below and
-// is ignored.
-window.addEventListener('message', (e: MessageEvent) => {
-  if (!boot || e.origin !== boot.appOrigin) return
-  const d = e.data as {
+// Commands from the viewer arrive only on the port it accepted.
+function fromParent(data: unknown): void {
+  const d = data as {
     type?: string
     anchors?: PaintAnchor[]
     quote?: string
@@ -323,12 +334,7 @@ window.addEventListener('message', (e: MessageEvent) => {
   // iframe.contentWindow.print() itself (SecurityError) — it asks, and the page prints in its own
   // realm with the browser's native dialog (the user picks "Save as PDF" there).
   else if (d?.type === 'postplan:print') window.print()
-  // The parent's "did I miss your ready?" probe (#27): the boot postplan:ready below fires exactly
-  // once, so on a warm-cache load where this frame finishes before the parent's listener attaches
-  // it is lost with nothing to re-fire it. Re-announcing on ping closes that race from this side;
-  // the parent's arbiter treats a duplicate ready as a no-op, so answering a redundant ping is free.
-  else if (d?.type === 'postplan:ping') toParent({ type: 'postplan:ready', filePath: boot.filePath })
-})
+}
 
 // --- mermaid lightbox: click a rendered diagram to enlarge it -----------------------------
 // A mermaid diagram lays out at the width of its container — small on a dense page — and mermaid 11
@@ -368,4 +374,7 @@ document.addEventListener('click', (e) => {
 })
 
 // Boot handshake: tell the parent which file is mounted (intent-only; parent re-validates).
-if (boot) toParent({ type: 'postplan:ready', filePath: boot.filePath })
+if (boot) {
+  connect(boot)
+  toParent({ type: 'postplan:ready', filePath: boot.filePath })
+}

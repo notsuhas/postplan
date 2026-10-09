@@ -16,6 +16,7 @@ import { verifyOgSig } from './lib/og-image'
 import { renderOgPng } from './lib/og-render'
 import { fetchAccessFacts, isSharedFromFacts, resolveSite } from './lib/site-access'
 import { verifyToken } from './lib/token'
+import { FRAME_NONCE_PARAM } from '../../shared/frame'
 
 // Re-exported so cache-key consumers (tests) keep a single import site next to the route.
 export { storageCacheKey } from './lib/object-read'
@@ -87,11 +88,14 @@ app.get('/_t/:token/:space/:site/*', async (c) => {
   const { token, space, site } = c.req.param()
   const userId = await verifyToken(c.env.CONTENT_TOKEN_SECRET, `${space}/${site}`, token)
   if (!userId) return c.text('Invalid or expired link', 403)
-  return serve(c, space, site, restOf(c.req.url, 4), userId)
+  return serve(c, space, site, restOf(c.req.url, 4), userId, `/_t/${token}/${space}/${site}/`)
 })
 
 // Untokened requests may read unlisted sites; serve() applies the same live access policy as tokened requests.
-app.get('/:space/:site/*', (c) => serve(c, c.req.param('space'), c.req.param('site'), restOf(c.req.url, 2), null))
+app.get('/:space/:site/*', (c) => {
+  const { space, site } = c.req.param()
+  return serve(c, space, site, restOf(c.req.url, 2), null, `/${space}/${site}/`)
+})
 
 // `userId` is the token-bound viewer for gated requests, or null for public requests.
 async function serve(
@@ -100,6 +104,8 @@ async function serve(
   siteSlug: string,
   rest: string,
   userId: string | null,
+  // The URL prefix this request was served under; in-frame links stay on the site only below it.
+  siteRoot: string,
 ): Promise<Response> {
   const db = getDb(c)
   const reqPath = normalizePath(rest)
@@ -181,6 +187,10 @@ async function serve(
   const isHtml = isHtmlFile(path)
 
   const frameAncestors = `frame-ancestors 'self' ${c.env.APP_URL}`
+  // The viewer's per-load nonce, echoed into the page's boot payloads (it is already in the URL).
+  const nonceParam = c.req.query(FRAME_NONCE_PARAM) ?? ''
+  const frameNonce = /^[0-9a-f]{32}$/.test(nonceParam) ? nonceParam : null
+  const contentCsp = `${frameAncestors}; ${SANDBOX}`
   // The content origin this page is served from — the yardstick for "is this link external?".
   // A link to any OTHER origin is rewritten to open in a new tab (see transformServedHtml).
   const selfOrigin = new URL(c.req.url).origin
@@ -229,26 +239,21 @@ async function serve(
     const annotate = c.req.query('postplan_annotate') === '1'
     const hasMermaid = html.includes('<code class="language-mermaid">')
     const nonce = annotate || hasMermaid ? crypto.randomUUID().replace(/-/g, '') : null
-    const rendered = renderMarkdownDoc(path, html)
-    const withDiagrams = hasMermaid
-      ? rendered.replace(
-          '</body>',
-          `<script nonce="${nonce}" src="/_postplan/mermaid.js?v=${MERMAID_VERSION}" defer></script></body>`,
-        )
-      : rendered
-    const doc = annotate
-      ? injectAnnotate(withDiagrams, { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL }, nonce)
-      : withDiagrams
-    const res = c.html(doc, 200, {
-      'content-security-policy': markdownCsp(frameAncestors, nonce),
+    const res = c.html(renderMarkdownDoc(path, html), 200, {
+      'content-security-policy': markdownCsp(contentCsp, nonce),
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
       ...(nonce ? { 'cache-control': 'no-store' } : {}),
     })
-    return transformServedHtml(res, selfOrigin)
+    const late =
+      (hasMermaid ? `<script nonce="${nonce}" src="/_postplan/mermaid.js?v=${MERMAID_VERSION}" defer></script>` : '') +
+      (annotate
+        ? annotateTags({ siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot, frameNonce }, nonce)
+        : '')
+    return transformServedHtml(late ? injectTags(res, { late }) : res, selfOrigin)
   }
 
-  // Annotate mode: gated HTML + ?postplan_annotate=1 → buffer the body and inject the annotate
+  // Annotate mode: gated HTML + ?postplan_annotate=1 → stream the body through, injecting the annotate
   // client + boot payload, plus the postplan.db SDK (broker mode — the page gets an API, never a
   // credential; the app viewer's parent frame answers). Every serve here is already token-gated
   // (anonymous requests 403 above), so the flag always applies to an authed viewer. The RAW
@@ -258,18 +263,22 @@ async function serve(
     const read = await readStoredObject(c, storageKey, mime)
     if (!read) return notFound(c)
     await view()
-    const injected = injectAnnotate(injectDb(await new Response(read.body).text(), c.env.APP_URL), {
-      siteId: siteRow.id,
-      filePath: path, // the RESOLVED path (single-file fallback), not the URL guess
-      appOrigin: c.env.APP_URL,
+    const res = new Response(read.body, {
+      headers: {
+        'content-type': 'text/html; charset=UTF-8',
+        'content-security-policy': contentCsp,
+        'access-control-allow-origin': '*',
+        'x-content-type-options': 'nosniff',
+        'referrer-policy': 'no-referrer',
+        'cache-control': 'no-store',
+      },
     })
-    const res = c.html(injected, 200, {
-      'content-security-policy': frameAncestors,
-      'x-content-type-options': 'nosniff',
-      'referrer-policy': 'no-referrer',
-      'cache-control': 'no-store',
-    })
-    return transformServedHtml(res, selfOrigin)
+    const tags = {
+      early: dbTags(c.env.APP_URL, frameNonce),
+      // the RESOLVED path (single-file fallback), not the URL guess
+      late: annotateTags({ siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot, frameNonce }),
+    }
+    return transformServedHtml(injectTags(res, tags), selfOrigin)
   }
 
   const headers = new Headers()
@@ -281,7 +290,10 @@ async function serve(
     )
   }
   headers.set('x-content-type-options', 'nosniff')
-  headers.set('content-security-policy', frameAncestors)
+  headers.set('content-security-policy', contentCsp)
+  // Sandboxed pages have an opaque origin, so their own fetch()/module loads are cross-origin; the
+  // URL is the credential (token in the path, no cookies), so a wildcard grants nothing new.
+  headers.set('access-control-allow-origin', '*')
   // Uploaded HTML lives at a path that carries the gated-content token; no-referrer stops
   // that token leaking to third parties via the Referer header on outbound requests.
   headers.set('referrer-policy', 'no-referrer')
@@ -299,12 +311,15 @@ async function serve(
     storageKey,
     size,
     etag: file.etag,
+    // Plain HTML carries the streamed-in SDK, so its validator must change when the SDK does.
+    htmlEtagSuffix: POSTPLAN_DB_VERSION,
     headers,
     rangeable,
     isHtml,
     mime,
     view,
-    transformHtml: (response) => transformServedHtml(response, selfOrigin),
+    transformHtml: (response) =>
+      transformServedHtml(injectTags(response, { early: dbTags(c.env.APP_URL, null) }), selfOrigin),
   })
 }
 
@@ -339,49 +354,24 @@ export function isHtmlFile(path: string): boolean {
   return /\.html?$/i.test(path)
 }
 
-/** Inject the annotate client + boot payload into an HTML document. The payload is the trusted
- *  server-resolved context (siteId, resolved files.path, parent origin); `<` is escaped so a
- *  path can't break out of the inline script. Inserted before </body> (else </head>, else end).
- *  `nonce` (rendered markdown only) stamps both script tags so they pass that branch's
- *  script-src 'nonce-…' CSP; uploaded HTML passes null and keeps its permissive policy. */
-export function injectAnnotate(
-  html: string,
-  payload: { siteId: string; filePath: string; appOrigin: string },
+/** The annotate client's tags; `nonce` stamps them for rendered markdown's script-src CSP. */
+function annotateTags(
+  payload: { siteId: string; filePath: string; appOrigin: string; siteRoot: string; frameNonce: string | null },
   nonce: string | null = null,
 ): string {
   const json = JSON.stringify(payload).replace(/</g, '\\u003c')
   const n = nonce ? ` nonce="${nonce}"` : ''
-  const tags =
+  return (
     `<link rel="stylesheet" href="/_postplan/annotate.css?v=${ANNOTATE_VERSION}">` +
     `<script${n}>window.__POSTPLAN__=${json}</script>` +
     `<script${n} src="/_postplan/annotate.js?v=${ANNOTATE_VERSION}" defer></script>`
-  // Replacement FUNCTIONS, not strings: `tags` embeds a user-controlled filePath, and `$&`/`$1`/`$$`
-  // in a replacement STRING are special (they'd corrupt output). A function's return is used verbatim.
-  if (html.includes('</body>')) return html.replace('</body>', () => `${tags}</body>`)
-  if (html.includes('</head>')) return html.replace('</head>', () => `${tags}</head>`)
-  // No close tag to anchor to: append after the document. The client is `defer`, so it still runs
-  // after parse, and appending (never prepending) keeps any leading doctype first — no quirks flip.
-  return html + tags
+  )
 }
 
-/** Inject the postplan.db SDK (broker mode) into an HTML document. Goes into <head> and loads
- *  SYNCHRONOUSLY — unlike the passive annotate client, page scripts call `postplan.db` directly,
- *  so the API must exist before any of them run. Boot carries only the app origin (the
- *  postMessage target); the parent decides which site requests bind to — the page can't. */
-export function injectDb(html: string, appOrigin: string): string {
-  const json = JSON.stringify({ appOrigin }).replace(/</g, '\\u003c')
-  const tags =
-    `<script>window.__POSTPLAN_DB__=${json}</script>` +
-    `<script src="/_postplan/db.js?v=${POSTPLAN_DB_VERSION}"></script>`
-  // Replacement FUNCTIONS so any `$`-sequence inside `tags` is inserted verbatim (and `$1` stays the
-  // captured <body> attributes). db.js loads SYNCHRONOUSLY, so anchor it as early as possible.
-  if (html.includes('</head>')) return html.replace('</head>', () => `${tags}</head>`)
-  if (/<body[^>]*>/i.test(html)) return html.replace(/<body([^>]*)>/i, (_m, attrs) => `<body${attrs}>${tags}`)
-  // No <head>/<body> to anchor to: insert right AFTER any leading doctype rather than before it —
-  // prepending `tags` ahead of the doctype would push it off the first line and flip into quirks mode.
-  const doctype = /^\s*<!doctype[^>]*>/i.exec(html)
-  if (doctype) return html.slice(0, doctype[0].length) + tags + html.slice(doctype[0].length)
-  return tags + html
+/** The SDK's boot payload and synchronous script; carries no credential, only where to say hello. */
+function dbTags(appOrigin: string, frameNonce: string | null): string {
+  const json = JSON.stringify({ appOrigin, frameNonce }).replace(/</g, '\\u003c')
+  return `<script>window.__POSTPLAN_DB__=${json}</script><script src="/_postplan/db.js?v=${POSTPLAN_DB_VERSION}"></script>`
 }
 
 /** True when an anchor href points OFF this content origin — an absolute http(s) URL to another
@@ -396,6 +386,63 @@ export function isExternalHref(href: string, base: string): boolean {
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return false
   return u.origin !== new URL(base).origin
+}
+
+/** Streams Postplan's tags into a served page with an HTML-aware parser (comments and quoted `>`
+ *  can't fool it). `early` (the SDK) lands before any page script can run: at the opening of <head>
+ *  or <body>, else before the first live <script> (not one inside <template>), else at the end of a script-less fragment. `late`
+ *  (the passive annotate client) goes just before </body>, else at the end. */
+export function injectTags(res: Response, tags: { early?: string; late?: string }): Response {
+  const { early, late } = tags
+  let placedEarly = !early
+  let placedLate = !late
+  let inTemplate = 0
+  const rewriter = new HTMLRewriter()
+  if (early) {
+    const into = {
+      element(el: Element) {
+        if (placedEarly) return
+        placedEarly = true
+        el.prepend(early, { html: true })
+      },
+    }
+    rewriter
+      .on('head', into)
+      .on('body', into)
+      .on('template', {
+        element(el) {
+          inTemplate++
+          el.onEndTag(() => {
+            inTemplate--
+          })
+        },
+      })
+      .on('script', {
+        element(el) {
+          if (placedEarly || inTemplate) return
+          placedEarly = true
+          el.before(early, { html: true })
+        },
+      })
+  }
+  if (late)
+    rewriter.on('body', {
+      element(el) {
+        el.onEndTag((end) => {
+          if (placedLate) return
+          placedLate = true
+          end.before(late, { html: true })
+        })
+      },
+    })
+  return rewriter
+    .onDocument({
+      end(end) {
+        if (!placedEarly && early) end.append(early, { html: true })
+        if (!placedLate && late) end.append(late, { html: true })
+      },
+    })
+    .transform(res)
 }
 
 /** The streamed HTMLRewriter pass every served HTML document goes through — no full-body buffering.
@@ -432,6 +479,11 @@ export function normalizePath(rest: string): string {
 // existing importers of `./content` (and content*.test.ts) working unchanged.
 export { escapeHtml, markdown } from './lib/markdown'
 
+// Every served document gets an opaque origin: sites can't read each other's storage or script each
+// other, even though they share this host. The flags mirror the viewer iframe's sandbox attribute.
+const SANDBOX =
+  'sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation'
+
 // Strict CSP for rendered markdown: no scripts, no plugins, no external loads. Inline
 // styles are allowed because renderMarkdownDoc inlines its stylesheet; images may be
 // self-hosted or data: (markdown can embed both). frame-ancestors is preserved so the
@@ -439,7 +491,7 @@ export { escapeHtml, markdown } from './lib/markdown'
 // In annotate mode a `nonce` is supplied: script-src then admits EXACTLY the two injected tags
 // (never 'unsafe-inline' — an unnonced script in the document still can't run), and style-src
 // additionally allows 'self' so /_postplan/annotate.css loads alongside the inlined shell styles.
-function markdownCsp(frameAncestors: string, nonce: string | null = null): string {
+function markdownCsp(contentCsp: string, nonce: string | null = null): string {
   const styleSelf = nonce !== null
   return [
     "default-src 'none'",
@@ -449,7 +501,7 @@ function markdownCsp(frameAncestors: string, nonce: string | null = null): strin
     nonce ? `script-src 'nonce-${nonce}'` : "script-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
-    frameAncestors,
+    contentCsp,
   ].join('; ')
 }
 
@@ -475,7 +527,7 @@ function directoryListing(c: Ctx, site: string, paths: string[], dir: string): R
     dir ? `<code>${escapeHtml(dir)}</code>` : 'the root'
   } — add one to set the landing page, or open a file below.</p><ul>${rows}</ul></body></html>`
   return c.html(html, 200, {
-    'content-security-policy': `frame-ancestors 'self' ${c.env.APP_URL}`,
+    'content-security-policy': `frame-ancestors 'self' ${c.env.APP_URL}; ${SANDBOX}`,
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
     'cache-control': 'no-store',

@@ -2,8 +2,8 @@
 // UNTRUSTED hosted pages use the data plane without ever holding a credential.
 //
 // Protocol: the SDK injected into the iframe posts {type:'postplan:db-hello'} with a transferred
-// MessagePort. We adopt the port ONLY when the message comes from the content origin AND from
-// the exact iframe window we mounted (same validation discipline as parseIntent). Every
+// MessagePort. We adopt the port ONLY from the exact iframe window we mounted, with an opaque
+// origin and this mount's nonce (same discipline as lib/frameChannel). Every
 // subsequent request arrives on that port, is shape-validated, executed with OUR token against
 // /api/_data, and answered with data only — the bearer token never crosses into the iframe.
 //
@@ -18,6 +18,8 @@
 // with no numeric `id`, because the SDK settles any numbered frame as a reply to an in-flight
 // request. The socket outlives the iframe document, so an in-site navigation resumes from the
 // cursor we kept rather than replaying from nothing.
+
+import { readHello } from './frameChannel'
 
 const COLLECTION_RE = /^[a-zA-Z0-9_-]{1,64}$/
 const DOCID_RE = /^[a-zA-Z0-9_-]{1,128}$/
@@ -57,7 +59,12 @@ type BrokerRequest = { id: number; op: string; collection: string; docId?: strin
 export type DbBroker = { onWindowMessage: (e: MessageEvent) => void; dispose: () => void }
 
 export function createDbBroker(
-  opts: { site: BrokerSite; contentOrigin: string; appOrigin: string; getSource: () => Window | null | undefined },
+  opts: {
+    site: BrokerSite
+    appOrigin: string
+    nonce: string
+    getSource: () => Window | null | undefined
+  },
   deps: {
     fetchFn: typeof fetch
     newSocket: (url: string, protocols: string[]) => BrokerSocket
@@ -282,12 +289,18 @@ export function createDbBroker(
   }
 
   function onWindowMessage(e: MessageEvent): void {
-    if (e.origin !== opts.contentOrigin) return
-    const source = opts.getSource()
-    if (!source || e.source !== source) return
-    if ((e.data as { type?: unknown } | null)?.type !== 'postplan:db-hello') return
-    const p = e.ports?.[0]
-    if (!p) return
+    const hello = readHello(e, { type: 'postplan:db-hello', nonce: opts.nonce, getSource: opts.getSource })
+    if (!hello) return
+    const p = hello.port
+    // The frame may have navigated to another site on the shared content host; only the page we loaded holds the nonce.
+    if (!hello.trusted) {
+      p.postMessage({
+        type: 'postplan:db-error',
+        error: 'postplan.db is unavailable on this page — open it from a link in the site',
+      })
+      p.close()
+      return
+    }
     port?.close()
     port = p
     p.onmessage = (msg) => onPortMessage(p, msg)
@@ -328,11 +341,9 @@ function mintError(status: number): string {
 }
 
 /** Wire a broker to the real window for the lifetime of a viewer. */
-export function attachDbBroker(opts: {
-  site: BrokerSite
-  contentOrigin: string
-  getSource: () => Window | null | undefined
-}): { dispose: () => void } {
+export function attachDbBroker(opts: { site: BrokerSite; nonce: string; getSource: () => Window | null | undefined }): {
+  dispose: () => void
+} {
   // The app origin is ours — the data plane is reached by relative path, but a WebSocket URL
   // cannot be relative. Taken here so the broker itself stays free of ambient globals.
   const broker = createDbBroker({ ...opts, appOrigin: window.location.origin })

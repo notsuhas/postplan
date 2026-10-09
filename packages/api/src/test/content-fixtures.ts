@@ -64,3 +64,11 @@ export async function teamSite(s: Setup, specs: FileSpec[]) {
   s.recorder.resetCounters()
   return { owner, viewer, sp, siteId, token, keys }
 }
+
+/** A served page minus the SDK tags streamed into every HTML response — the uploaded bytes. */
+export function stripSdk(html: string): string {
+  return html.replace(
+    /<script>window\.__POSTPLAN_DB__=.*?<\/script><script src="\/_postplan\/db\.js\?v=[^"]+"><\/script>/,
+    '',
+  )
+}

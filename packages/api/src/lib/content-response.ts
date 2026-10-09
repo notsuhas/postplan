@@ -41,6 +41,7 @@ export async function serveStoredObject(
     storageKey: string
     size: number | null
     etag: string | null
+    htmlEtagSuffix?: string
     headers: Headers
     rangeable: boolean
     isHtml: boolean
@@ -50,6 +51,9 @@ export async function serveStoredObject(
   },
 ): Promise<Response> {
   const { storageKey, size, etag: rowEtag, headers, rangeable, isHtml, mime, view, transformHtml } = args
+  // HTML bodies get transformed on the way out, so their validator also names the transform.
+  const tag = (etag: string) =>
+    isHtml && args.htmlEtagSuffix ? `${etag.replace(/"$/, '')}-${args.htmlEtagSuffix}"` : etag
 
   // Honor the conditional request: when the viewer already holds this exact ETag, answer 304 and
   // skip re-streaming the body. This MUST win over Range (RFC 7233 §3.1), so it runs before any
@@ -66,8 +70,8 @@ export async function serveStoredObject(
       probedEtag = probe.httpEtag
       current = probe.httpEtag
     }
-    if (inm === current) {
-      headers.set('etag', current)
+    if (inm === tag(current)) {
+      headers.set('etag', tag(current))
       if (isHtml) await view() // parity with the 200 path: an HTML revalidation is still a page load
       return new Response(null, { status: 304, headers })
     }
@@ -142,7 +146,7 @@ export async function serveStoredObject(
   // ran in serve() — the cache is never consulted before the access gate).
   const read = await readStoredObject(c, storageKey, mime)
   if (!read) return notFound(c)
-  headers.set('etag', read.etag)
+  headers.set('etag', tag(read.etag))
   if (isHtml) await view()
   const res = new Response(read.body, { headers })
   // Uploaded HTML gets the streamed external-link rewrite pass. Other

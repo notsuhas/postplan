@@ -1,6 +1,7 @@
+import { stripSdk } from '../test/content-fixtures'
 import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
-import contentApp, { injectAnnotate, normalizePath, restOf } from '../content'
+import contentApp, { injectTags, normalizePath, restOf } from '../content'
 import { markdown } from '../lib/markdown'
 import { events, sites, spaces, users } from '../db/schema'
 import { sanitizePath } from '../lib/storage'
@@ -254,7 +255,7 @@ describe('directory listing fallback (no index.html)', () => {
 
     const res = await app.request(`/_t/${token}/sam/site/`, {}, env)
     expect(res.status).toBe(200)
-    expect(await res.text()).toBe('<h1>Report</h1>')
+    expect(stripSdk(await res.text())).toBe('<h1>Report</h1>')
   })
 })
 
@@ -350,27 +351,45 @@ describe('view analytics (page-view events)', () => {
   })
 })
 
-describe('injectAnnotate replacement safety (#46: $-specials in filePath stay verbatim)', () => {
-  test('$&, $$, $1 in the payload are inserted byte-for-byte, not interpreted as replacement specials', () => {
-    // A String.prototype.replace with a STRING replacement would expand $& → the matched '</body>'
-    // and $$ → '$', corrupting the user-controlled path. The replacement FUNCTION inserts it verbatim.
-    const html = '<html><head></head><body><p>x</p></body></html>'
-    const out = injectAnnotate(html, {
-      siteId: 's1',
-      filePath: 'weird$&$$$1name.html',
-      appOrigin: 'https://postplan.example.com',
+describe("injectTags — HTML-aware placement of Postplan's tags", () => {
+  const run = (html: string, tags: { early?: string; late?: string }) =>
+    injectTags(new Response(html, { headers: { 'content-type': 'text/html' } }), tags).text()
+
+  test('early goes before any page script, late before </body>, and both are inserted verbatim', async () => {
+    const out = await run('<html><head><script>page()</script></head><body><p>x</p></body></html>', {
+      early: '<i>E$&</i>',
+      late: '<i>L$$</i>',
     })
-    expect(out).toContain('"filePath":"weird$&$$$1name.html"')
-    // Still anchored before </body> (the preferred injection point), not the append fallback.
-    expect(out.indexOf('window.__POSTPLAN__=')).toBeLessThan(out.indexOf('</body>'))
+    expect(out).toBe('<html><head><i>E$&</i><script>page()</script></head><body><p>x</p><i>L$$</i></body></html>')
   })
 
-  test('no </body>/</head> → appends after the document, keeping any leading doctype first (no quirks flip)', () => {
-    const html = '<!doctype html><p>bare</p>'
-    const out = injectAnnotate(html, { siteId: 's1', filePath: 'a.html', appOrigin: 'https://postplan.example.com' })
+  test('a <head> inside a comment or a quoted > cannot misplace the SDK', async () => {
+    const out = await run('<!-- <head> --><html><head data-x="a>b"><script>page()</script></head></html>', {
+      early: '<i>E</i>',
+    })
+    expect(out.indexOf('<i>E</i>')).toBeGreaterThan(out.indexOf('a>b"'))
+    expect(out.indexOf('<i>E</i>')).toBeLessThan(out.indexOf('page()'))
+  })
+
+  test('without <head>/<body>, early goes before the first script', async () => {
+    expect(await run('<p>x</p><script>page()</script>', { early: '<i>E</i>' })).toBe(
+      '<p>x</p><i>E</i><script>page()</script>',
+    )
+  })
+
+  test('a script inside <template> never runs, so the SDK skips it for the first live one', async () => {
+    expect(await run('<template><script>t()</script></template><script>real()</script>', { early: '<i>E</i>' })).toBe(
+      '<template><script>t()</script></template><i>E</i><script>real()</script>',
+    )
+  })
+
+  test('a script-less fragment still gets both, at the end, keeping the doctype first', async () => {
+    const out = await run('<!doctype html><p>bare</p><a href="f.csv" download>f</a>', {
+      early: '<i>E</i>',
+      late: '<i>L</i>',
+    })
     expect(out.startsWith('<!doctype html>')).toBe(true)
-    expect(out).toContain('window.__POSTPLAN__=')
-    expect(out.indexOf('<p>bare</p>')).toBeLessThan(out.indexOf('window.__POSTPLAN__='))
+    expect(out.endsWith('<i>E</i><i>L</i>')).toBe(true)
   })
 })
 
@@ -443,7 +462,7 @@ describe('gated file serving: cache-control, conditional 304, archive-through-ch
     const { token } = await seedServable(db, r2)
     const res = await app.request(`/_t/${token}/sam/site/`, { headers: { 'if-none-match': '"stale"' } }, env)
     expect(res.status).toBe(200)
-    expect(await res.text()).toBe('<h1>hi</h1>')
+    expect(stripSdk(await res.text())).toBe('<h1>hi</h1>')
   })
 
   // Archive is one rule for everyone — the role carries no exemption, so even a superadmin who
@@ -603,6 +622,6 @@ describe('audio serving: MIME resolution + HTTP Range support', () => {
     const res = await app.request(`/_t/${token}/sam/site/index.html`, { headers: { range: 'bytes=0-1' } }, env)
     expect(res.status).toBe(200)
     expect(res.headers.get('accept-ranges')).toBeNull()
-    expect(await res.text()).toBe('<h1>hi</h1>')
+    expect(stripSdk(await res.text())).toBe('<h1>hi</h1>')
   })
 })

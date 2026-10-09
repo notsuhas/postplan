@@ -42,7 +42,7 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
 
 | P0 | Control | Test |
 |----|---------|------|
-| 1 Confused deputy | Parent-frame broker: hosted pages get a MessagePort, never a token; parent validates origin+source+shape and binds every request to the viewed site | `dbBroker.test.ts` (spoofed origin/source, op smuggling, token never crosses) |
+| 1 Confused deputy | Parent-frame broker: hosted pages get a MessagePort, never a token; parent validates origin+source+shape, requires the per-load `postplan_frame` nonce (so another site navigated into the frame can't adopt the port), and binds every request to the viewed site | `dbBroker.test.ts` (spoofed origin/source/nonce, op smuggling, token never crosses) |
 | 2 Token type confusion | Separate secret + `aud`/caps inside the MAC; content token can't verify as data token | `data-token.test.ts` (content-token, aud, widened-caps, tamper) |
 | 3 CORS / CSRF boundary | ACAO pinned to `CONTENT_URL`, no `Allow-Credentials`, cookie ignored on the data plane | `data.test.ts` CORS; live curl (cookie-only → 401) |
 | 4 Modify ≠ view | Every viewer gets `read`+`create` (attributed submissions); `write` (put/delete) is owner-only (the superadmin role grants no caps) — a viewer cannot touch any existing document | `data.test.ts` (dataCapsFor + viewer put/delete → 403) |
@@ -54,6 +54,16 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
 | 11 Query-injection | No arbitrary filters shipped; collection/docId allowlisted; all queries drizzle-parameterized | `data.test.ts` validation; deferred filters |
 
 ## Known limitations
+
+- **Sandboxed pages** — every served document carries `Content-Security-Policy: sandbox …` without
+  `allow-same-origin` (and the viewer iframe matches), so each page gets an opaque origin: sites on the
+  shared content host can't read each other's storage or script each other. The viewer talks to a page
+  only over the MessagePort handed over in a hello carrying the per-load `postplan_frame` nonce
+  (`lib/frameChannel.ts`). Real Web Storage throws there, so the SDK installs in-memory
+  `localStorage`/`sessionStorage` that last as long as the page; nothing is stored server-side. It
+  also saves same-site `<a download>` links through a Blob URL, since the browser would otherwise
+  navigate them (`postplandb/sandbox.ts`).
+  Persistence is `postplan.db`, explicitly.
 
 - **Standalone tabs** — a site opened directly on the content origin has no parent frame, so
   `postplan.db` calls fail with a clear "open this site through the Postplan app" error. By design

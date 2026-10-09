@@ -13,9 +13,15 @@
 // The global is __POSTPLAN_DB__, not __POSTPLAN__ — that one belongs to the annotate overlay.
 
 import { WS_PROTOCOL } from '../realtime/protocol'
+import { createStorage, isSandboxed, needsBlobDownload, saveViaBlob } from './sandbox'
 import { type ChangeEvent, type Frame, type StreamHandlers, type Transport, createSubscriptions } from './subscriptions'
 
-type Boot = { appOrigin?: string; space?: string; site?: string }
+type Boot = {
+  appOrigin?: string
+  space?: string
+  site?: string
+  frameNonce?: string | null
+}
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
 type BrokerReq = {
   id: number
@@ -80,7 +86,7 @@ function connect(appOrigin: string): Promise<MessagePort> {
         else settle(d.id, 'reject', new Error((d.body as { error?: string })?.error || `postplan: ${d.status}`))
       }
     }
-    window.parent.postMessage({ type: 'postplan:db-hello' }, appOrigin, [ch.port2])
+    window.parent.postMessage({ type: 'postplan:db-hello', nonce: boot?.frameNonce ?? null }, appOrigin, [ch.port2])
   })
   return connecting
 }
@@ -267,3 +273,20 @@ function collection(name: string) {
 }
 
 ;(window as unknown as { postplan: unknown }).postplan = { db: { collection } }
+
+// --- Sandboxed pages ---------------------------------------------------------------------------
+// The page has an opaque origin: the browser's own storage throws, and a same-site `download` link is
+// cross-origin, so it would navigate instead of saving. Persistence stays explicit (postplan.db).
+if (isSandboxed()) {
+  Object.defineProperty(window, 'localStorage', { value: createStorage(), configurable: true })
+  Object.defineProperty(window, 'sessionStorage', { value: createStorage(), configurable: true })
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0) return
+    const a = (e.target as Element | null)?.closest?.('a[download][href]') as HTMLAnchorElement | null
+    if (!a || !needsBlobDownload(a.href, location.href)) return
+    e.preventDefault()
+    saveViaBlob(a.href, a.getAttribute('download') || a.pathname.split('/').pop() || 'download').catch((err) =>
+      console.warn(`postplan: ${err.message}`),
+    )
+  })
+}

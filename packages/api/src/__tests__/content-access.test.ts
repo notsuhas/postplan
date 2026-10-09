@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 import { siteUserShares, sites, spaceMembers, users } from '../db/schema'
 import { fetchAccessFacts } from '../lib/site-access'
-import { mintToken, setup as setupFixture, teamSite } from '../test/content-fixtures'
+import { mintToken, setup as setupFixture, teamSite, stripSdk } from '../test/content-fixtures'
 import { seedFile, seedGroupShare, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
 
 // Exact statement count of serve()'s single batch for an AUTHED request: the 5 access-facts
@@ -62,10 +62,10 @@ describe('T1.5 cross-space same-slug isolation (pin)', () => {
     const { ownerA, ownerB } = await twoSpaces(s)
     const resA = await s.app.request(`/_t/${await token(ownerA, 'space-a/site')}/space-a/site/`, {}, s.env)
     expect(resA.status).toBe(200)
-    expect(await resA.text()).toBe('BODY-A')
+    expect(stripSdk(await resA.text())).toBe('BODY-A')
     const resB = await s.app.request(`/_t/${await token(ownerB, 'space-b/site')}/space-b/site/`, {}, s.env)
     expect(resB.status).toBe(200)
-    expect(await resB.text()).toBe('BODY-B')
+    expect(stripSdk(await resB.text())).toBe('BODY-B')
   })
 
   test("membership in space A doesn't authorize B's same-slug (members) site", async () => {
@@ -306,7 +306,7 @@ describe('T1.2 dir-listing fallback rides the index-ish batch', () => {
     ])
     const res = await s.app.request(`/_t/${t}/sp/site/`, {}, s.env)
     expect(res.status).toBe(200)
-    expect(await res.text()).toBe('<p>home</p>')
+    expect(stripSdk(await res.text())).toBe('<p>home</p>')
     expect(s.db.counters.batches).toBe(1)
     expect(s.db.counters.batchStmts).toBe(INDEX_BATCH_ARITY)
     // index.html is a page load → exactly ONE loose statement, and it's the view-event insert.

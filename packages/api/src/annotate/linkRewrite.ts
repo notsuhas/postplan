@@ -1,3 +1,5 @@
+import { FRAME_NONCE_PARAM } from '../../../shared/frame'
+
 // Pure URL-rewrite decision for the annotate client's link-propagation click handler. GLOBAL-FREE
 // (only the standard URL constructor — no window/document), so it is unit-tested directly under
 // bun:test with no DOM at all (see locator.ts for the same split-out-the-pure-part pattern).
@@ -26,5 +28,13 @@ export function withAnnotateParam(href: string, base: string): string | null {
   }
   if (url.origin !== baseUrl.origin) return null
   url.searchParams.set('postplan_annotate', '1')
+  return url.toString()
+}
+
+/** Carry the broker nonce only to links under this site's root (an absolute URL prefix); strip it elsewhere. */
+export function withFrameNonce(href: string, nonce: string | null, siteRoot: string): string {
+  const url = new URL(href)
+  url.searchParams.delete(FRAME_NONCE_PARAM)
+  if (nonce && url.href.startsWith(siteRoot)) url.searchParams.set(FRAME_NONCE_PARAM, nonce)
   return url.toString()
 }

@@ -287,6 +287,19 @@ You can update that site's content even though you don't own it and aren't in it
 
 `members` = people in the site's own space only (it was renamed from `group`; the old value is still accepted and mapped to `members`). `unlisted` = anyone with the unguessable URL, without a Postplan login. The legacy value `public` is still accepted on the wire but maps to `team` (everyone in your org), not to `unlisted`.
 
+## Pages run sandboxed
+
+Every page gets its own browser sandbox (an opaque origin), like Claude artifacts. `localStorage` and
+`sessionStorage` work but only last as long as the page; cookies and IndexedDB are unavailable. To keep
+data across visits, use `postplan.db`. Relative `fetch()`, ES module imports and `<a download>` links to
+the site's own files work. Two things need a small change:
+
+- Web workers: `new Worker('worker.js')` fails; fetch the script and start it from a Blob URL.
+- Canvas exports (`toDataURL`, html2canvas): load same-site images with `crossorigin="anonymous"`.
+
+`postplan.db` works on pages reached through ordinary links. A page opened by script (`location.href =
+…`) or a GET form loses access; use links between your pages.
+
 ## Saving data from your pages — `postplan.db` (experimental)
 
 Each site gets a small JSON document store, and any HTML page you deploy can use it directly —
