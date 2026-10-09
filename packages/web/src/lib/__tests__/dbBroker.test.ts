@@ -95,17 +95,12 @@ describe('handshake', () => {
     expect(calls).toHaveLength(0)
   })
 
-  test('ATTACK: hello without the nonce (another site navigated into the frame) is refused without minting', async () => {
+  test.each([
+    ['without the nonce (another site navigated into the frame)', null],
+    ['with a wrong nonce', 'guess'],
+  ])('ATTACK: a hello %s is refused without minting', async (_name, nonce) => {
     const { broker, calls } = makeBroker(mintOk)
-    const h = hello(broker, { nonce: null })
-    await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'postplan:db-error'))
-    expect(h.received.some((x) => (x as { type?: string }).type === 'postplan:db-ready')).toBe(false)
-    expect(calls).toHaveLength(0)
-  })
-
-  test('ATTACK: hello with a wrong nonce is refused without minting', async () => {
-    const { broker, calls } = makeBroker(mintOk)
-    const h = hello(broker, { nonce: 'guess' })
+    const h = hello(broker, { nonce })
     await h.waitFor((m) => m.some((x) => (x as { type?: string }).type === 'postplan:db-error'))
     expect(h.received.some((x) => (x as { type?: string }).type === 'postplan:db-ready')).toBe(false)
     expect(calls).toHaveLength(0)

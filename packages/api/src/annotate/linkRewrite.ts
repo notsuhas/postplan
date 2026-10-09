@@ -1,3 +1,5 @@
+import { BROKER_PARAM } from '../../../shared/broker'
+
 // Pure URL-rewrite decision for the annotate client's link-propagation click handler. GLOBAL-FREE
 // (only the standard URL constructor — no window/document), so it is unit-tested directly under
 // bun:test with no DOM at all (see locator.ts for the same split-out-the-pure-part pattern).
@@ -15,34 +17,24 @@
  *  leak the param into someone else's origin querystring for no purpose. `base` is the current
  *  document's base URL (respects a `<base href>` tag, falling back to the document URL). Idempotent:
  *  a link that already carries the param round-trips unchanged. */
-export function withAnnotateParam(href: string, base: string, current: string = base): string | null {
+export function withAnnotateParam(href: string, base: string): string | null {
   let baseUrl: URL
   let url: URL
-  let currentUrl: URL
   try {
     baseUrl = new URL(base)
     url = new URL(href, baseUrl)
-    currentUrl = new URL(current)
   } catch {
     return null
   }
   if (url.origin !== baseUrl.origin) return null
   url.searchParams.set('postplan_annotate', '1')
-  // The db broker nonce must never reach another site on the shared content origin.
-  const nonce = currentUrl.searchParams.get(BROKER_PARAM)
-  const site = siteOf(url.pathname)
-  if (nonce && url.origin === currentUrl.origin && site !== null && site === siteOf(currentUrl.pathname))
-    url.searchParams.set(BROKER_PARAM, nonce)
-  else url.searchParams.delete(BROKER_PARAM)
   return url.toString()
 }
 
-const BROKER_PARAM = 'postplan_broker'
-
-/** `space/site` for a site path, gated (`/_t/<token>/…`) or not; null when the path is too short. */
-function siteOf(pathname: string): string | null {
-  const segs = pathname.split('/').filter(Boolean)
-  const at = segs[0] === '_t' ? 2 : 0
-  const complete = segs.length > at + 2 || (segs.length === at + 2 && pathname.endsWith('/'))
-  return complete ? segs.slice(at, at + 2).join('/') : null
+/** Carry the broker nonce only to links under this site's root (an absolute URL prefix); strip it elsewhere. */
+export function withBrokerNonce(href: string, nonce: string | null, siteRoot: string): string {
+  const url = new URL(href)
+  url.searchParams.delete(BROKER_PARAM)
+  if (nonce && url.href.startsWith(siteRoot)) url.searchParams.set(BROKER_PARAM, nonce)
+  return url.toString()
 }

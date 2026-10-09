@@ -63,6 +63,7 @@ describe('annotate injection', () => {
     const injected = await (await app.request(`/_t/${token}/sam/site/?postplan_annotate=1`, {}, env)).text()
     expect(injected).toContain('<script src="/_postplan/annotate.js')
     expect(injected).toContain('window.__POSTPLAN__=')
+    expect(injected).toContain(`"siteRoot":"/_t/${token}/sam/site/"`)
 
     const raw = await app.request(`/_t/${token}/sam/site/`, {}, env)
     const rawBody = await raw.text()

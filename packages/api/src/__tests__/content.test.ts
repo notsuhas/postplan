@@ -359,6 +359,7 @@ describe('injectAnnotate replacement safety (#46: $-specials in filePath stay ve
       siteId: 's1',
       filePath: 'weird$&$$$1name.html',
       appOrigin: 'https://postplan.example.com',
+      siteRoot: '/sp/site/',
     })
     expect(out).toContain('"filePath":"weird$&$$$1name.html"')
     // Still anchored before </body> (the preferred injection point), not the append fallback.
@@ -367,7 +368,12 @@ describe('injectAnnotate replacement safety (#46: $-specials in filePath stay ve
 
   test('no </body>/</head> → appends after the document, keeping any leading doctype first (no quirks flip)', () => {
     const html = '<!doctype html><p>bare</p>'
-    const out = injectAnnotate(html, { siteId: 's1', filePath: 'a.html', appOrigin: 'https://postplan.example.com' })
+    const out = injectAnnotate(html, {
+      siteId: 's1',
+      filePath: 'a.html',
+      appOrigin: 'https://postplan.example.com',
+      siteRoot: '/sp/site/',
+    })
     expect(out.startsWith('<!doctype html>')).toBe(true)
     expect(out).toContain('window.__POSTPLAN__=')
     expect(out.indexOf('<p>bare</p>')).toBeLessThan(out.indexOf('window.__POSTPLAN__='))

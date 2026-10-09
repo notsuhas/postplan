@@ -25,13 +25,13 @@
 // command and no per-anchor lit set — badges, and the rect batches that positioned them, are gone.
 // Clicking a painted anchor is what opens its thread in the rail (postplan:anchor-click).
 
-import { withAnnotateParam } from './linkRewrite'
+import { withAnnotateParam, withBrokerNonce } from './linkRewrite'
 import type { TextContext } from '../lib/anchor'
 import { findRange, resolveSelector } from './locator'
 import { anchorIdAtPoint, anchorRanges, type ElementAnchor, installIndexInvalidation, type TextAnchor } from './reflow'
 import { installSelectionCapture, type Rect } from './selection'
 
-type Boot = { siteId: string; filePath: string; appOrigin: string }
+type Boot = { siteId: string; filePath: string; appOrigin: string; siteRoot: string }
 type PaintAnchor = {
   id: string
   anchorType?: 'text' | 'page' | 'element'
@@ -41,6 +41,9 @@ type PaintAnchor = {
 }
 
 const boot = (window as unknown as { __POSTPLAN__?: Boot }).__POSTPLAN__
+// Captured by the db SDK before page scripts ran; absent when this page has no broker.
+const brokerNonce =
+  (window as unknown as { __POSTPLAN_DB__?: { brokerNonce?: string | null } }).__POSTPLAN_DB__?.brokerNonce ?? null
 let mode: 'experience' | 'comment' = 'experience'
 
 function toParent(msg: unknown): void {
@@ -90,8 +93,12 @@ document.addEventListener(
     if (!a || a.hasAttribute('download')) return
     const linkTarget = a.getAttribute('target')
     if (linkTarget && linkTarget !== '_self') return
-    const rewritten = withAnnotateParam(a.getAttribute('href') ?? '', document.baseURI, window.location.href)
-    if (rewritten && rewritten !== a.href) a.href = rewritten
+    const rewritten = withAnnotateParam(a.getAttribute('href') ?? '', document.baseURI)
+    if (!rewritten) return
+    const scoped = boot
+      ? withBrokerNonce(rewritten, brokerNonce, new URL(boot.siteRoot, window.location.origin).href)
+      : rewritten
+    if (scoped !== a.href) a.href = scoped
   },
   true,
 )

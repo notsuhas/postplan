@@ -12,10 +12,11 @@
 //
 // The global is __POSTPLAN_DB__, not __POSTPLAN__ — that one belongs to the annotate overlay.
 
+import { BROKER_PARAM } from '../../../shared/broker'
 import { WS_PROTOCOL } from '../realtime/protocol'
 import { type ChangeEvent, type Frame, type StreamHandlers, type Transport, createSubscriptions } from './subscriptions'
 
-type Boot = { appOrigin?: string; space?: string; site?: string }
+type Boot = { appOrigin?: string; space?: string; site?: string; brokerNonce?: string | null }
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
 type BrokerReq = {
   id: number
@@ -31,8 +32,9 @@ const HELLO_TIMEOUT_MS = 5000
 const REQUEST_TIMEOUT_MS = 15000
 
 const boot = (window as unknown as { __POSTPLAN_DB__?: Boot }).__POSTPLAN_DB__
-// Read before page scripts run, so a router tidying the query string can't drop it.
-const brokerNonce = new URLSearchParams(location.search).get('postplan_broker')
+// Read before page scripts run, so a router tidying the query string can't drop it; the annotate client reuses it.
+const brokerNonce = new URLSearchParams(location.search).get(BROKER_PARAM)
+if (boot) boot.brokerNonce = brokerNonce
 
 // --- broker transport (hosted pages inside the app viewer) --------------------------------
 

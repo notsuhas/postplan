@@ -1,3 +1,4 @@
+import { BROKER_PARAM } from '../../../shared/broker'
 import { useViewerComments } from '@/hooks/useViewerComments'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useParams, useSearchParams } from 'react-router'
@@ -64,7 +65,7 @@ function Viewer() {
   const lastReadyPathRef = useRef<string | null>(null)
   const contentOrigin = useMemo(() => new URL(site.contentUrl).origin, [site.contentUrl])
   // Per-mount secret the db broker requires in the hello; it rides the frame URL so only this site's pages hold it.
-  const brokerNonce = useMemo(() => crypto.randomUUID().replaceAll('-', ''), [])
+  const [brokerNonce] = useState(() => crypto.randomUUID().replaceAll('-', ''))
   const src = useMemo(() => {
     const contentUrl = appendPath(site.contentUrl, sitePath)
     return withAnnotate(contentUrl, site.authenticated ? brokerNonce : null)
@@ -649,6 +650,8 @@ function Viewer() {
                 // for hosted pages, which matches how interactive artifacts behave elsewhere.
                 // Granted so copy buttons, fullscreen and video work; camera, mic and location stay off.
                 allow="clipboard-write; fullscreen; autoplay; picture-in-picture"
+                // Hides this entry's URL (and the broker nonce in it) from navigation.entries() of later pages.
+                referrerPolicy="no-referrer"
                 sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-top-navigation-by-user-activation allow-modals allow-downloads"
               />
             )}
@@ -720,7 +723,7 @@ function Viewer() {
 function withAnnotate(u: string, brokerNonce: string | null): string {
   const url = new URL(u)
   url.searchParams.set('postplan_annotate', '1')
-  if (brokerNonce) url.searchParams.set('postplan_broker', brokerNonce)
+  if (brokerNonce) url.searchParams.set(BROKER_PARAM, brokerNonce)
   return url.toString()
 }
 

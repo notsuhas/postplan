@@ -87,11 +87,14 @@ app.get('/_t/:token/:space/:site/*', async (c) => {
   const { token, space, site } = c.req.param()
   const userId = await verifyToken(c.env.CONTENT_TOKEN_SECRET, `${space}/${site}`, token)
   if (!userId) return c.text('Invalid or expired link', 403)
-  return serve(c, space, site, restOf(c.req.url, 4), userId)
+  return serve(c, space, site, restOf(c.req.url, 4), userId, `/_t/${token}/${space}/${site}/`)
 })
 
 // Untokened requests may read unlisted sites; serve() applies the same live access policy as tokened requests.
-app.get('/:space/:site/*', (c) => serve(c, c.req.param('space'), c.req.param('site'), restOf(c.req.url, 2), null))
+app.get('/:space/:site/*', (c) => {
+  const { space, site } = c.req.param()
+  return serve(c, space, site, restOf(c.req.url, 2), null, `/${space}/${site}/`)
+})
 
 // `userId` is the token-bound viewer for gated requests, or null for public requests.
 async function serve(
@@ -100,6 +103,8 @@ async function serve(
   siteSlug: string,
   rest: string,
   userId: string | null,
+  // The URL prefix this request was served under; in-frame links stay on the site only below it.
+  siteRoot: string,
 ): Promise<Response> {
   const db = getDb(c)
   const reqPath = normalizePath(rest)
@@ -237,7 +242,7 @@ async function serve(
         )
       : rendered
     const doc = annotate
-      ? injectAnnotate(withDiagrams, { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL }, nonce)
+      ? injectAnnotate(withDiagrams, { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot }, nonce)
       : withDiagrams
     const res = c.html(doc, 200, {
       'content-security-policy': markdownCsp(frameAncestors, nonce),
@@ -262,6 +267,7 @@ async function serve(
       siteId: siteRow.id,
       filePath: path, // the RESOLVED path (single-file fallback), not the URL guess
       appOrigin: c.env.APP_URL,
+      siteRoot,
     })
     const res = c.html(injected, 200, {
       'content-security-policy': frameAncestors,
@@ -346,7 +352,7 @@ export function isHtmlFile(path: string): boolean {
  *  script-src 'nonce-…' CSP; uploaded HTML passes null and keeps its permissive policy. */
 export function injectAnnotate(
   html: string,
-  payload: { siteId: string; filePath: string; appOrigin: string },
+  payload: { siteId: string; filePath: string; appOrigin: string; siteRoot: string },
   nonce: string | null = null,
 ): string {
   const json = JSON.stringify(payload).replace(/</g, '\\u003c')

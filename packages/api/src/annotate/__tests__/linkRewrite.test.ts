@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { withAnnotateParam } from '../linkRewrite'
+import { withAnnotateParam, withBrokerNonce } from '../linkRewrite'
 
 const base = 'https://example.com/dir/index.html'
 
@@ -37,45 +37,37 @@ describe('withAnnotateParam — same-origin in-frame link rewrite', () => {
   test('a protocol-relative link to another host is cross-origin → untouched', () => {
     expect(withAnnotateParam('//other.example/page.html', base)).toBeNull()
   })
+})
 
-  test('broker nonce follows links within the same site', () => {
-    const cur = 'https://c.example/_t/tok/sp/site/index.html?postplan_annotate=1&postplan_broker=abc'
-    expect(withAnnotateParam('page2.html', cur, cur)).toBe(
-      'https://c.example/_t/tok/sp/site/page2.html?postplan_annotate=1&postplan_broker=abc',
-    )
+describe('withBrokerNonce — the db nonce never leaves the site root', () => {
+  const root = 'https://c.example/_t/tok/sp/site/'
+  test.each([
+    [
+      'a page in the site keeps it',
+      `${root}docs/a.html?postplan_annotate=1`,
+      `${root}docs/a.html?postplan_annotate=1&postplan_broker=n`,
+    ],
+    [
+      'another site on the same origin loses it',
+      'https://c.example/sp/other/?postplan_broker=n',
+      'https://c.example/sp/other/',
+    ],
+    ['dot segments out of the root lose it', `${root}../other/`, 'https://c.example/_t/tok/sp/other/'],
+    [
+      'another origin with the same path loses it',
+      'https://evil.example/_t/tok/sp/site/',
+      'https://evil.example/_t/tok/sp/site/',
+    ],
+    [
+      'the site root without its slash loses it (fails safe)',
+      'https://c.example/_t/tok/sp/site',
+      'https://c.example/_t/tok/sp/site',
+    ],
+  ])('%s', (_name, href, expected) => {
+    expect(withBrokerNonce(href, 'n', root)).toBe(expected)
   })
 
-  test('broker nonce is stripped on links to another site on the same origin', () => {
-    const cur = 'https://c.example/sp/site/index.html?postplan_annotate=1&postplan_broker=abc'
-    expect(withAnnotateParam('/sp/other/', cur, cur)).toBe('https://c.example/sp/other/?postplan_annotate=1')
-    expect(withAnnotateParam('/sp/other/?postplan_broker=abc', cur, cur)).toBe(
-      'https://c.example/sp/other/?postplan_annotate=1',
-    )
-  })
-
-  test('broker nonce comes from the document URL, not a <base href>', () => {
-    const cur = 'https://c.example/sp/site/index.html?postplan_broker=abc'
-    expect(withAnnotateParam('a.html', 'https://c.example/sp/site/sub/', cur)).toBe(
-      'https://c.example/sp/site/sub/a.html?postplan_annotate=1&postplan_broker=abc',
-    )
-  })
-
-  test('broker nonce follows a same-site link from the gated path to the public one', () => {
-    const cur = 'https://c.example/_t/tok/sp/site/index.html?postplan_broker=abc'
-    expect(withAnnotateParam('/sp/site/a.html', cur, cur)).toBe(
-      'https://c.example/sp/site/a.html?postplan_annotate=1&postplan_broker=abc',
-    )
-  })
-
-  test('broker nonce never follows an external <base href>, even with a matching path', () => {
-    const cur = 'https://c.example/sp/site/index.html?postplan_broker=abc'
-    expect(withAnnotateParam('a.html', 'https://evil.example/sp/site/', cur)).toBe(
-      'https://evil.example/sp/site/a.html?postplan_annotate=1',
-    )
-  })
-
-  test('a site root without a trailing slash fails safe (no nonce)', () => {
-    const cur = 'https://c.example/sp/site/index.html?postplan_broker=abc'
-    expect(withAnnotateParam('/sp/site', cur, cur)).toBe('https://c.example/sp/site?postplan_annotate=1')
+  test('no nonce on this page means none is added', () => {
+    expect(withBrokerNonce(`${root}a.html`, null, root)).toBe(`${root}a.html`)
   })
 })
