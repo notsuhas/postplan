@@ -11,6 +11,7 @@
       "!**/drizzle",
       "!**/annotate/bundle.ts",
       "!**/mermaid/bundle.ts",
+      "!**/chart/bundle.ts",
       "!**/install-script.ts",
       "!**/whats-new/catalog.ts",
       "!**/skill-content.ts",

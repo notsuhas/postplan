@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
-import { formatTimestamp } from '@/lib/audio'
+import { formatTimestamp } from '@/lib/timestamp'
 import { defaultRecordingTitle, extForMime, recordingSlug } from '@/lib/recorder'
 import { defaultSpaceSlug } from '@/lib/spaces'
 import type { SpaceSummary } from '@/lib/types'

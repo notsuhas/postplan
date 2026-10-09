@@ -63,6 +63,7 @@ Put it in your shell profile to make it permanent. Token + URL are saved to `~/.
 | `postplan feedback complete <batch-id> [--version <n>] [--json]` | marks your claimed batch completed and links the deployment version |
 | `postplan shares list\|grant\|revoke ...` | manages explicit viewer/editor shares by stable user ID |
 | `postplan mcp` | runs a stdio MCP server exposing these commands as tools (see MCP below) |
+| `postplan data push <space/slug> <chart-id> <file.json\|file.csv\|-> [--sql <file>] [--source <name>] [--stale-after <dur>]` | replaces one `<pp-chart>`'s data; open pages update live (site owner only) |
 | `postplan logout` | revokes the server session and removes the local token |
 
 ### login
@@ -417,6 +418,7 @@ const c = postplan.db.collection('shared-metrics')
 const off = c.onCreate(e => addRow(e))   // e = {type, collection, id, createdBy, at}
 c.onUpdate(e => refresh(e.id))
 c.onDelete(e => removeRow(e.id))
+c.onReady(() => refreshAll()) // Read a snapshot after the stream connects or reconnects.
 
 off()   // every subscribe returns its own unsubscribe; the connection itself
         // closes only once the LAST subscription on the page is gone
@@ -446,6 +448,92 @@ Worth knowing:
   open overnight is not silently stale. You get each change once, in order.
 - **A push obeys the read rules above, unchanged** — so on a default collection you are only pushed
   your OWN writes. A dashboard everyone watches together needs a `shared-…` collection.
+
+## Motion — animated compositions with a player
+
+An HTML page with a seekable timeline gets a player bar in the viewer: play/pause, scrub, 0.5x/1x, frame
+step, loop, and `[m:ss]` timestamps on comments that seek when clicked. Use it for animated explainers,
+product demos and title cards. Author it HyperFrames-style (https://github.com/heygen-com/hyperframes):
+
+- **One timeline.** Build one paused GSAP timeline and register it on `window.__timelines["<id>"]`,
+  where `<id>` matches the root `data-composition-id`. Give the root `data-duration` (seconds).
+- **Pin GSAP** to an exact version (`gsap@3.15.0`), never `@latest`.
+- **Deterministic.** No `Math.random()` without a seed, no `Date.now()`, no `setTimeout`/`setInterval`
+  driving visuals, no `repeat: -1`. Every frame must come from the timeline's time alone, so seeking works.
+- **Fonts first.** Preload fonts and build the timeline after `await document.fonts.ready`, or text
+  reflows mid-animation.
+- **60 seconds max**, one idea per scene. Mark scenes with `class="clip" data-start data-duration`.
+
+For other GSAP pages, register `window.postplanMotion = timeline`, then dispatch
+`window.dispatchEvent(new Event('postplan:motion-ready'))`. Dispatch this after delayed registration too.
+Only registered timelines and HyperFrames `__player`/`__timelines` are controlled; ordinary GSAP, CSS
+and Web Animations keep their own behavior.
+
+```html
+<!doctype html>
+<html>
+<head>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=block">
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+  <style>
+    body { margin: 0; display: grid; place-items: center; min-height: 100vh; background: rgba(15, 23, 42, 1); }
+    #root { position: relative; width: 1280px; height: 720px; overflow: hidden; font: 600 64px Inter, sans-serif; color: rgba(255, 255, 255, 1); }
+    .clip { position: absolute; inset: 0; display: grid; place-items: center; }
+  </style>
+</head>
+<body>
+  <div id="root" data-composition-id="root" data-duration="6" data-width="1280" data-height="720">
+    <section class="clip" id="s1" data-start="0" data-duration="3"><h1>Deploy</h1></section>
+    <section class="clip" id="s2" data-start="3" data-duration="3"><h1>Review</h1></section>
+  </div>
+  <script>
+    document.fonts.ready.then(() => {
+      const tl = gsap.timeline({ paused: true })
+      tl.from('#s1 h1', { y: 40, opacity: 0, duration: 0.8, ease: 'power3.out' })
+        .to('#s1', { opacity: 0, duration: 0.4 }, 2.6)
+        .from('#s2 h1', { scale: 0.8, opacity: 0, duration: 0.8, ease: 'back.out(2)' }, 3)
+        .to({}, { duration: 6 - 3.8 }) // hold to the declared duration
+      window.__timelines = window.__timelines || {}
+      window.__timelines.root = tl
+      window.dispatchEvent(new Event('postplan:motion-ready'))
+    })
+  </script>
+</body>
+</html>
+```
+
+## Dashboards — `<pp-chart>` + `postplan data push`
+
+For a dashboard over real data (a warehouse, an API, a CSV export), Postplan never holds the
+credentials. Whoever already has them (you, a cron job, a GitHub Action) runs each query and pushes
+the result; every chart then shows its SQL, its source and how fresh it is, and open pages update live.
+
+1. Deploy the page once. Load the component and give each chart an id:
+
+```html
+<script src="/_postplan/chart.js"></script>
+<pp-chart chart="revenue" kind="line" x="week" y="revenue" color="region" label="Weekly revenue"></pp-chart>
+<pp-chart chart="signups" kind="number" y="signups" label="Signups today"></pp-chart>
+<pp-chart chart="top-accounts" kind="table" label="Top accounts"></pp-chart>
+```
+
+2. Run each query yourself and push the result (CSV with a header row, a JSON array of objects, or
+   `{"columns": [...], "rows": [[...]]}`):
+
+```bash
+postplan data push team/kpis revenue revenue.csv --sql revenue.sql --source "Snowflake · analytics" --stale-after 6h
+```
+
+- `kind`: `line` (default), `bar`, `area`, `dot`, `number` (last row's `y`), `table`. `x`/`y` default to
+  the first two columns; `color` splits series by a column. ISO dates become a time axis.
+- One query per chart, aggregated before pushing: each push is capped at 100 KB and 20,000 cells. Re-push to refresh;
+  no redeploy. The badge turns amber after `--stale-after` (default 24h) and red at twice that.
+- To refresh on a schedule, put the queries and `postplan data push` in a cron job or GitHub Action
+  that holds the warehouse secrets (log in there with `POSTPLAN_TOKEN`).
+- Static snapshot instead (works for anyone with the link, no live updates): ship the file with the
+  site and use `<pp-chart src="data/revenue.csv" ...>`. Live charts need viewers signed in.
+- Every chart gets a CSV download and an expandable SQL panel. The SQL shown is what the pusher sent:
+  provenance, not proof.
 
 ## Diagrams & flowcharts — default to mermaid
 

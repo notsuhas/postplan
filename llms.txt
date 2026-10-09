@@ -73,6 +73,8 @@ For any other update, first run `postplan read <space/site> --pull <dir>` and de
 - No shell? Connect to {{POSTPLAN_ORIGIN}}/api/mcp over Streamable HTTP and sign in with OAuth. Cloud tools accept file contents, not local paths; requests are capped at 4 MB and 200 files. Use stable idempotency keys for deploy, rollback, and feedback claims/completion. Manage access at {{POSTPLAN_ORIGIN}}/api/oauth/connections. `postplan mcp` is an optional local stdio adapter for filesystem uploads.
 - Compare deployment versions and restore an older snapshot without deleting history.
 - Use `postplan.db` for opt-in browser data and realtime updates.
+- Publish animated HTML (a HyperFrames-style GSAP timeline on `window.__timelines`) and it plays with a scrubbable player bar; comments get seekable `[m:ss]` timestamps.
+- Dashboards: `<script src="/_postplan/chart.js">` + `<pp-chart chart="id" kind="line" x="..." y="...">`, fed by `postplan data push <space/slug> <id> result.csv --sql q.sql`. Postplan never holds warehouse credentials.
 - Pages run sandboxed on their own origin. `localStorage` works for the life of the page only; persist small values with `window.storage` (Claude artifacts API, private to each viewer; no shared keys) or data with `postplan.db`. `fetch` of the site's own files works.
 
 ## Safety

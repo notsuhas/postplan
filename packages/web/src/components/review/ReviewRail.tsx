@@ -1,7 +1,7 @@
 import { MessageSquarePlus, Send, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { comments, type PendingAnchor, type Thread, type ThreadStatus } from '@/lib/comments'
-import { timestampPrefix } from '@/lib/audio'
+import { timestampPrefix } from '@/lib/timestamp'
 import type { Me, ViewerSite } from '@/lib/types'
 import { type RevealRequest, shouldReveal } from '@/lib/viewerCommands'
 import { cn } from '@/lib/utils'
@@ -38,7 +38,9 @@ export function ReviewRail({
   onFocusAnchor,
   onClose,
   onStartComment,
+  canSelectText = true,
   getCurrentTime,
+  onSeek,
   focusRequest,
   typing = [],
   onTyping,
@@ -77,9 +79,10 @@ export function ReviewRail({
   onTyping?: (threadId: string) => void
   onTypingStop?: (threadId: string) => void
   onSendFeedback?: (commentIds?: string[]) => void | Promise<void>
-  // Set only for the audio view — lets the composer's timestamp button read the player's
-  // current position (via a ref, at click time) without any state/effect wiring.
+  canSelectText?: boolean
+  // Set for audio, video and motion pages — the composer's timestamp button reads the position at click time.
   getCurrentTime?: () => number
+  onSeek?: (t: number) => void
 }) {
   const [filter, setFilter] = useState<ThreadStatus>('open')
   const [selectedCommentIds, setSelectedCommentIds] = useState<ReadonlySet<string>>(new Set())
@@ -317,17 +320,17 @@ export function ReviewRail({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
-        {/* Both creation paths get named (#112). Keyed on getCurrentTime, set only for audio and
-            video — players have no DOM to select text in, so offering a "select text" path would be a lie. */}
         {active.length === 0 && !composing && (
           <p className="px-1 py-8 text-center text-muted-foreground text-sm">
             {filter !== 'open'
               ? 'No resolved threads.'
               : !site.authenticated
                 ? 'No open threads.'
-                : getCurrentTime
-                  ? 'Add a comment above — optionally with a timestamp.'
-                  : 'Add a comment above, or select text on the page to anchor one.'}
+                : canSelectText
+                  ? 'Add a comment above, or select text on the page to anchor one.'
+                  : getCurrentTime
+                    ? 'Add a comment above — optionally with a timestamp.'
+                    : 'Add a comment above.'}
           </p>
         )}
         {active.map((t) => (
@@ -343,6 +346,7 @@ export function ReviewRail({
             onTypingStop={onTypingStop && (() => onTypingStop(t.id))}
             selectedCommentIds={selectedCommentIds}
             onSelectComment={onSendFeedback ? selectComment : undefined}
+            onSeek={onSeek}
           />
         ))}
       </div>

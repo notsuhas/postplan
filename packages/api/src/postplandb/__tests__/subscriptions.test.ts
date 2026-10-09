@@ -67,6 +67,57 @@ async function live(t: ReturnType<typeof fakeTransport>, cursor = 'c0') {
 }
 
 describe('#11: collection().onCreate / onUpdate / onDelete', () => {
+  test('readiness follows catch-up, notifies late listeners and reopens after cleanup', async () => {
+    const t = fakeTransport()
+    const subs = createSubscriptions(t)
+    let count = 0
+    const off = subs.onReady(() => count++)
+    t.connect()
+    expect(count).toBe(0)
+    await t.reply(frame('c0', []))
+    expect(count).toBe(1)
+    const lateOff = subs.onReady(() => count++)
+    expect(count).toBe(2)
+    off()
+    expect(t.closes).toBe(0)
+    lateOff()
+    expect(t.closes).toBe(1)
+    const reopenedOff = subs.onReady(() => count++)
+    expect(count).toBe(2)
+    expect(t.opens).toBe(2)
+    await live(t)
+    expect(count).toBe(3)
+    reopenedOff()
+  })
+
+  test('closing during catch-up cannot notify or revive stale readiness', async () => {
+    const t = fakeTransport()
+    const subs = createSubscriptions(t)
+    let count = 0
+    const off = subs.onReady(() => count++)
+    t.connect()
+    off()
+    await t.reply(frame('c0', []))
+    const nextOff = subs.onReady(() => count++)
+    expect(count).toBe(0)
+    nextOff()
+  })
+
+  test('unsubscribing during queued event delivery cannot revive stale readiness', async () => {
+    const t = fakeTransport()
+    const subs = createSubscriptions(t)
+    const off = subs.on('notes', 'update', () => off())
+    t.connect()
+    t.push(frame('c1', [ev('update', 'notes', 'a')]))
+    await t.reply(frame('c0', []))
+    let count = 0
+    const readyOff = subs.onReady(() => count++)
+    expect(t.opens).toBe(2)
+    expect(count).toBe(0)
+    await live(t)
+    expect(count).toBe(1)
+    readyOff()
+  })
   test('onCreate/onUpdate/onDelete dispatch only their own event type', async () => {
     const t = fakeTransport()
     const subs = createSubscriptions(t)
