@@ -63,11 +63,10 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
   `localStorage`/`sessionStorage` that last as long as the page; nothing is stored server-side. It
   also saves same-site `<a download>` links through a Blob URL, since the browser would otherwise
   navigate them (`postplandb/sandbox.ts`). Persistence is explicit: `window.storage` (Claude
-  artifacts' API: personal or shared string keys in `site_kv`, served by the `/api/_data/_kv`
-  sub-app, terminal and with its own capability table — reads `read`, writes `create`; UTF-8 bytes,
-  each viewer's personal keys capped at 5 MB / 1,000 keys and the shared keys at 10 MB / 10,000,
-  checked and written in one statement; `list` is a case-sensitive prefix match; shared keys are
-  writable by any viewer and unattributed) or `postplan.db`. Collection names starting with `_`
+  artifacts' API, minus shared keys: string keys private to each viewer in `site_kv`, served by the
+  `/api/_data/_kv` sub-app, terminal and with its own capability table — reads `read`, writes
+  `create`; 5 MB (UTF-8) and 1,000 keys per viewer per site, checked and written in one statement;
+  `list` is a case-sensitive prefix match) or `postplan.db`. Collection names starting with `_`
   are reserved for these built-in routes.
 
 - **Standalone tabs** — a site opened directly on the content origin has no parent frame, so

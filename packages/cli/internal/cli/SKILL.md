@@ -304,20 +304,15 @@ small change:
 script (`location.href = …`) or a GET form loses access; use links between your pages.
 
 To keep small values across visits, use `window.storage` (same API as Claude artifacts). Keys are
-personal to the viewer unless you pass `shared = true`. Values are strings (JSON.stringify objects);
-keys are up to 200 characters with no spaces or slashes; values up to 1 MB. Each viewer gets 5 MB and 1,000
-personal keys; shared keys get 10 MB and 10,000. `list(prefix)` is case-sensitive and returns at most
-1,000 keys.
-
-Shared keys can be overwritten or deleted by anyone who can open the site, and writes aren't
-attributed. Don't use them for anything that must be trusted, like who voted; use `postplan.db`
-(documents record their creator) for that.
+private to each viewer; `shared = true` is not supported and rejects, so use `postplan.db` for
+anything several viewers see. Values are strings (JSON.stringify objects); keys are up to 200
+characters with no spaces or slashes; values up to 1 MB. Each viewer gets 5 MB and 1,000 keys per
+site. `list(prefix)` is case-sensitive and returns at most 1,000 keys.
 
 ```js
-await window.storage.set('draft', JSON.stringify(state))          // personal
+await window.storage.set('draft', JSON.stringify(state))
 const { value } = await window.storage.get('draft')               // throws if missing
-await window.storage.set('theme', 'dark', true)                   // shared with every viewer
-const { keys } = await window.storage.list('', true)
+const { keys } = await window.storage.list('')
 await window.storage.delete('draft')
 ```
 

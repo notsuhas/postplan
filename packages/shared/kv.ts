@@ -4,9 +4,9 @@ export const KV_MAX_KEY = 200
 export const KV_MAX_VALUE_BYTES = 1_000_000
 
 export type KvMessage =
-  | { op: 'kv'; action: 'get' | 'delete'; shared: boolean; key: string }
-  | { op: 'kv'; action: 'set'; shared: boolean; key: string; value: string }
-  | { op: 'kv'; action: 'list'; shared: boolean; prefix: string }
+  | { op: 'kv'; action: 'get' | 'delete'; key: string }
+  | { op: 'kv'; action: 'set'; key: string; value: string }
+  | { op: 'kv'; action: 'list'; prefix: string }
 
 // No whitespace or slashes, no control characters, and not a dot segment the URL would collapse.
 const KEY_RE = /^[^\s/\\]+$/

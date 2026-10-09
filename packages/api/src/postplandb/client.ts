@@ -293,10 +293,11 @@ if (isSandboxed()) {
 }
 
 // --- window.storage: the Claude artifacts storage API -----------------------------------------
-// Opt-in, async persistence: personal keys belong to the viewer, `shared` ones to everyone who can
-// open the site. Saved only when a page calls `set`; requests go through the viewer's broker.
+// Opt-in, async persistence private to the viewer, saved only when a page calls `set`; requests go
+// through the viewer's broker. Claude's `shared` keys are refused: nothing is shared across viewers.
 
-function kv(message: KvMessage): Promise<unknown> {
+function kv(message: KvMessage, shared?: boolean): Promise<unknown> {
+  if (shared) return Promise.reject(new Error('window.storage: shared keys are not supported; use postplan.db'))
   if (!boot?.appOrigin || window.parent === window)
     return Promise.reject(new Error('window.storage: open this site through the Postplan app'))
   return brokerCall(boot.appOrigin, message)
@@ -304,11 +305,11 @@ function kv(message: KvMessage): Promise<unknown> {
 
 Object.defineProperty(window, 'storage', {
   value: {
-    get: (key: string, shared = false) => kv({ op: 'kv', action: 'get', key, shared }),
-    set: (key: string, value: string, shared = false) =>
-      kv({ op: 'kv', action: 'set', key, value: String(value), shared }),
-    delete: (key: string, shared = false) => kv({ op: 'kv', action: 'delete', key, shared }),
-    list: (prefix = '', shared = false) => kv({ op: 'kv', action: 'list', prefix, shared }),
+    get: (key: string, shared?: boolean) => kv({ op: 'kv', action: 'get', key }, shared),
+    set: (key: string, value: string, shared?: boolean) =>
+      kv({ op: 'kv', action: 'set', key, value: String(value) }, shared),
+    delete: (key: string, shared?: boolean) => kv({ op: 'kv', action: 'delete', key }, shared),
+    list: (prefix = '', shared?: boolean) => kv({ op: 'kv', action: 'list', prefix }, shared),
   },
   configurable: true,
 })

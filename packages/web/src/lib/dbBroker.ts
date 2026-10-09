@@ -30,7 +30,7 @@ const NEEDS_DATA = new Set(['create', 'put'])
 // Stream ops address the site's room, not a collection — they carry a cursor and nothing else.
 const STREAM_OPS = new Set(['subscribe', 'unsubscribe'])
 const OPS = new Set(['create', 'get', 'list', 'put', 'delete', 'subscribe', 'unsubscribe', 'kv'])
-// window.storage: get/set/delete one key, or list keys by prefix, in the personal or shared scope.
+// window.storage: get/set/delete one of the viewer's keys, or list them by prefix.
 const OP_METHOD: Record<string, string> = { create: 'POST', get: 'GET', list: 'GET', put: 'PUT', delete: 'DELETE' }
 // Pre-check only — the server's 100KB byte cap is authoritative.
 const MAX_DATA_CHARS = 110_000
@@ -60,23 +60,22 @@ function docRequest(req: BrokerRequest): HttpRequest {
 /** A well-formed window.storage message (same limits the server enforces), or why it isn't one.
  *  The page is untrusted, so every field is checked rather than typed. */
 function parseKv(req: Record<string, unknown>): KvMessage | string {
-  if (req.shared !== undefined && typeof req.shared !== 'boolean') return 'invalid scope'
-  const shared = req.shared === true
+  if (req.shared !== undefined) return 'shared keys are not supported'
   if (req.action === 'list') {
     const prefix = req.prefix ?? ''
     return typeof prefix === 'string' && prefix.length <= KV_MAX_KEY
-      ? { op: 'kv', action: 'list', shared, prefix }
+      ? { op: 'kv', action: 'list', prefix }
       : 'invalid prefix'
   }
   if (req.action !== 'get' && req.action !== 'set' && req.action !== 'delete') return 'unknown storage action'
   if (!validKvKey(req.key)) return 'invalid key'
-  if (req.action !== 'set') return { op: 'kv', action: req.action, shared, key: req.key }
+  if (req.action !== 'set') return { op: 'kv', action: req.action, key: req.key }
   if (typeof req.value !== 'string' || utf8Bytes(req.value) > KV_MAX_VALUE_BYTES) return 'invalid value'
-  return { op: 'kv', action: 'set', shared, key: req.key, value: req.value }
+  return { op: 'kv', action: 'set', key: req.key, value: req.value }
 }
 
 function kvRequest(call: KvMessage): HttpRequest {
-  const base = `/api/_data/_kv/${call.shared ? 'shared' : 'personal'}`
+  const base = '/api/_data/_kv'
   switch (call.action) {
     case 'list':
       return { path: `${base}?prefix=${encodeURIComponent(call.prefix)}`, method: 'GET' }

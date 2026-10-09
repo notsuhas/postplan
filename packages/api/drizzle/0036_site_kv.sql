@@ -1,16 +1,11 @@
--- window.storage for sites: personal keys belong to one viewer, shared keys (ownerId '') to the site.
--- `bytes` is the UTF-8 size of key + value, so an owner's quota is one indexed sum.
+-- window.storage for sites: each viewer's own keys, gone with the site or the user.
+-- `bytes` is the UTF-8 size of key + value, so a viewer's quota is one indexed sum.
 CREATE TABLE `site_kv` (
 	`siteId` text NOT NULL REFERENCES `sites`(`id`) ON DELETE cascade,
-	`ownerId` text NOT NULL,
+	`userId` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,
 	`key` text NOT NULL,
 	`value` text NOT NULL,
 	`bytes` integer NOT NULL,
 	`updatedAt` text NOT NULL,
-	PRIMARY KEY (`siteId`, `ownerId`, `key`)
+	PRIMARY KEY (`siteId`, `userId`, `key`)
 );
---> statement-breakpoint
--- ownerId can't be a foreign key ('' marks shared rows), so a deleted user's personal rows go here.
-CREATE TRIGGER `site_kv_user_delete` AFTER DELETE ON `users` BEGIN
-	DELETE FROM `site_kv` WHERE `ownerId` = OLD.`id`;
-END;

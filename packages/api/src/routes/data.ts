@@ -7,7 +7,7 @@ import { type DataCapability, type DataClaims, hasCap, signDataToken, verifyData
 import { canViewerRead, readsEveryCreator } from '../lib/data-visibility'
 import { authorizeViewerById, fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
 import { KV_MAX_KEY, KV_MAX_VALUE_BYTES, utf8Bytes, validKvKey } from '../../../shared/kv'
-import { deleteKv, getKv, kvOwner, listKv, setKv } from '../lib/site-kv'
+import { deleteKv, getKv, listKv, setKv } from '../lib/site-kv'
 import { requireAuth } from '../middleware/auth'
 import {
   changesAfter,
@@ -137,52 +137,47 @@ function credential(c: DataCtx): string | null {
 }
 
 // window.storage gets its own sub-app and capability table, mounted BEFORE the method gate: every
-// viewer may read (`read`) and write (`create`) its personal keys and the site's shared ones, as in
-// Claude artifacts. It is terminal: nothing under /_kv ever reaches the document routes.
+// viewer may read (`read`) and write (`create`) its own keys. Terminal: nothing under /_kv reaches
+// the document routes. `shared: false` keeps responses in Claude's shape; shared keys don't exist.
 const kvApi = new Hono<DataEnv>()
 const KV_CAP: Record<string, DataCapability> = { GET: 'read', HEAD: 'read', PUT: 'create', DELETE: 'create' }
 
-kvApi.use('/:scope/*', async (c, next) => {
-  const scope = c.req.param('scope')
-  if (scope !== 'personal' && scope !== 'shared') return c.json({ error: 'not found' }, 404)
+kvApi.use('*', async (c, next) => {
   const cap = KV_CAP[c.req.method]
   if (!cap || !hasCap(c.get('claims'), cap)) return c.json({ error: 'forbidden' }, 403)
   await next()
 })
 
-const kvShared = (c: DataCtx) => c.req.param('scope') === 'shared'
-const kvOwnerOf = (c: DataCtx) => kvOwner(kvShared(c), c.get('claims').viewerId)
+const kvScope = (c: DataCtx) => [getDb(c), c.get('claims').siteId, c.get('claims').viewerId] as const
 
-kvApi.get('/:scope', async (c) => {
+kvApi.get('/', async (c) => {
   const prefix = c.req.query('prefix') ?? ''
   if (prefix.length > KV_MAX_KEY) return c.json({ error: 'invalid prefix' }, 400)
-  const keys = await listKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), prefix)
-  return c.json({ keys })
+  return c.json({ keys: await listKv(...kvScope(c), prefix) })
 })
 
-kvApi.get('/:scope/:key', async (c) => {
+kvApi.get('/:key', async (c) => {
   const key = c.req.param('key')
   if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
-  const value = await getKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), key)
-  return value === null ? c.json({ error: 'not found' }, 404) : c.json({ key, value, shared: kvShared(c) })
+  const value = await getKv(...kvScope(c), key)
+  return value === null ? c.json({ error: 'not found' }, 404) : c.json({ key, value, shared: false })
 })
 
-kvApi.put('/:scope/:key', async (c) => {
+kvApi.put('/:key', async (c) => {
   const key = c.req.param('key')
   if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
   const body = (await c.req.json().catch(() => null)) as { value?: unknown } | null
   if (typeof body?.value !== 'string') return c.json({ error: 'value must be a string' }, 400)
   if (utf8Bytes(body.value) > KV_MAX_VALUE_BYTES) return c.json({ error: 'value too large' }, 413)
-  const stored = await setKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), key, body.value)
-  if (!stored) return c.json({ error: 'storage quota exceeded' }, 413)
-  return c.json({ key, value: body.value, shared: kvShared(c) })
+  if (!(await setKv(...kvScope(c), key, body.value))) return c.json({ error: 'storage quota exceeded' }, 413)
+  return c.json({ key, value: body.value, shared: false })
 })
 
-kvApi.delete('/:scope/:key', async (c) => {
+kvApi.delete('/:key', async (c) => {
   const key = c.req.param('key')
   if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
-  await deleteKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), key)
-  return c.json({ key, deleted: true, shared: kvShared(c) })
+  await deleteKv(...kvScope(c), key)
+  return c.json({ key, deleted: true, shared: false })
 })
 
 kvApi.all('*', (c) => c.json({ error: 'not found' }, 404))
