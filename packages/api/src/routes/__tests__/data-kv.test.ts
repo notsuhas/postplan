@@ -84,6 +84,7 @@ describe('window.storage backend', () => {
     expect((await call(alice, 'PUT', `/personal/${'k'.repeat(201)}`, 'v')).status).toBe(400)
     expect((await call(alice, 'PUT', '/personal/has%20space', 'v')).status).toBe(400)
     expect((await call(alice, 'PUT', '/personal/a%2Fb', 'v')).status).toBe(400)
+    expect((await call(alice, 'PUT', '/personal/a%F4%8F%BF%BF', 'v')).status).toBe(400)
     expect((await call(alice, 'PUT', '/personal/ok', 'x'.repeat(1_000_001))).status).toBe(413)
     // 400k CJK characters are 1.2 MB in UTF-8: over the limit though well under a million characters.
     expect((await call(alice, 'PUT', '/personal/cjk', '字'.repeat(400_000))).status).toBe(413)

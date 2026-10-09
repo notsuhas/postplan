@@ -10,7 +10,12 @@ export type KvMessage =
 
 // No whitespace or slashes, no control characters, and not a dot segment the URL would collapse.
 const KEY_RE = /^[^\s/\\]+$/
-const hasControl = (s: string) => [...s].some((ch) => ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f)
+// U+10FFFF is reserved as the upper bound of list's key range.
+const hasBanned = (s: string) =>
+  [...s].some((ch) => {
+    const c = ch.codePointAt(0) ?? 0
+    return c < 0x20 || c === 0x7f || c === 0x10ffff
+  })
 
 export function validKvKey(key: unknown): key is string {
   return (
@@ -20,7 +25,7 @@ export function validKvKey(key: unknown): key is string {
     key !== '.' &&
     key !== '..' &&
     KEY_RE.test(key) &&
-    !hasControl(key)
+    !hasBanned(key)
   )
 }
 
