@@ -39,6 +39,7 @@ export function ReviewRail({
   onClose,
   onStartComment,
   getCurrentTime,
+  onSeek,
   focusRequest,
   typing = [],
   onTyping,
@@ -77,9 +78,9 @@ export function ReviewRail({
   onTyping?: (threadId: string) => void
   onTypingStop?: (threadId: string) => void
   onSendFeedback?: (commentIds?: string[]) => void | Promise<void>
-  // Set only for the audio view — lets the composer's timestamp button read the player's
-  // current position (via a ref, at click time) without any state/effect wiring.
+  // Set for audio, video and motion pages — the composer's timestamp button reads the position at click time.
   getCurrentTime?: () => number
+  onSeek?: (t: number) => void
 }) {
   const [filter, setFilter] = useState<ThreadStatus>('open')
   const [selectedCommentIds, setSelectedCommentIds] = useState<ReadonlySet<string>>(new Set())
@@ -343,6 +344,7 @@ export function ReviewRail({
             onTypingStop={onTypingStop && (() => onTypingStop(t.id))}
             selectedCommentIds={selectedCommentIds}
             onSelectComment={onSendFeedback ? selectComment : undefined}
+            onSeek={onSeek}
           />
         ))}
       </div>

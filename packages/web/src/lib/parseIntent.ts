@@ -6,6 +6,7 @@
 // constraint 1): an iframe message may only OPEN UI or SUGGEST an anchor; every mutation is
 // parent-initiated after an explicit user action, and all anchor resolution is server-side.
 
+import { MOTION_MAX_DURATION, MOTION_STATE } from '../../../shared/motion'
 import type { TextContext } from '@/lib/comments'
 
 export type SelectIntent = {
@@ -38,6 +39,8 @@ export type AnchorStatusIntent = { type: 'anchorStatus'; resolved: string[]; orp
  *  by the annotate client, which cannot see the parent's popover state; the reducer decides
  *  whether there is anything to open — same contract as `CommentKeyIntent`. */
 export type AskKeyIntent = { type: 'askKey' }
+/** The page's motion timeline state; only pages with a seekable timeline send it. */
+export type MotionIntent = { type: 'motion'; duration: number; t: number; playing: boolean }
 export type Intent =
   | SelectIntent
   | ReadyIntent
@@ -48,6 +51,7 @@ export type Intent =
   | AnchorClickIntent
   | AnchorStatusIntent
   | AskKeyIntent
+  | MotionIntent
 
 export type DOMRectLike = { top: number; left: number; width: number; height: number }
 
@@ -122,6 +126,13 @@ export function parseIntent(data: unknown): Intent | null {
     case 'postplan:pinpoint-resolved': {
       const d = data as { resolved?: unknown; orphaned?: unknown }
       return { type: 'anchorStatus', resolved: ids(d.resolved), orphaned: ids(d.orphaned) }
+    }
+    case MOTION_STATE: {
+      const d = data as { duration?: unknown; t?: unknown; playing?: unknown }
+      const { duration, t } = d
+      if (typeof duration !== 'number' || !(duration > 0 && duration <= MOTION_MAX_DURATION)) return null
+      if (typeof t !== 'number' || !Number.isFinite(t) || typeof d.playing !== 'boolean') return null
+      return { type: 'motion', duration, t: Math.min(Math.max(t, 0), duration), playing: d.playing }
     }
     case 'postplan:ready': {
       const filePath = str((data as { filePath?: unknown }).filePath)

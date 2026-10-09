@@ -13,3 +13,16 @@ export function formatTimestamp(seconds: number): string {
 export function timestampPrefix(seconds: number): string {
   return `[${formatTimestamp(seconds)}] `
 }
+
+/** Splits a comment body around its `[m:ss]` timestamps so each can render as a seek link. */
+export function splitTimestamps(body: string): ({ text: string } | { t: number; label: string })[] {
+  const parts: ReturnType<typeof splitTimestamps> = []
+  let at = 0
+  for (const m of body.matchAll(/\[(\d{1,3}):([0-5]\d)\]/g)) {
+    if (m.index > at) parts.push({ text: body.slice(at, m.index) })
+    parts.push({ t: Number(m[1]) * 60 + Number(m[2]), label: m[0] })
+    at = m.index + m[0].length
+  }
+  if (at < body.length) parts.push({ text: body.slice(at) })
+  return parts
+}

@@ -180,4 +180,21 @@ describe('parseIntent', () => {
     // rejects outright — a truncated filePath would misattribute comments to a path that doesn't exist.
     expect(parseIntent({ type: 'postplan:ready', filePath: 'x'.repeat(2001) })).toBeNull()
   })
+
+  test('a motion report is accepted with t clamped into the timeline', () => {
+    expect(parseIntent({ type: 'postplan:motion', duration: 4, t: 9, playing: true })).toEqual({
+      type: 'motion',
+      duration: 4,
+      t: 4,
+      playing: true,
+    })
+  })
+
+  test('a motion report with a bad duration, time or flag is dropped', () => {
+    const ok = { type: 'postplan:motion', duration: 4, t: 1, playing: false }
+    expect(parseIntent({ ...ok, duration: 0 })).toBeNull()
+    expect(parseIntent({ ...ok, duration: Number.POSITIVE_INFINITY })).toBeNull()
+    expect(parseIntent({ ...ok, t: Number.NaN })).toBeNull()
+    expect(parseIntent({ ...ok, playing: 'yes' })).toBeNull()
+  })
 })
