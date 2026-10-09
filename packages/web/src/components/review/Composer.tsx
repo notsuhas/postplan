@@ -305,7 +305,7 @@ export function Composer({
           </ul>
         )}
       </div>
-      <div className={cn('flex items-center gap-2', timestampButton ? 'justify-between' : 'justify-end')}>
+      <div className={cn('flex flex-wrap items-center gap-2', timestampButton ? 'justify-between' : 'justify-end')}>
         {timestampButton && (
           <Button
             type="button"
@@ -317,7 +317,7 @@ export function Composer({
             {timestampButton.label}
           </Button>
         )}
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">
           {onCancel && (
             <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
               Cancel
