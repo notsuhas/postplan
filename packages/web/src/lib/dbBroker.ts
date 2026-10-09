@@ -19,15 +19,18 @@
 // request. The socket outlives the iframe document, so an in-site navigation resumes from the
 // cursor we kept rather than replaying from nothing.
 
+import { KV_MAX_KEY, KV_MAX_VALUE_BYTES, type KvMessage, utf8Bytes, validKvKey } from '../../../shared/kv'
 import { readHello } from './frameChannel'
 
-const COLLECTION_RE = /^[a-zA-Z0-9_-]{1,64}$/
+// Mirrors the server: a leading underscore is reserved for built-in routes.
+const COLLECTION_RE = /^[a-zA-Z0-9-][a-zA-Z0-9_-]{0,63}$/
 const DOCID_RE = /^[a-zA-Z0-9_-]{1,128}$/
 const NEEDS_DOC_ID = new Set(['get', 'put', 'delete'])
 const NEEDS_DATA = new Set(['create', 'put'])
 // Stream ops address the site's room, not a collection — they carry a cursor and nothing else.
 const STREAM_OPS = new Set(['subscribe', 'unsubscribe'])
-const OPS = new Set(['create', 'get', 'list', 'put', 'delete', 'subscribe', 'unsubscribe'])
+const OPS = new Set(['create', 'get', 'list', 'put', 'delete', 'subscribe', 'unsubscribe', 'kv'])
+// window.storage: get/set/delete one of the viewer's keys, or list them by prefix.
 const OP_METHOD: Record<string, string> = { create: 'POST', get: 'GET', list: 'GET', put: 'PUT', delete: 'DELETE' }
 // Pre-check only — the server's 100KB byte cap is authoritative.
 const MAX_DATA_CHARS = 110_000
@@ -42,6 +45,47 @@ const PING_MS = 30_000
 export function reconnectDelay(attempt: number, base = RECONNECT_MS): number {
   const full = Math.min(base * 2 ** Math.min(attempt, 30), RECONNECT_MAX_MS)
   return full / 2 + Math.random() * (full / 2)
+}
+
+type HttpRequest = { path: string; method: string; body?: unknown }
+
+function docRequest(req: BrokerRequest): HttpRequest {
+  const path =
+    req.docId !== undefined
+      ? `/api/_data/${req.collection}/${encodeURIComponent(req.docId)}`
+      : `/api/_data/${req.collection}`
+  return { path, method: OP_METHOD[req.op], body: NEEDS_DATA.has(req.op) ? req.data : undefined }
+}
+
+/** A well-formed window.storage message (same limits the server enforces), or why it isn't one.
+ *  The page is untrusted, so every field is checked rather than typed. */
+function parseKv(req: Record<string, unknown>): KvMessage | string {
+  if (req.shared !== undefined) return 'shared keys are not supported'
+  if (req.action === 'list') {
+    const prefix = req.prefix ?? ''
+    return typeof prefix === 'string' && prefix.length <= KV_MAX_KEY
+      ? { op: 'kv', action: 'list', prefix }
+      : 'invalid prefix'
+  }
+  if (req.action !== 'get' && req.action !== 'set' && req.action !== 'delete') return 'unknown storage action'
+  if (!validKvKey(req.key)) return 'invalid key'
+  if (req.action !== 'set') return { op: 'kv', action: req.action, key: req.key }
+  if (typeof req.value !== 'string' || utf8Bytes(req.value) > KV_MAX_VALUE_BYTES) return 'invalid value'
+  return { op: 'kv', action: 'set', key: req.key, value: req.value }
+}
+
+function kvRequest(call: KvMessage): HttpRequest {
+  const base = '/api/_data/_kv'
+  switch (call.action) {
+    case 'list':
+      return { path: `${base}?prefix=${encodeURIComponent(call.prefix)}`, method: 'GET' }
+    case 'get':
+      return { path: `${base}/${encodeURIComponent(call.key)}`, method: 'GET' }
+    case 'delete':
+      return { path: `${base}/${encodeURIComponent(call.key)}`, method: 'DELETE' }
+    case 'set':
+      return { path: `${base}/${encodeURIComponent(call.key)}`, method: 'PUT', body: { value: call.value } }
+  }
 }
 
 export type BrokerSite = { spaceSlug: string; siteSlug: string }
@@ -98,7 +142,12 @@ export function createDbBroker(
     return res.status === 401 ? run(await mint()) : res
   }
 
-  async function execute(req: BrokerRequest): Promise<{ ok: boolean; status: number; body: unknown }> {
+  async function execute(msg: Record<string, unknown>): Promise<{ ok: boolean; status: number; body: unknown }> {
+    if (msg.op === 'kv') {
+      const call = parseKv(msg)
+      return typeof call === 'string' ? { ok: false, status: 400, body: { error: call } } : send(kvRequest(call))
+    }
+    const req = msg as BrokerRequest
     const bad = validate(req)
     if (bad) return { ok: false, status: 400, body: { error: bad } }
     if (req.op === 'subscribe') return subscribe(req)
@@ -106,17 +155,22 @@ export function createDbBroker(
       closeStream()
       return { ok: true, status: 200, body: null }
     }
-    const path =
-      req.docId !== undefined
-        ? `/api/_data/${req.collection}/${encodeURIComponent(req.docId)}`
-        : `/api/_data/${req.collection}`
+    return send(docRequest(req))
+  }
+
+  async function send({
+    path,
+    method,
+    body: payload,
+  }: HttpRequest): Promise<{ ok: boolean; status: number; body: unknown }> {
     const call = async (t: string) =>
       deps.fetchFn(path, {
-        method: OP_METHOD[req.op],
-        headers: NEEDS_DATA.has(req.op)
-          ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }
-          : { Authorization: `Bearer ${t}` },
-        body: NEEDS_DATA.has(req.op) ? JSON.stringify(req.data) : undefined,
+        method,
+        headers:
+          payload === undefined
+            ? { Authorization: `Bearer ${t}` }
+            : { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        body: payload === undefined ? undefined : JSON.stringify(payload),
         credentials: 'omit',
       })
     const res = await withToken(call)
@@ -280,7 +334,7 @@ export function createDbBroker(
   }
 
   function onPortMessage(p: MessagePort, e: MessageEvent): void {
-    const req = e.data as BrokerRequest | null
+    const req = e.data as Record<string, unknown> | null
     if (!req || typeof req.id !== 'number') return
     execute(req).then(
       (r) => p.postMessage({ id: req.id, ...r }),

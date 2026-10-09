@@ -279,17 +279,12 @@ describe('#9/#6 ATTACK: cursor forgery and cross-identity replay', () => {
 })
 
 describe('the catch-up route is just another dataApi route', () => {
-  test('ATTACK: a document collection named _sync cannot shadow the catch-up route', async () => {
+  test('ATTACK: a document collection named _sync is refused, so it can never shadow the catch-up route', async () => {
     const { app, tokens } = await scenario()
-    const doc = await create(app, tokens.ownerA, '_sync', { pretending: 'to be the feed' })
-
+    const res = await req(app, tokens.ownerA, 'POST', '/_sync', { pretending: 'to be the feed' })
+    expect(res.status).toBe(400)
     const feed = await catchUp(app, tokens.ownerA, await fromZero('siteA', 'userA'))
-    expect(feed.events.map((e) => e.collection)).toEqual(['_sync'])
-    expect(feed.events[0].id).toBe(doc)
-
-    const list = await req(app, tokens.ownerA, 'GET', '/_sync')
-    expect(list.status).toBe(200)
-    expect((await list.json()).items.map((d: { id: string }) => d.id)).toEqual([doc])
+    expect(feed.events).toEqual([])
   })
 
   test('the catch-up route inherits the data-plane gates', async () => {

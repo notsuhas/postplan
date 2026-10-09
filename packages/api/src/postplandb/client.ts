@@ -12,6 +12,7 @@
 //
 // The global is __POSTPLAN_DB__, not __POSTPLAN__ — that one belongs to the annotate overlay.
 
+import type { KvMessage } from '../../../shared/kv'
 import { WS_PROTOCOL } from '../realtime/protocol'
 import { createStorage, isSandboxed, needsBlobDownload, saveViaBlob } from './sandbox'
 import { type ChangeEvent, type Frame, type StreamHandlers, type Transport, createSubscriptions } from './subscriptions'
@@ -91,7 +92,7 @@ function connect(appOrigin: string): Promise<MessagePort> {
   return connecting
 }
 
-async function brokerCall(appOrigin: string, req: Omit<BrokerReq, 'id'>): Promise<unknown> {
+async function brokerCall(appOrigin: string, req: Omit<BrokerReq, 'id'> | KvMessage): Promise<unknown> {
   const p = await connect(appOrigin)
   const id = ++seq
   return new Promise((resolve, reject) => {
@@ -290,3 +291,25 @@ if (isSandboxed()) {
     )
   })
 }
+
+// --- window.storage: the Claude artifacts storage API -----------------------------------------
+// Opt-in, async persistence private to the viewer, saved only when a page calls `set`; requests go
+// through the viewer's broker. Claude's `shared` keys are refused: nothing is shared across viewers.
+
+function kv(message: KvMessage, shared?: boolean): Promise<unknown> {
+  if (shared) return Promise.reject(new Error('window.storage: shared keys are not supported; use postplan.db'))
+  if (!boot?.appOrigin || window.parent === window)
+    return Promise.reject(new Error('window.storage: open this site through the Postplan app'))
+  return brokerCall(boot.appOrigin, message)
+}
+
+Object.defineProperty(window, 'storage', {
+  value: {
+    get: (key: string, shared?: boolean) => kv({ op: 'kv', action: 'get', key }, shared),
+    set: (key: string, value: string, shared?: boolean) =>
+      kv({ op: 'kv', action: 'set', key, value: String(value) }, shared),
+    delete: (key: string, shared?: boolean) => kv({ op: 'kv', action: 'delete', key }, shared),
+    list: (prefix = '', shared?: boolean) => kv({ op: 'kv', action: 'list', prefix }, shared),
+  },
+  configurable: true,
+})

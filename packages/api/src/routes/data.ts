@@ -6,6 +6,8 @@ import { type ChangeLogRow, type DocumentRow, type Site, documents, sites } from
 import { type DataCapability, type DataClaims, hasCap, signDataToken, verifyDataToken } from '../lib/data-token'
 import { canViewerRead, readsEveryCreator } from '../lib/data-visibility'
 import { authorizeViewerById, fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
+import { KV_MAX_KEY, KV_MAX_VALUE_BYTES, utf8Bytes, validKvKey } from '../../../shared/kv'
+import { deleteKv, getKv, listKv, setKv } from '../lib/site-kv'
 import { requireAuth } from '../middleware/auth'
 import {
   changesAfter,
@@ -30,7 +32,8 @@ import type { AppEnv, Bindings, SessionUser } from '../types'
 // Every security-critical value (siteId, viewer identity, capabilities) is derived from the
 // verified token — never from a client-supplied request field.
 
-const COLLECTION_RE = /^[a-zA-Z0-9_-]{1,64}$/
+// A leading underscore is reserved for built-in routes (/_sync, /_kv), never a document collection.
+const COLLECTION_RE = /^[a-zA-Z0-9-][a-zA-Z0-9_-]{0,63}$/
 const DOCID_RE = /^[a-zA-Z0-9_-]{1,128}$/
 const MAX_JSON_BYTES = 100_000
 const DEFAULT_LIMIT = 50
@@ -132,6 +135,54 @@ function credential(c: DataCtx): string | null {
   const [sentinel, token] = subprotocols(c)
   return sentinel === WS_PROTOCOL && token ? token : null
 }
+
+// window.storage gets its own sub-app and capability table, mounted BEFORE the method gate: every
+// viewer may read (`read`) and write (`create`) its own keys. Terminal: nothing under /_kv reaches
+// the document routes. `shared: false` keeps responses in Claude's shape; shared keys don't exist.
+const kvApi = new Hono<DataEnv>()
+const KV_CAP: Record<string, DataCapability> = { GET: 'read', HEAD: 'read', PUT: 'create', DELETE: 'create' }
+
+kvApi.use('*', async (c, next) => {
+  const cap = KV_CAP[c.req.method]
+  if (!cap || !hasCap(c.get('claims'), cap)) return c.json({ error: 'forbidden' }, 403)
+  await next()
+})
+
+const kvScope = (c: DataCtx) => [getDb(c), c.get('claims').siteId, c.get('claims').viewerId] as const
+
+kvApi.get('/', async (c) => {
+  const prefix = c.req.query('prefix') ?? ''
+  if (prefix.length > KV_MAX_KEY) return c.json({ error: 'invalid prefix' }, 400)
+  return c.json({ keys: await listKv(...kvScope(c), prefix) })
+})
+
+kvApi.get('/:key', async (c) => {
+  const key = c.req.param('key')
+  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
+  const value = await getKv(...kvScope(c), key)
+  return value === null ? c.json({ error: 'not found' }, 404) : c.json({ key, value, shared: false })
+})
+
+kvApi.put('/:key', async (c) => {
+  const key = c.req.param('key')
+  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
+  const body = (await c.req.json().catch(() => null)) as { value?: unknown } | null
+  if (typeof body?.value !== 'string') return c.json({ error: 'value must be a string' }, 400)
+  if (utf8Bytes(body.value) > KV_MAX_VALUE_BYTES) return c.json({ error: 'value too large' }, 413)
+  if (!(await setKv(...kvScope(c), key, body.value))) return c.json({ error: 'storage quota exceeded' }, 413)
+  return c.json({ key, value: body.value, shared: false })
+})
+
+kvApi.delete('/:key', async (c) => {
+  const key = c.req.param('key')
+  if (!validKvKey(key)) return c.json({ error: 'invalid key' }, 400)
+  await deleteKv(...kvScope(c), key)
+  return c.json({ key, deleted: true, shared: false })
+})
+
+kvApi.all('*', (c) => c.json({ error: 'not found' }, 404))
+
+dataApi.route('/_kv', kvApi)
 
 // Method → required capability, enforced structurally for every current AND future route on
 // this surface — a new endpoint cannot ship without a capability check. POST maps to `create`
