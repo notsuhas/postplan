@@ -284,6 +284,49 @@ test('standalone images render without an iframe and page comments use the image
   }
 })
 
+test('standalone videos render a player without an iframe and comments get a timestamp button', async () => {
+  const create = spyOn(comments, 'create').mockResolvedValue(
+    mkThread({ id: 'video-comment', anchorType: 'page', quote: null, filePath: 'explainer.mp4' }),
+  )
+  const list = spyOn(comments, 'list').mockResolvedValue([])
+  const mentionable = spyOn(comments, 'mentionable').mockResolvedValue([])
+  try {
+    const site = { ...SITE, indexPath: 'explainer.mp4', contentUrl: 'https://content.test/_t/token/sp/site/' }
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/:space/:site/*',
+          Component,
+          loader: () => ({ site, entryPath: site.indexPath, commentsPromise: Promise.resolve([]) }),
+        },
+      ],
+      { initialEntries: ['/sp/site?review=1'] },
+    )
+    const { container } = render(<RouterProvider router={router} />)
+    await waitFor(() => expect(container.querySelector('video')).not.toBeNull())
+    const video = container.querySelector('video') as HTMLVideoElement
+    expect(video.getAttribute('src')).toBe('https://content.test/_t/token/sp/site/explainer.mp4')
+    expect(container.querySelector('iframe')).toBeNull()
+    Object.defineProperty(video, 'currentTime', { value: 65, configurable: true })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add comment' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Insert timestamp' }))
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('[1:05] ')
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '[1:05] Tighten this cut' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
+    })
+    expect(create.mock.calls[0]?.[1]).toEqual({
+      filePath: 'explainer.mp4',
+      body: '[1:05] Tighten this cut',
+      anchorType: 'page',
+    })
+  } finally {
+    create.mockRestore()
+    list.mockRestore()
+    mentionable.mockRestore()
+  }
+})
+
 /** The socket the mounted viewer dialled — awaited, since the dial happens in a mount effect. */
 const dialledSocket = () =>
   waitFor(() => {

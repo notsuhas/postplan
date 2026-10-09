@@ -33,6 +33,9 @@ export const EXT_MIME: Record<string, string> = {
   aac: 'audio/aac',
   // MediaRecorder's default container in Chromium/Firefox; served (and comment-voice stored) as audio.
   webm: 'audio/webm',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
 }
 
 /** Extensions the worker serves as audio — derived from EXT_MIME so it can't drift. */

@@ -6,7 +6,10 @@ import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
 import { isAudioFile } from '@/lib/audio'
 import { isImageFile } from '@/lib/image'
+import { isVideoFile, isWebmFile } from '@/lib/video'
+import { useHasVideoTrack } from '@/hooks/useHasVideoTrack'
 import { ImageView } from '@/components/viewer/ImageView'
+import { VideoView } from '@/components/viewer/VideoView'
 import { attachDbBroker } from '@/lib/dbBroker'
 import { comments, paintAnchors, type PendingAnchor, pendingToInput, type Thread } from '@/lib/comments'
 import { feedback } from '@/lib/feedback'
@@ -58,6 +61,7 @@ function Viewer() {
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   // Latest file path reported by the iframe's 'ready' intent, stashed unconditionally so the
   // me-resolution effect below can flush it even when 'ready' beats the /api/auth/me fetch on a
   // fresh load (see the recordVisit gate in the intent handler). NOT arbiter.current.readyPath:
@@ -95,10 +99,13 @@ function Viewer() {
   // Audio has no HTML document to frame — it gets a native player instead of the sandboxed
   // iframe, and (unlike the iframe src) no ?postplan_annotate param: that flag only triggers the
   // HTML-injection transform in content.ts, which never applies to audio.
-  const isAudio = useMemo(() => entryPath !== null && isAudioFile(entryPath), [entryPath])
-  const isImage = entryPath !== null && isImageFile(entryPath)
-  const isMedia = isAudio || isImage
   const mediaSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
+  // .webm opens as audio (voice notes) and switches to video once the probe sees a picture.
+  const webmHasVideo = useHasVideoTrack(entryPath !== null && isWebmFile(entryPath) ? mediaSrc : null)
+  const isVideo = entryPath !== null && (isVideoFile(entryPath) || webmHasVideo)
+  const isAudio = !isVideo && entryPath !== null && isAudioFile(entryPath)
+  const isImage = entryPath !== null && isImageFile(entryPath)
+  const isMedia = isAudio || isVideo || isImage
 
   // Is the comments rail on screen. It gates the on-page HIGHLIGHTS again (the rail is the panel
   // that explains them, so they live and die with it) but NOT commenting: selecting text still
@@ -396,7 +403,7 @@ function Viewer() {
   // Read on demand (an event handler, not a subscription) — never causes a re-render, so the
   // timestamp button always inserts whatever the player's position is AT CLICK TIME with no
   // state/effect plumbing.
-  const getCurrentTime = useCallback(() => audioRef.current?.currentTime ?? 0, [])
+  const getCurrentTime = useCallback(() => (videoRef.current ?? audioRef.current)?.currentTime ?? 0, [])
 
   // ⌘K / Ctrl-K opens the command palette here too, mirroring the AppShell dashboard chrome.
   // (Keydown only reaches the parent when focus is outside the sandboxed iframe; the header
@@ -616,6 +623,13 @@ function Viewer() {
           <div className="relative h-full w-full">
             {isAudio ? (
               <AudioView src={mediaSrc} fileName={(entryPath ?? '').split('/').pop() ?? ''} audioRef={audioRef} />
+            ) : isVideo ? (
+              <VideoView
+                key={mediaSrc}
+                src={mediaSrc}
+                fileName={(entryPath ?? '').split('/').pop() ?? ''}
+                videoRef={videoRef}
+              />
             ) : isImage ? (
               <ImageView key={mediaSrc} src={mediaSrc} fileName={(entryPath ?? '').split('/').pop() ?? ''} />
             ) : (
@@ -701,7 +715,7 @@ function Viewer() {
             onSendFeedback={site.authenticated ? sendFeedback : undefined}
             onClose={closeRail}
             onStartComment={startPageComment}
-            getCurrentTime={isAudio ? getCurrentTime : undefined}
+            getCurrentTime={isAudio || isVideo ? getCurrentTime : undefined}
             // Highlight clicks take over from the deep link once one has happened (see revealThread):
             // the link is one-shot at mount and carries a constant nonce, while a click re-requests
             // the same thread every time and bumps the nonce to say so. Both are stable references —

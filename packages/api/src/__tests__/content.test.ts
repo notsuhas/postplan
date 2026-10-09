@@ -529,6 +529,18 @@ describe('audio serving: MIME resolution + HTTP Range support', () => {
     expect(res.headers.get('accept-ranges')).toBe('bytes')
   })
 
+  test('a CLI-uploaded mp4 serves as video/mp4 and honors byte ranges', async () => {
+    const { app, db, r2, env } = setup()
+    const { token } = await seedGatedFile(db, r2, 'explainer.mp4', BODY)
+    const full = await app.request(`/_t/${token}/sam/site/explainer.mp4`, {}, env)
+    expect(full.headers.get('content-type')).toBe('video/mp4')
+    expect(full.headers.get('accept-ranges')).toBe('bytes')
+    const part = await app.request(`/_t/${token}/sam/site/explainer.mp4`, { headers: { range: 'bytes=2-5' } }, env)
+    expect(part.status).toBe(206)
+    expect(part.headers.get('content-range')).toBe(`bytes 2-5/${BODY.length}`)
+    expect(await part.text()).toBe('2345')
+  })
+
   test('bytes=0-1 → 206 with the first two bytes and a correct Content-Range', async () => {
     const { app, db, r2, env } = setup()
     const { token } = await seedGatedFile(db, r2, 'song.mp3', BODY)
