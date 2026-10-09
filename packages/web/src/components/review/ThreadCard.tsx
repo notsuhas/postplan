@@ -5,6 +5,7 @@ import { ApiError } from '@/lib/api'
 import { comments, type CommentItem, type CommentReaction, type Thread } from '@/lib/comments'
 import type { Me, ViewerSite } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { splitTimestamps } from '@/lib/timestamp'
 import { AudioPlayer } from '@/components/audio/AudioPlayer'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { UserAvatar } from '@/components/layout/UserAvatar'
@@ -25,6 +26,7 @@ export function ThreadCard({
   onTypingStop,
   selectedCommentIds,
   onSelectComment,
+  onSeek,
 }: {
   site: ViewerSite
   me: Me | null
@@ -47,6 +49,8 @@ export function ThreadCard({
   onFocusAnchor: (thread: Thread) => void
   selectedCommentIds?: ReadonlySet<string>
   onSelectComment?: (commentId: string, selected: boolean) => void
+  // Set while a player is open: `[m:ss]` in a body becomes a link that seeks it.
+  onSeek?: (t: number) => void
 }) {
   const [replying, setReplying] = useState(false)
   // Comment id under inline edit, or null. One at a time: starting an edit on another message
@@ -303,7 +307,7 @@ export function ThreadCard({
                         c.deleted ? 'text-muted-foreground italic' : 'whitespace-pre-wrap [overflow-wrap:anywhere]'
                       }
                     >
-                      {c.deleted ? 'comment deleted' : c.body}
+                      {c.deleted ? 'comment deleted' : <CommentBody body={c.body ?? ''} onSeek={onSeek} />}
                     </p>
                   )}
                   {/* Voice comment: the transcript above stays always-visible; the recording plays
@@ -444,9 +448,31 @@ export function ThreadCard({
   )
 }
 
-/** Who reacted: the viewer first as "You" (the server sends `mine`, never the caller's own name),
- *  then everyone else in reaction order, comma-separated. The whole list, however long — a name
- *  the reader was looking for is no use summarised away. */
+interface ICommentBody {
+  body: string
+  onSeek?: (t: number) => void
+}
+
+function CommentBody(props: ICommentBody) {
+  const { body, onSeek } = props
+  if (!onSeek) return body
+  return splitTimestamps(body).map((part, i) =>
+    'text' in part ? (
+      part.text
+    ) : (
+      <button
+        // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional and never reorder.
+        key={i}
+        type="button"
+        onClick={() => onSeek(part.t)}
+        className="font-mono text-primary tabular-nums underline-offset-2 hover:underline"
+      >
+        {part.label}
+      </button>
+    ),
+  )
+}
+
 export function reactorList(r: CommentReaction): string {
   return (r.mine ? ['You', ...r.names] : r.names).join(', ')
 }

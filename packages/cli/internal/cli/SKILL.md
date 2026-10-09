@@ -409,6 +409,59 @@ Worth knowing:
 - **A push obeys the read rules above, unchanged** — so on a default collection you are only pushed
   your OWN writes. A dashboard everyone watches together needs a `shared-…` collection.
 
+## Motion — animated compositions with a player
+
+An HTML page with a seekable timeline gets a player bar in the viewer: play/pause, scrub, 0.5x/1x, frame
+step, loop, and `[m:ss]` timestamps on comments that seek when clicked. Use it for animated explainers,
+product demos and title cards. Author it HyperFrames-style (https://github.com/heygen-com/hyperframes):
+
+- **One timeline.** Build one paused GSAP timeline and register it on `window.__timelines["<id>"]`,
+  where `<id>` matches the root `data-composition-id`. Give the root `data-duration` (seconds).
+- **Pin GSAP** to an exact version (`gsap@3.15.0`), never `@latest`.
+- **Deterministic.** No `Math.random()` without a seed, no `Date.now()`, no `setTimeout`/`setInterval`
+  driving visuals, no `repeat: -1`. Every frame must come from the timeline's time alone, so seeking works.
+- **Fonts first.** Preload fonts and build the timeline after `await document.fonts.ready`, or text
+  reflows mid-animation.
+- **60 seconds max**, one idea per scene. Mark scenes with `class="clip" data-start data-duration`.
+
+For other GSAP pages, register `window.postplanMotion = timeline`, then dispatch
+`window.dispatchEvent(new Event('postplan:motion-ready'))`. Dispatch this after delayed registration too.
+Only registered timelines and HyperFrames `__player`/`__timelines` are controlled; ordinary GSAP, CSS
+and Web Animations keep their own behavior.
+
+```html
+<!doctype html>
+<html>
+<head>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=block">
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+  <style>
+    body { margin: 0; display: grid; place-items: center; min-height: 100vh; background: rgba(15, 23, 42, 1); }
+    #root { position: relative; width: 1280px; height: 720px; overflow: hidden; font: 600 64px Inter, sans-serif; color: rgba(255, 255, 255, 1); }
+    .clip { position: absolute; inset: 0; display: grid; place-items: center; }
+  </style>
+</head>
+<body>
+  <div id="root" data-composition-id="root" data-duration="6" data-width="1280" data-height="720">
+    <section class="clip" id="s1" data-start="0" data-duration="3"><h1>Deploy</h1></section>
+    <section class="clip" id="s2" data-start="3" data-duration="3"><h1>Review</h1></section>
+  </div>
+  <script>
+    document.fonts.ready.then(() => {
+      const tl = gsap.timeline({ paused: true })
+      tl.from('#s1 h1', { y: 40, opacity: 0, duration: 0.8, ease: 'power3.out' })
+        .to('#s1', { opacity: 0, duration: 0.4 }, 2.6)
+        .from('#s2 h1', { scale: 0.8, opacity: 0, duration: 0.8, ease: 'back.out(2)' }, 3)
+        .to({}, { duration: 6 - 3.8 }) // hold to the declared duration
+      window.__timelines = window.__timelines || {}
+      window.__timelines.root = tl
+      window.dispatchEvent(new Event('postplan:motion-ready'))
+    })
+  </script>
+</body>
+</html>
+```
+
 ## Dashboards — `<pp-chart>` + `postplan data push`
 
 For a dashboard over real data (a warehouse, an API, a CSV export), Postplan never holds the

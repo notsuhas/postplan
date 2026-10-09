@@ -564,3 +564,26 @@ test('anonymous viewers read the conversation without mutation controls', () => 
   expect(screen.queryByRole('button', { name: 'Delete comment' })).toBeNull()
   expect(screen.getByRole('button', { name: '👍 1' }).hasAttribute('disabled')).toBe(true)
 })
+
+describe('ThreadCard timestamps', () => {
+  test('a [m:ss] in a body seeks the open player when clicked', () => {
+    const onSeek = mock((_t: number) => {})
+    render(
+      <ThreadCard
+        site={SITE}
+        me={ME}
+        thread={mkThread({ id: 't1', comments: [mkComment({ id: 'c1', body: '[0:03] second scene lands late' })] })}
+        onChanged={() => {}}
+        onFocusAnchor={() => {}}
+        onSeek={onSeek}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: '[0:03]' }))
+    expect(onSeek).toHaveBeenCalledWith(3)
+  })
+
+  test('without a player the timestamp stays plain text', () => {
+    renderCard({ comments: [mkComment({ id: 'c1', body: '[0:03] second scene' })] })
+    expect(screen.queryByRole('button', { name: '[0:03]' })).toBeNull()
+  })
+})

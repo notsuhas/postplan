@@ -1,6 +1,6 @@
 import { Pause, Play } from 'lucide-react'
 import { type RefObject, useEffect, useState } from 'react'
-import { formatTimestamp } from '@/lib/audio'
+import { formatTimestamp } from '@/lib/timestamp'
 import { cn } from '@/lib/utils'
 
 // A seek bar over a caller-owned `<audio>` element: play/pause, a draggable progress slider, and a

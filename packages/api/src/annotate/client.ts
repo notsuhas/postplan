@@ -31,6 +31,7 @@ import type { TextContext } from '../lib/anchor'
 import { findRange, resolveSelector } from './locator'
 import { anchorIdAtPoint, anchorRanges, type ElementAnchor, installIndexInvalidation, type TextAnchor } from './reflow'
 import { installSelectionCapture, type Rect } from './selection'
+import { createMotionAdapter } from './motion'
 
 type Boot = { siteId: string; filePath: string; appOrigin: string; siteRoot: string; frameNonce: string | null }
 type PaintAnchor = {
@@ -51,6 +52,8 @@ let port: MessagePort | null = null
 function toParent(msg: unknown): void {
   port?.postMessage(msg)
 }
+
+const motion = createMotionAdapter({ win: window, doc: document, send: toParent })
 
 function connect(b: Boot): void {
   const ch = new MessageChannel()
@@ -334,6 +337,7 @@ function fromParent(data: unknown): void {
   // iframe.contentWindow.print() itself (SecurityError) — it asks, and the page prints in its own
   // realm with the browser's native dialog (the user picks "Save as PDF" there).
   else if (d?.type === 'postplan:print') window.print()
+  else motion.command(data)
 }
 
 // --- mermaid lightbox: click a rendered diagram to enlarge it -----------------------------
@@ -377,4 +381,17 @@ document.addEventListener('click', (e) => {
 if (boot) {
   connect(boot)
   toParent({ type: 'postplan:ready', filePath: boot.filePath })
+}
+
+// --- motion: report a seekable timeline (if any) and take playback commands --------------
+// Retried after load because pages often build their timeline once fonts or assets are ready.
+function detectMotion(retries: number[]): void {
+  if (motion.detect() || retries.length === 0) return
+  setTimeout(() => detectMotion(retries.slice(1)), retries[0])
+}
+if (boot) {
+  window.addEventListener('postplan:motion-ready', () => detectMotion([]))
+  document.fonts?.ready.then(() => detectMotion([])).catch(() => {})
+  if (document.readyState === 'complete') detectMotion([500, 1500])
+  else window.addEventListener('load', () => detectMotion([500, 1500]), { once: true })
 }

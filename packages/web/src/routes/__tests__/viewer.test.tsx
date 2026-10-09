@@ -99,7 +99,7 @@ function renderViewer(initialPath: string) {
 // the page's end of the frame channel. Arming performs the real handshake — a hello carrying the
 // nonce from the iframe's src — and hands the viewer a synchronous port, so a command or intent
 // lands within the same act() that sends it.
-function armIframe(container: HTMLElement) {
+function armIframe(container: HTMLElement, initialReport?: unknown) {
   const iframe = container.querySelector('iframe') as HTMLIFrameElement
   const posted: unknown[] = []
   const fakeWin = { postMessage: () => {} }
@@ -119,6 +119,7 @@ function armIframe(container: HTMLElement) {
         ports: [port as unknown as MessagePort],
       }),
     )
+    if (initialReport) port.onmessage?.({ data: initialReport })
   })
   const send = (data: unknown) => port.onmessage?.({ data })
   const paints = () =>
@@ -1152,5 +1153,53 @@ describe('viewer wiring — pushed comment events (S9)', () => {
     } finally {
       list.mockRestore()
     }
+  })
+})
+
+describe('motion viewer lifecycle', () => {
+  test('a new connection clears the old timeline before an immediate report', async () => {
+    const { container } = renderViewer('/sp/site?review=1')
+    await waitFor(() => expect(container.querySelector('iframe')).toBeTruthy())
+    const frame = armIframe(container)
+    act(() => frame.send({ type: 'postplan:motion', duration: 4, t: 1, playing: false }))
+    expect(screen.getByText('0:01 / 0:04')).toBeTruthy()
+    armIframe(container, { type: 'postplan:motion', duration: 8, t: 2, playing: false })
+    expect(screen.getByText('0:02 / 0:08')).toBeTruthy()
+    armIframe(container)
+    expect(screen.queryByRole('group', { name: 'Motion' })).toBeNull()
+  })
+
+  test('switching to an image removes motion and timestamp controls', async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/:space/:site/*',
+          Component,
+          loader: (args) => ({
+            ...makeLoaderData(args),
+            entryPath: args.params['*'] || 'index.html',
+            commentsPromise: Promise.resolve([]),
+          }),
+        },
+      ],
+      { initialEntries: ['/sp/site?review=1'] },
+    )
+    const { container } = render(<RouterProvider router={router} />)
+    await waitFor(() => expect(container.querySelector('iframe')).toBeTruthy())
+    const frame = armIframe(container)
+    act(() => frame.send({ type: 'postplan:motion', duration: 4, t: 1, playing: false }))
+    expect(screen.getByRole('group', { name: 'Motion' })).toBeTruthy()
+    await act(async () => {
+      await router.navigate('/sp/site/image.png?review=1')
+    })
+    expect(screen.queryByRole('group', { name: 'Motion' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Add comment' }))
+    expect(screen.queryByRole('button', { name: 'Insert timestamp' })).toBeNull()
+    await act(async () => {
+      await router.navigate('/sp/site/ordinary.html?review=1')
+    })
+    await waitFor(() => expect(container.querySelector('iframe')).toBeTruthy())
+    expect(screen.queryByRole('group', { name: 'Motion' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Insert timestamp' })).toBeNull()
   })
 })

@@ -1,11 +1,22 @@
 import { FRAME_NONCE_PARAM } from '../../../shared/frame'
 import { useViewerComments } from '@/hooks/useViewerComments'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
 import { useMediaKind } from '@/hooks/useMediaKind'
 import { MediaPane } from '@/components/viewer/MediaPane'
+import { MotionBar } from '@/components/viewer/MotionBar'
+import { createMotionStore } from '@/lib/motion'
 import { attachDbBroker } from '@/lib/dbBroker'
 import { comments, paintAnchors, type PendingAnchor, pendingToInput, type Thread } from '@/lib/comments'
 import { feedback } from '@/lib/feedback'
@@ -71,13 +82,19 @@ function Viewer() {
   }, [site.contentUrl, sitePath, frameNonce])
   // Bumped each time a page in the frame proves the nonce, so per-page state (paint, mode) is re-sent.
   const [frameEpoch, setFrameEpoch] = useState(0)
-  const [channel] = useState(() =>
-    createFrameChannel({
+  const [{ channel, motion }] = useState(() => {
+    const channel = createFrameChannel({
       nonce: frameNonce,
       getSource: () => iframeRef.current?.contentWindow,
-      onConnect: () => setFrameEpoch((n) => n + 1),
-    }),
-  )
+      onConnect: () => {
+        motion.apply({ type: 'reset' })
+        setFrameEpoch((n) => n + 1)
+      },
+    })
+    const motion = createMotionStore(channel.send)
+    return { channel, motion }
+  })
+  const motionAvailable = useSyncExternalStore(motion.subscribe, () => motion.get() !== null)
   // Layout effects run in the same task as the commit that inserts the iframe, so the listener exists
   // before the frame can possibly post its one-shot hello.
   useLayoutEffect(() => {
@@ -95,7 +112,16 @@ function Viewer() {
   const mediaSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
   const mediaKind = useMediaKind(entryPath, mediaSrc)
   const isMedia = mediaKind !== 'document'
+  const hasMotion = !isMedia && motionAvailable
   const isPlayable = mediaKind === 'audio' || mediaKind === 'video'
+  const previousDocumentRef = useRef({ src, isMedia })
+  useLayoutEffect(() => {
+    const previous = previousDocumentRef.current
+    if (previous.src === src && previous.isMedia === isMedia) return
+    previousDocumentRef.current = { src, isMedia }
+    motion.apply({ type: 'reset' })
+    channel.dispose()
+  }, [motion, channel, src, isMedia])
 
   // Is the comments rail on screen. It gates the on-page HIGHLIGHTS again (the rail is the panel
   // that explains them, so they live and die with it) but NOT commenting: selecting text still
@@ -240,7 +266,8 @@ function Viewer() {
     function onMsg(data: unknown) {
       const intent: Intent | null = parseIntent(data)
       if (!intent) return
-      if (intent.type === 'ready') {
+      if (intent.type === 'report') motion.apply(intent)
+      else if (intent.type === 'ready') {
         // Audio has no iframe/'ready'; for HTML this is where the SPA learns the current file.
         // The arbiter arbitrates: a matching ready applies the parked prefetch, a mismatch discards
         // it and orders a fresh fetch, a duplicate or a stale ready (old iframe doc after a splat
@@ -316,6 +343,7 @@ function Viewer() {
     return channel.subscribe(onMsg)
   }, [
     channel,
+    motion,
     me,
     site.authenticated,
     site.spaceSlug,
@@ -393,7 +421,18 @@ function Viewer() {
   // Read on demand (an event handler, not a subscription) — never causes a re-render, so the
   // timestamp button always inserts whatever the player's position is AT CLICK TIME with no
   // state/effect plumbing.
-  const getCurrentTime = useCallback(() => (videoRef.current ?? audioRef.current)?.currentTime ?? 0, [])
+  const getCurrentTime = useCallback(
+    () => (videoRef.current ?? audioRef.current)?.currentTime ?? motion.get()?.t ?? 0,
+    [motion],
+  )
+  const seekTo = useCallback(
+    (t: number) => {
+      const el = videoRef.current ?? audioRef.current
+      if (el) el.currentTime = t
+      else motion.command({ cmd: 'seek', t })
+    },
+    [motion],
+  )
 
   // ⌘K / Ctrl-K opens the command palette here too, mirroring the AppShell dashboard chrome.
   // (Keydown only reaches the parent when focus is outside the sandboxed iframe; the header
@@ -609,8 +648,8 @@ function Viewer() {
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* The loading overlay lives inside this wrapper so its coords match the iframe viewport. */}
-        <div className="relative flex min-h-0 min-w-0 flex-1 justify-center bg-muted/20">
-          <div className="relative h-full w-full">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/20">
+          <div className="relative min-h-0 w-full flex-1">
             {isMedia ? (
               <MediaPane
                 key={mediaSrc}
@@ -678,6 +717,7 @@ function Viewer() {
               </div>
             )}
           </div>
+          {!isMedia && <MotionBar store={motion} />}
         </div>
 
         {railOpen && (
@@ -703,7 +743,9 @@ function Viewer() {
             onSendFeedback={site.authenticated ? sendFeedback : undefined}
             onClose={closeRail}
             onStartComment={startPageComment}
-            getCurrentTime={isPlayable ? getCurrentTime : undefined}
+            canSelectText={!isMedia}
+            getCurrentTime={isPlayable || hasMotion ? getCurrentTime : undefined}
+            onSeek={isPlayable || hasMotion ? seekTo : undefined}
             // Highlight clicks take over from the deep link once one has happened (see revealThread):
             // the link is one-shot at mount and carries a constant nonce, while a click re-requests
             // the same thread every time and bumps the nonce to say so. Both are stable references —

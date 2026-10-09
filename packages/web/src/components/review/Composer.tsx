@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { EmojiPicker } from '@/components/review/EmojiPicker'
 import { UserAvatar } from '@/components/layout/UserAvatar'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
-import { formatTimestamp } from '@/lib/audio'
+import { formatTimestamp } from '@/lib/timestamp'
 import { type MentionUser, filterMentions, insertMention, mentionLabel, mentionQuery } from '@/lib/mentions'
 import { cn } from '@/lib/utils'
 
@@ -305,7 +305,7 @@ export function Composer({
           </ul>
         )}
       </div>
-      <div className={cn('flex items-center gap-2', timestampButton ? 'justify-between' : 'justify-end')}>
+      <div className={cn('flex flex-wrap items-center gap-2', timestampButton ? 'justify-between' : 'justify-end')}>
         {timestampButton && (
           <Button
             type="button"
@@ -317,7 +317,7 @@ export function Composer({
             {timestampButton.label}
           </Button>
         )}
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">
           {onCancel && (
             <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
               Cancel
