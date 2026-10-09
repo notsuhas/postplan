@@ -62,6 +62,7 @@ Put it in your shell profile to make it permanent. Token + URL are saved to `~/.
 | `postplan feedback claim <batch-id> [--json]` | atomically claims one sent batch; another agent cannot claim it |
 | `postplan feedback complete <batch-id> [--version <n>] [--json]` | marks your claimed batch completed and links the deployment version |
 | `postplan shares list\|grant\|revoke ...` | manages explicit viewer/editor shares by stable user ID |
+| `postplan data push <space/slug> <chart-id> <file.json\|file.csv\|-> [--sql <file>] [--source <name>] [--stale-after <dur>]` | replaces one `<pp-chart>`'s data; open pages update live (site owner only) |
 | `postplan logout` | revokes the server session and removes the local token |
 
 ### login
@@ -406,6 +407,39 @@ Worth knowing:
   open overnight is not silently stale. You get each change once, in order.
 - **A push obeys the read rules above, unchanged** — so on a default collection you are only pushed
   your OWN writes. A dashboard everyone watches together needs a `shared-…` collection.
+
+## Dashboards — `<pp-chart>` + `postplan data push`
+
+For a dashboard over real data (a warehouse, an API, a CSV export), Postplan never holds the
+credentials. Whoever already has them (you, a cron job, a GitHub Action) runs each query and pushes
+the result; every chart then shows its SQL, its source and how fresh it is, and open pages update live.
+
+1. Deploy the page once. Load the component and give each chart an id:
+
+```html
+<script src="/_postplan/chart.js"></script>
+<pp-chart chart="revenue" kind="line" x="week" y="revenue" color="region" label="Weekly revenue"></pp-chart>
+<pp-chart chart="signups" kind="number" y="signups" label="Signups today"></pp-chart>
+<pp-chart chart="top-accounts" kind="table" label="Top accounts"></pp-chart>
+```
+
+2. Run each query yourself and push the result (CSV with a header row, a JSON array of objects, or
+   `{"columns": [...], "rows": [[...]]}`):
+
+```bash
+postplan data push team/kpis revenue revenue.csv --sql revenue.sql --source "Snowflake · analytics" --stale-after 6h
+```
+
+- `kind`: `line` (default), `bar`, `area`, `dot`, `number` (last row's `y`), `table`. `x`/`y` default to
+  the first two columns; `color` splits series by a column. ISO dates become a time axis.
+- One query per chart, aggregated before pushing: each push is capped at 100 KB. Re-push to refresh;
+  no redeploy. The badge turns amber after `--stale-after` (default 24h) and red at twice that.
+- To refresh on a schedule, put the queries and `postplan data push` in a cron job or GitHub Action
+  that holds the warehouse secrets (log in there with `POSTPLAN_TOKEN`).
+- Static snapshot instead (works for anyone with the link, no live updates): ship the file with the
+  site and use `<pp-chart src="data/revenue.csv" ...>`. Live charts need viewers signed in.
+- Every chart gets a CSV download and an expandable SQL panel. The SQL shown is what the pusher sent:
+  provenance, not proof.
 
 ## Diagrams & flowcharts — default to mermaid
 

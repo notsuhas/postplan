@@ -64,6 +64,7 @@ var authedCmds = map[string]func(*client, []string) error{
 	"rollback":      (*client).rollback,
 	"feedback":      (*client).feedback,
 	"shares":        (*client).shares,
+	"data":          (*client).data,
 }
 
 func dispatch(cmd string, rest []string) error {

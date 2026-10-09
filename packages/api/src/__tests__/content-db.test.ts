@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import contentApp from '../content'
+import { CHART_JS } from '../chart/bundle'
 import { POSTPLAN_DB_JS } from '../postplandb/bundle'
 import { signToken } from '../lib/token'
 import { stripSdk } from '../test/content-fixtures'
@@ -46,6 +47,17 @@ describe('postplan.db SDK asset', () => {
     expect(res.headers.get('content-type')).toContain('javascript')
     expect(res.headers.get('cache-control')).toContain('immutable')
     expect(await res.text()).toBe(POSTPLAN_DB_JS)
+  })
+
+  test('GET /_postplan/chart.js → the <pp-chart> bundle, revalidated by ETag', async () => {
+    const { app, env } = setup()
+    const res = await app.request('/_postplan/chart.js', {}, env)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe(CHART_JS)
+    const etag = res.headers.get('etag') ?? ''
+    expect(etag).toMatch(/^"[0-9a-f]{8}"$/)
+    const again = await app.request('/_postplan/chart.js', { headers: { 'if-none-match': etag } }, env)
+    expect(again.status).toBe(304)
   })
 })
 

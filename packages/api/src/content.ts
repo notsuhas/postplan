@@ -5,6 +5,7 @@ import { type Context, Hono } from 'hono'
 import { sessionDb } from './db/client'
 import { ANNOTATE_CSS, ANNOTATE_JS, ANNOTATE_VERSION } from './annotate/bundle'
 import { POSTPLAN_DB_JS, POSTPLAN_DB_VERSION } from './postplandb/bundle'
+import { CHART_JS, CHART_VERSION } from './chart/bundle'
 import { MERMAID_JS, MERMAID_VERSION } from './mermaid/bundle'
 import { type NewEvent, files, sites, spaces } from './db/schema'
 import { fireAndForget, recordEvent } from './lib/events'
@@ -43,6 +44,13 @@ app.get('/', (c) => c.text('Postplan content origin', 200))
 app.get('/_postplan/mermaid.js', (c) =>
   c.body(MERMAID_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': IMMUTABLE }),
 )
+
+// <pp-chart>: pages opt in with a plain script tag, so its URL can't carry a version; revalidate hourly.
+app.get('/_postplan/chart.js', (c) => {
+  const headers = { etag: `"${CHART_VERSION}"`, 'cache-control': 'public, max-age=3600' }
+  if (c.req.header('if-none-match') === headers.etag) return c.body(null, 304, headers)
+  return c.body(CHART_JS, 200, { ...headers, 'content-type': 'text/javascript; charset=utf-8' })
+})
 
 // Annotate-mode client assets. Registered BEFORE the /:space/:site/* catch-all so `_postplan`
 // isn't captured as a space slug. Long-cache (IMMUTABLE) + content-versioned query (?v=) makes
