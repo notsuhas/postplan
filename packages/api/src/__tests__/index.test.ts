@@ -1,7 +1,9 @@
-import { describe, expect, test } from 'bun:test'
-import worker from '../index'
+import { describe, expect, test, mock } from 'bun:test'
 import { STATS_CACHE_KEY, STATS_TOTALS_CACHE_KEY } from '../lib/stats'
 import { makeKv } from '../test/harness'
+
+mock.module('cloudflare:workers', () => ({ WorkerEntrypoint: class {} }))
+const { default: worker } = await import('../index')
 
 // Composition-level checks against the real worker export (routes registered before the /api/*
 // guards need no DB, so a minimal env suffices). Exercised through `worker.fetch` — the handler

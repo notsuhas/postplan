@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Link, NavLink, Outlet, useLoaderData, useNavigation } from 'react-router'
-import { Command, KeyRound, LayoutDashboard, LogOut, Moon, Shield, Sun, SunMoon } from 'lucide-react'
+import { Command, KeyRound, LayoutDashboard, LogOut, Moon, Plug, Shield, Sun, SunMoon } from 'lucide-react'
 import type { RootData } from '@/lib/notifications'
 import { signOut } from '@/lib/auth'
 import { toggleTheme, useTheme } from '@/lib/theme'
@@ -137,6 +137,12 @@ export function AppShell() {
                       <KeyRound />
                       API Keys
                     </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href="/api/oauth/connections">
+                      <Plug />
+                      MCP connections
+                    </a>
                   </DropdownMenuItem>
                   <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => signOut()}>
                     <LogOut />

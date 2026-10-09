@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,16 +22,19 @@ func userAgent() string { return "postplan-cli/" + Version }
 // client carries the resolved instance URL + token plus the seams tests stub out (output sink,
 // interactive input, sleep, browser opener). One command == one method on *client.
 type client struct {
-	baseURL     string
-	token       string
-	http        *http.Client
-	out         io.Writer // stdout (results, piped output)
-	errOut      io.Writer // stderr (warnings, update notices) - kept off stdout so pipes stay clean
-	in          io.Reader // interactive prompt source (y/N confirmations)
-	stdin       io.Reader // piped body source (reply)
-	stdinIsTTY  bool
-	openBrowser func(string)
-	sleep       func(time.Duration)
+	baseURL        string
+	token          string
+	http           *http.Client
+	out            io.Writer // stdout (results, piped output)
+	errOut         io.Writer // stderr (warnings, update notices) - kept off stdout so pipes stay clean
+	in             io.Reader // interactive prompt source (y/N confirmations)
+	stdin          io.Reader // piped body source (reply)
+	stdinIsTTY     bool
+	nonInteractive bool // mcp: fail instead of prompting
+	openBrowser    func(string)
+	sleep          func(time.Duration)
+	ctx            context.Context // cancels every request; mcp cancels it on notifications/cancelled
+	uploadLimits   *uploadLimits
 }
 
 func newClient(baseURL, token string, out io.Writer) *client {
@@ -47,12 +51,13 @@ func newClient(baseURL, token string, out io.Writer) *client {
 		stdinIsTTY:  isTTY(os.Stdin),
 		openBrowser: openBrowser,
 		sleep:       time.Sleep,
+		ctx:         context.Background(),
 	}
 }
 
 // authed issues a request to the configured instance with the bearer token + User-Agent attached.
 func (c *client) authed(method, path string, body io.Reader, headers map[string]string) (*http.Response, error) {
-	return c.authedContext(context.Background(), method, path, body, headers)
+	return c.authedContext(c.ctx, method, path, body, headers)
 }
 
 // authedContext lets waiting commands bound reads without changing other commands' timeouts.
@@ -67,6 +72,22 @@ func (c *client) authedContext(ctx context.Context, method, path string, body io
 		req.Header.Set(k, v)
 	}
 	return c.http.Do(req)
+}
+
+// fetchContent GETs a token-bearing content URL; errors drop the URL so the token never reaches output.
+func (c *client) fetchContent(rawURL string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(c.ctx, "GET", rawURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid content URL from the server.")
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("Content request cancelled or timed out.")
+		}
+		return nil, fmt.Errorf("Could not fetch site content: request failed.")
+	}
+	return resp, nil
 }
 
 // requireAuth guards commands that need a saved token: each command

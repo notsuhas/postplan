@@ -116,15 +116,14 @@ func TestReadPull(t *testing.T) {
 }
 
 func TestReadUnchanged(t *testing.T) {
-	// cli.read.unchanged: a bare `read --file` (no --pull) still prints the served bytes verbatim.
-	t.Run("cli.read.unchanged", func(t *testing.T) {
+	// A bare `read --file` prints the stored source, not the served page with Postplan's injected scripts.
+	t.Run("cli.read.source", func(t *testing.T) {
 		srv := newPullServer(t, map[string]string{"a.txt": "AAA"}, 0, true)
 		c, out := newTestClient(srv.URL, "tok")
 		if err := c.read([]string{"sam/site", "--file", "a.txt"}); err != nil {
 			t.Fatalf("read: %v", err)
 		}
-		// bare read hits the NON-raw content path → serves the file (here the fake "renders" it).
-		if got := out.String(); got != "<h1>RENDERED a.txt</h1>" {
+		if got := out.String(); got != "AAA" {
 			t.Errorf("read output = %q", got)
 		}
 	})

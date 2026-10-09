@@ -5,6 +5,7 @@ import { getUserById } from '../db/repo'
 import type { AppEnv, Credential, SessionUser } from '../types'
 import { API_KEY_PREFIX, apiKeyDb, resolveApiKey, touchApiKeyLastUsed } from './api-key'
 import { fireAndForget } from './events'
+import { DELEGATED_USER } from './delegated-user'
 
 const SESSION_COOKIE = '__Host-postplan_session'
 const DEV_SESSION_COOKIE = 'postplan_dev_session'
@@ -182,6 +183,11 @@ export function bearerToken(c: Context<AppEnv>): string | null {
 // must NOT fall through to the KV CLI lookup — an attacker presenting a bad API key must not get
 // a second shot at the CLI token store (or vice versa).
 export async function readCredential(c: Context<AppEnv>): Promise<Credential | null> {
+  const delegated = c.env[DELEGATED_USER]
+  if (delegated) {
+    if (await isUserAccessRevoked(c.env.POSTPLAN_SESSIONS, delegated.id)) return null
+    return { kind: 'oauth', user: delegated }
+  }
   const sessionUser = await readSession(c)
   if (sessionUser) {
     if (await isUserAccessRevoked(c.env.POSTPLAN_SESSIONS, sessionUser.id)) return null

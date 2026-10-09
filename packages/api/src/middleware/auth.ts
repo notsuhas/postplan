@@ -48,7 +48,7 @@ async function authenticate(c: Context<AppEnv>): Promise<boolean> {
   // Tag the credential for usage analytics. The CLI sends a Bearer token and never a cookie;
   // browsers always carry the cookie. Session cookie wins (mirrors readSessionOrBearer), so a
   // request is 'cli' only when there's no cookie AND a Bearer token is present.
-  c.set('authKind', !cookieAuthed(c) && bearerToken(c) !== null ? 'cli' : 'web')
+  c.set('authKind', credential.kind === 'oauth' ? 'mcp' : !cookieAuthed(c) && bearerToken(c) !== null ? 'cli' : 'web')
   return true
 }
 
@@ -89,7 +89,8 @@ export const requireControlGrant = createMiddleware<AppEnv>(async (c, next) => {
 
 /** Must run after requireAuth. API keys never carry human-only authority. */
 export const requireHumanCredential = createMiddleware<AppEnv>(async (c, next) => {
-  if (c.get('credential')?.kind === 'key') return c.json({ error: 'forbidden' }, 403)
+  if (c.get('credential')?.kind === 'key' || c.get('credential')?.kind === 'oauth')
+    return c.json({ error: 'forbidden' }, 403)
   await next()
 })
 
