@@ -15,16 +15,32 @@
  *  leak the param into someone else's origin querystring for no purpose. `base` is the current
  *  document's base URL (respects a `<base href>` tag, falling back to the document URL). Idempotent:
  *  a link that already carries the param round-trips unchanged. */
-export function withAnnotateParam(href: string, base: string): string | null {
+export function withAnnotateParam(href: string, base: string, current: string = base): string | null {
   let baseUrl: URL
   let url: URL
+  let currentUrl: URL
   try {
     baseUrl = new URL(base)
     url = new URL(href, baseUrl)
+    currentUrl = new URL(current)
   } catch {
     return null
   }
   if (url.origin !== baseUrl.origin) return null
   url.searchParams.set('postplan_annotate', '1')
+  // The db broker nonce must never reach another site on the shared content origin.
+  const nonce = currentUrl.searchParams.get(BROKER_PARAM)
+  const prefix = sitePrefix(url.pathname)
+  if (nonce && prefix !== null && prefix === sitePrefix(currentUrl.pathname)) url.searchParams.set(BROKER_PARAM, nonce)
+  else url.searchParams.delete(BROKER_PARAM)
   return url.toString()
+}
+
+const BROKER_PARAM = 'postplan_broker'
+
+/** `space/site`, or `_t/<token>/space/site` for gated paths; null when the path is too short. */
+function sitePrefix(pathname: string): string | null {
+  const segs = pathname.split('/').filter(Boolean)
+  const n = segs[0] === '_t' ? 4 : 2
+  return segs.length > n || (segs.length === n && pathname.endsWith('/')) ? segs.slice(0, n).join('/') : null
 }

@@ -57,7 +57,13 @@ type BrokerRequest = { id: number; op: string; collection: string; docId?: strin
 export type DbBroker = { onWindowMessage: (e: MessageEvent) => void; dispose: () => void }
 
 export function createDbBroker(
-  opts: { site: BrokerSite; contentOrigin: string; appOrigin: string; getSource: () => Window | null | undefined },
+  opts: {
+    site: BrokerSite
+    contentOrigin: string
+    appOrigin: string
+    nonce: string
+    getSource: () => Window | null | undefined
+  },
   deps: {
     fetchFn: typeof fetch
     newSocket: (url: string, protocols: string[]) => BrokerSocket
@@ -285,7 +291,10 @@ export function createDbBroker(
     if (e.origin !== opts.contentOrigin) return
     const source = opts.getSource()
     if (!source || e.source !== source) return
-    if ((e.data as { type?: unknown } | null)?.type !== 'postplan:db-hello') return
+    const hello = e.data as { type?: unknown; nonce?: unknown } | null
+    if (hello?.type !== 'postplan:db-hello') return
+    // The frame may have navigated to another site on the shared content origin; only the page we loaded holds the nonce.
+    if (hello.nonce !== opts.nonce) return
     const p = e.ports?.[0]
     if (!p) return
     port?.close()
@@ -331,6 +340,7 @@ function mintError(status: number): string {
 export function attachDbBroker(opts: {
   site: BrokerSite
   contentOrigin: string
+  nonce: string
   getSource: () => Window | null | undefined
 }): { dispose: () => void } {
   // The app origin is ours — the data plane is reached by relative path, but a WebSocket URL

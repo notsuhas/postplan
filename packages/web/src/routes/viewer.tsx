@@ -1,6 +1,6 @@
 import { useViewerComments } from '@/hooks/useViewerComments'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { type LoaderFunctionArgs, useLoaderData, useParams, useSearchParams } from 'react-router'
+import { type LoaderFunctionArgs, useLoaderData, useLocation, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
 import { isAudioFile } from '@/lib/audio'
@@ -52,6 +52,7 @@ function Viewer() {
   // content URL so a deep link / the directory-listing fallback opens that specific file; '' = root.
   const sitePath = useParams()['*'] ?? ''
   const [searchParams] = useSearchParams()
+  const routerPath = useLocation().pathname
   const wantRailOpen = railFromSearch(searchParams)
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -63,10 +64,12 @@ function Viewer() {
   // visit still flushes when Me resolves after a splat nav.
   const lastReadyPathRef = useRef<string | null>(null)
   const contentOrigin = useMemo(() => new URL(site.contentUrl).origin, [site.contentUrl])
+  // Per-mount secret the db broker requires in the hello; it rides the frame URL so only this site's pages hold it.
+  const brokerNonce = useMemo(() => crypto.randomUUID().replaceAll('-', ''), [])
   const src = useMemo(() => {
     const contentUrl = appendPath(site.contentUrl, sitePath)
-    return withAnnotate(contentUrl)
-  }, [site.contentUrl, sitePath])
+    return withAnnotate(contentUrl, site.authenticated ? brokerNonce : null)
+  }, [site.contentUrl, sitePath, site.authenticated, brokerNonce])
   // `entryPath` (loader-resolved via resolveEntryPath, mirroring the server's normalizePath) is
   // the concrete file this URL serves — at the root that's the API's indexPath (root index.html or
   // the lone-upload fallback, e.g. recording.webm), so audio detection, the player src, and comment
@@ -203,10 +206,11 @@ function Viewer() {
     const broker = attachDbBroker({
       site: { spaceSlug: site.spaceSlug, siteSlug: site.siteSlug },
       contentOrigin,
+      nonce: brokerNonce,
       getSource: () => iframeRef.current?.contentWindow,
     })
     return broker.dispose
-  }, [site.authenticated, site.spaceSlug, site.siteSlug, contentOrigin])
+  }, [site.authenticated, site.spaceSlug, site.siteSlug, contentOrigin, brokerNonce])
 
   // The rail's reveal has two producers: the one-shot deep link below and clicks on a painted
   // highlight. A click is the source the nonce was built for — the same thread can be clicked over
@@ -241,6 +245,9 @@ function Viewer() {
         if (decision.kind === 'ignore') return
         if (state.readyPath !== intent.filePath) return
         lastReadyPathRef.current = intent.filePath
+        syncAddressBar(
+          intent.filePath === entryPath ? routerPath : sitePathUrl(site.spaceSlug, site.siteSlug, intent.filePath),
+        )
         // Every in-iframe navigation fires 'ready' with the real current file — the only place the
         // SPA learns it, since the URL doesn't change on in-page navigation. Skip until Me resolves
         // (never record to an unknown/shared-machine user); the me-effect below flushes the ref once
@@ -325,6 +332,8 @@ function Viewer() {
     setThreads,
     revealThread,
     mode,
+    entryPath,
+    routerPath,
   ])
 
   useEffect(() => {
@@ -644,6 +653,8 @@ function Viewer() {
                 // sandboxed frame without this flag — required by the Print / Save as PDF action
                 // (the annotate client's postplan:print handler). Also un-blocks alert()/confirm()
                 // for hosted pages, which matches how interactive artifacts behave elsewhere.
+                // Granted so copy buttons, fullscreen and video work; camera, mic and location stay off.
+                allow="clipboard-write; fullscreen; autoplay; picture-in-picture"
                 sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-top-navigation-by-user-activation allow-modals allow-downloads"
               />
             )}
@@ -712,9 +723,20 @@ function Viewer() {
   )
 }
 
-function withAnnotate(u: string): string {
+// In-frame navigation bypasses the router; mirror it so reload and share open the same file.
+function syncAddressBar(path: string): void {
+  if (window.location.pathname === path) return
+  window.history.replaceState(window.history.state, '', path + window.location.search + window.location.hash)
+}
+
+function sitePathUrl(spaceSlug: string, siteSlug: string, filePath: string): string {
+  return `/${spaceSlug}/${siteSlug}/${encodePathSegments(filePath)}`
+}
+
+function withAnnotate(u: string, brokerNonce: string | null): string {
   const url = new URL(u)
   url.searchParams.set('postplan_annotate', '1')
+  if (brokerNonce) url.searchParams.set('postplan_broker', brokerNonce)
   return url.toString()
 }
 

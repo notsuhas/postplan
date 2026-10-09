@@ -80,7 +80,8 @@ function connect(appOrigin: string): Promise<MessagePort> {
         else settle(d.id, 'reject', new Error((d.body as { error?: string })?.error || `postplan: ${d.status}`))
       }
     }
-    window.parent.postMessage({ type: 'postplan:db-hello' }, appOrigin, [ch.port2])
+    const nonce = new URLSearchParams(location.search).get('postplan_broker')
+    window.parent.postMessage({ type: 'postplan:db-hello', nonce }, appOrigin, [ch.port2])
   })
   return connecting
 }

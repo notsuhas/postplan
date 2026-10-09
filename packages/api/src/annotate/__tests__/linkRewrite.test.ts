@@ -37,4 +37,26 @@ describe('withAnnotateParam — same-origin in-frame link rewrite', () => {
   test('a protocol-relative link to another host is cross-origin → untouched', () => {
     expect(withAnnotateParam('//other.example/page.html', base)).toBeNull()
   })
+
+  test('broker nonce follows links within the same site', () => {
+    const cur = 'https://c.example/_t/tok/sp/site/index.html?postplan_annotate=1&postplan_broker=abc'
+    expect(withAnnotateParam('page2.html', cur, cur)).toBe(
+      'https://c.example/_t/tok/sp/site/page2.html?postplan_annotate=1&postplan_broker=abc',
+    )
+  })
+
+  test('broker nonce is stripped on links to another site on the same origin', () => {
+    const cur = 'https://c.example/sp/site/index.html?postplan_annotate=1&postplan_broker=abc'
+    expect(withAnnotateParam('/sp/other/', cur, cur)).toBe('https://c.example/sp/other/?postplan_annotate=1')
+    expect(withAnnotateParam('/sp/other/?postplan_broker=abc', cur, cur)).toBe(
+      'https://c.example/sp/other/?postplan_annotate=1',
+    )
+  })
+
+  test('broker nonce comes from the document URL, not a <base href>', () => {
+    const cur = 'https://c.example/sp/site/index.html?postplan_broker=abc'
+    expect(withAnnotateParam('a.html', 'https://c.example/sp/site/sub/', cur)).toBe(
+      'https://c.example/sp/site/sub/a.html?postplan_annotate=1&postplan_broker=abc',
+    )
+  })
 })

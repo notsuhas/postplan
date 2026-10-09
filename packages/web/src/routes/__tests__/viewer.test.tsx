@@ -189,6 +189,7 @@ test('anonymous unlisted viewers can open and read comments without login', asyn
   await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
   const frame = armIframe(container)
   expect(frame.iframe.getAttribute('src')).toContain('postplan_annotate=1')
+  expect(frame.iframe.getAttribute('src')).not.toContain('postplan_broker')
   await loadIframe(frame.iframe)
   await act(async () => frame.send({ type: 'postplan:ready', filePath: 'index.html' }))
   fireEvent.click(await screen.findByRole('button', { name: /Comments/ }))
@@ -203,7 +204,45 @@ test('anonymous unlisted viewers can open and read comments without login', asyn
 test('uploaded artifacts are never delegated microphone permission', async () => {
   const { container } = renderViewer('/sp/site')
   await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
-  expect(container.querySelector('iframe')?.getAttribute('allow')).toBeNull()
+  const allow = container.querySelector('iframe')?.getAttribute('allow') ?? ''
+  expect(allow).not.toContain('microphone')
+  expect(allow).not.toContain('camera')
+  expect(allow).not.toContain('geolocation')
+})
+
+test('the frame URL carries a per-mount broker nonce for signed-in viewers', async () => {
+  const { container } = renderViewer('/sp/site')
+  await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+  const src = container.querySelector('iframe')?.getAttribute('src') ?? ''
+  expect(new URL(src).searchParams.get('postplan_broker')).toMatch(/^[0-9a-f]{32}$/)
+})
+
+test('in-frame navigation is mirrored into the address bar, and back to the entry file restores it', async () => {
+  const dom = (window as unknown as { happyDOM: { setURL: (u: string) => void } }).happyDOM
+  const before = window.location.href
+  dom.setURL('https://app.example.com/sp/site')
+  try {
+    const { container } = renderViewer('/sp/site')
+    await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+    const frame = armIframe(container)
+    await loadIframe(frame.iframe)
+    act(() => frame.send({ type: 'postplan:ready', filePath: 'index.html' }))
+    expect(window.location.pathname).not.toBe('/sp/site/index.html')
+    act(() => frame.send({ type: 'postplan:ready', filePath: 'docs/a b.html' }))
+    expect(window.location.pathname).toBe('/sp/site/docs/a%20b.html')
+    act(() => frame.send({ type: 'postplan:ready', filePath: 'index.html' }))
+    expect(window.location.pathname).toBe('/sp/site')
+  } finally {
+    dom.setURL(before)
+  }
+})
+
+test('uploaded artifacts can copy to the clipboard and go fullscreen', async () => {
+  const { container } = renderViewer('/sp/site')
+  await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+  const allow = container.querySelector('iframe')?.getAttribute('allow') ?? ''
+  expect(allow).toContain('clipboard-write')
+  expect(allow).toContain('fullscreen')
 })
 
 test('uploaded artifacts can download files from the sandboxed viewer', async () => {

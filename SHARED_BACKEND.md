@@ -42,7 +42,7 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
 
 | P0 | Control | Test |
 |----|---------|------|
-| 1 Confused deputy | Parent-frame broker: hosted pages get a MessagePort, never a token; parent validates origin+source+shape and binds every request to the viewed site | `dbBroker.test.ts` (spoofed origin/source, op smuggling, token never crosses) |
+| 1 Confused deputy | Parent-frame broker: hosted pages get a MessagePort, never a token; parent validates origin+source+shape, requires the per-load `postplan_broker` nonce (so another site navigated into the frame can't adopt the port), and binds every request to the viewed site | `dbBroker.test.ts` (spoofed origin/source/nonce, op smuggling, token never crosses) |
 | 2 Token type confusion | Separate secret + `aud`/caps inside the MAC; content token can't verify as data token | `data-token.test.ts` (content-token, aud, widened-caps, tamper) |
 | 3 CORS / CSRF boundary | ACAO pinned to `CONTENT_URL`, no `Allow-Credentials`, cookie ignored on the data plane | `data.test.ts` CORS; live curl (cookie-only → 401) |
 | 4 Modify ≠ view | Every viewer gets `read`+`create` (attributed submissions); `write` (put/delete) is owner-only (the superadmin role grants no caps) — a viewer cannot touch any existing document | `data.test.ts` (dataCapsFor + viewer put/delete → 403) |

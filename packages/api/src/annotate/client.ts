@@ -90,7 +90,7 @@ document.addEventListener(
     if (!a || a.hasAttribute('download')) return
     const linkTarget = a.getAttribute('target')
     if (linkTarget && linkTarget !== '_self') return
-    const rewritten = withAnnotateParam(a.getAttribute('href') ?? '', document.baseURI)
+    const rewritten = withAnnotateParam(a.getAttribute('href') ?? '', document.baseURI, window.location.href)
     if (rewritten && rewritten !== a.href) a.href = rewritten
   },
   true,

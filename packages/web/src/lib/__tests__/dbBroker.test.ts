@@ -6,6 +6,7 @@ import { createDbBroker } from '../dbBroker'
 // real MessageChannels; window events are plain event-shaped objects, like parseIntent.test.ts.
 
 const CONTENT = 'https://postplan-content.example.com'
+const NONCE = 'n0nce'
 const iframeWin = {} as Window
 const otherWin = {} as Window
 const SITE = { spaceSlug: 'sam', siteSlug: 'demo' }
@@ -29,13 +30,16 @@ function makeBroker(
   source: Window = iframeWin,
 ) {
   const { calls, fetchFn } = fakeFetch(handler)
-  const broker = createDbBroker({ site: SITE, contentOrigin: CONTENT, getSource: () => source }, { fetchFn })
+  const broker = createDbBroker(
+    { site: SITE, contentOrigin: CONTENT, appOrigin: 'https://app.example.com', nonce: NONCE, getSource: () => source },
+    { fetchFn },
+  )
   return { broker, calls }
 }
 
 function hello(
   broker: { onWindowMessage: (e: MessageEvent) => void },
-  over: { origin?: string; source?: unknown } = {},
+  over: { origin?: string; source?: unknown; nonce?: string | null } = {},
 ) {
   const ch = new MessageChannel()
   const received: unknown[] = []
@@ -58,7 +62,7 @@ function hello(
   broker.onWindowMessage({
     origin: over.origin ?? CONTENT,
     source: (over.source ?? iframeWin) as Window,
-    data: { type: 'postplan:db-hello' },
+    data: { type: 'postplan:db-hello', nonce: over.nonce === undefined ? NONCE : over.nonce },
     ports: [ch.port2],
   } as unknown as MessageEvent)
   return { port: ch.port1, received, waitFor }
@@ -86,6 +90,22 @@ describe('handshake', () => {
   test('ATTACK: hello from a different window (right origin) is ignored', async () => {
     const { broker, calls } = makeBroker(mintOk)
     const h = hello(broker, { source: otherWin })
+    await settle()
+    expect(h.received).toHaveLength(0)
+    expect(calls).toHaveLength(0)
+  })
+
+  test('ATTACK: hello without the nonce (another site navigated into the frame) is ignored', async () => {
+    const { broker, calls } = makeBroker(mintOk)
+    const h = hello(broker, { nonce: null })
+    await settle()
+    expect(h.received).toHaveLength(0)
+    expect(calls).toHaveLength(0)
+  })
+
+  test('ATTACK: hello with a wrong nonce is ignored', async () => {
+    const { broker, calls } = makeBroker(mintOk)
+    const h = hello(broker, { nonce: 'guess' })
     await settle()
     expect(h.received).toHaveLength(0)
     expect(calls).toHaveLength(0)

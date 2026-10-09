@@ -10,6 +10,7 @@ import { createDbBroker, reconnectDelay } from '../dbBroker'
 
 const APP = 'https://postplan.example.com'
 const CONTENT = 'https://postplan-content.example.com'
+const NONCE = 'n0nce'
 const iframeWin = {} as Window
 const otherWin = {} as Window
 const SITE = { spaceSlug: 'sam', siteSlug: 'demo' }
@@ -55,7 +56,7 @@ function makeBroker(handler: Handler, source: Window = iframeWin, reconnectBaseM
     return handler(url, init)
   }) as typeof fetch
   const broker = createDbBroker(
-    { site: SITE, contentOrigin: CONTENT, appOrigin: APP, getSource: () => source },
+    { site: SITE, contentOrigin: CONTENT, appOrigin: APP, nonce: NONCE, getSource: () => source },
     {
       fetchFn,
       newSocket: (url: string, protocols: string[]) => {
@@ -71,7 +72,7 @@ function makeBroker(handler: Handler, source: Window = iframeWin, reconnectBaseM
 
 function hello(
   broker: { onWindowMessage: (e: MessageEvent) => void },
-  over: { origin?: string; source?: unknown } = {},
+  over: { origin?: string; source?: unknown; nonce?: string | null } = {},
 ) {
   const ch = new MessageChannel()
   const received: Record<string, unknown>[] = []
@@ -81,7 +82,7 @@ function hello(
   broker.onWindowMessage({
     origin: over.origin ?? CONTENT,
     source: (over.source ?? iframeWin) as Window,
-    data: { type: 'postplan:db-hello' },
+    data: { type: 'postplan:db-hello', nonce: over.nonce === undefined ? NONCE : over.nonce },
     ports: [ch.port2],
   } as unknown as MessageEvent)
   return { port: ch.port1, received }
