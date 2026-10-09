@@ -139,4 +139,12 @@ describe('sandboxed pages', () => {
     )
     expect(stale.status).toBe(200)
   })
+
+  test('a plain fragment page with no <head>/<body> still gets the SDK before its first script', async () => {
+    const { app, db, r2, env } = setup()
+    const token = await gatedSite(db, r2, '<p>hi</p><script>localStorage.x = 1</script>')
+    const body = await (await app.request(`/_t/${token}/sam/site/`, {}, env)).text()
+    expect(body.indexOf('/_postplan/db.js')).toBeGreaterThan(-1)
+    expect(body.indexOf('/_postplan/db.js')).toBeLessThan(body.indexOf('localStorage.x'))
+  })
 })

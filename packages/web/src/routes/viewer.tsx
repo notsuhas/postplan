@@ -222,6 +222,10 @@ function Viewer() {
     return broker.dispose
   }, [site.authenticated, site.spaceSlug, site.siteSlug, frameNonce])
 
+  // The frame navigates only after the listeners above exist: a page's one-shot hello can't be lost.
+  const [listening, setListening] = useState(false)
+  useEffect(() => setListening(true), [])
+
   // The rail's reveal has two producers: the one-shot deep link below and clicks on a painted
   // highlight. A click is the source the nonce was built for — the same thread can be clicked over
   // and over, and each click must reveal again, so the counter (not the thread id) is what changes.
@@ -627,7 +631,7 @@ function Viewer() {
                 // keeps native controls/scrollbars consistent with the light canvas.
                 className="size-full border-0 bg-white"
                 style={{ colorScheme: 'light' }}
-                src={src}
+                src={listening ? src : undefined}
                 title={site.title ?? site.siteSlug}
                 onLoad={() => setLoaded(true)}
                 // allow-top-navigation-by-user-activation: lets the directory-listing links (target=_top)

@@ -432,7 +432,15 @@ function withDbSdk(res: Response, appOrigin: string): Response {
       el.prepend(dbTags(appOrigin, null), { html: true })
     },
   }
-  return new HTMLRewriter().on('head', prepend).on('body', prepend).transform(res)
+  // A fragment page has no <head>/<body>: go in just before its first script instead.
+  const beforeScript = {
+    element(el: Element) {
+      if (injected) return
+      injected = true
+      el.before(dbTags(appOrigin, null), { html: true })
+    },
+  }
+  return new HTMLRewriter().on('head', prepend).on('body', prepend).on('script', beforeScript).transform(res)
 }
 
 /** The streamed HTMLRewriter pass every served HTML document goes through — no full-body buffering.
