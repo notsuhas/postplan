@@ -713,10 +713,10 @@ function Viewer() {
   )
 }
 
-function withAnnotate(u: string, frameNonce: string | null): string {
+function withAnnotate(u: string, frameNonce: string): string {
   const url = new URL(u)
   url.searchParams.set('postplan_annotate', '1')
-  if (frameNonce) url.searchParams.set(FRAME_NONCE_PARAM, frameNonce)
+  url.searchParams.set(FRAME_NONCE_PARAM, frameNonce)
   return url.toString()
 }
 

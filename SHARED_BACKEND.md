@@ -60,7 +60,9 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
   shared content host can't read each other's storage or script each other. The viewer talks to a page
   only over the MessagePort handed over in a hello carrying the per-load `postplan_frame` nonce
   (`lib/frameChannel.ts`). Real Web Storage throws there, so the SDK installs in-memory
-  `localStorage`/`sessionStorage` that last as long as the page; nothing is stored server-side.
+  `localStorage`/`sessionStorage` that last as long as the page; nothing is stored server-side. It
+  also saves same-site `<a download>` links through a Blob URL, since the browser would otherwise
+  navigate them (`postplandb/sandbox.ts`).
   Persistence is `postplan.db`, explicitly.
 
 - **Standalone tabs** — a site opened directly on the content origin has no parent frame, so

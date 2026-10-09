@@ -19,6 +19,8 @@
 // request. The socket outlives the iframe document, so an in-site navigation resumes from the
 // cursor we kept rather than replaying from nothing.
 
+import { readHello } from './frameChannel'
+
 const COLLECTION_RE = /^[a-zA-Z0-9_-]{1,64}$/
 const DOCID_RE = /^[a-zA-Z0-9_-]{1,128}$/
 const NEEDS_DOC_ID = new Set(['get', 'put', 'delete'])
@@ -287,16 +289,11 @@ export function createDbBroker(
   }
 
   function onWindowMessage(e: MessageEvent): void {
-    // Sandboxed pages have an opaque origin; the frame window and the nonce are what identify them.
-    if (e.origin !== 'null') return
-    const source = opts.getSource()
-    if (!source || e.source !== source) return
-    const hello = e.data as { type?: unknown; nonce?: unknown } | null
-    if (hello?.type !== 'postplan:db-hello') return
-    const p = e.ports?.[0]
-    if (!p) return
-    // The frame may have navigated to another site on the shared content origin; only the page we loaded holds the nonce.
-    if (hello.nonce !== opts.nonce) {
+    const hello = readHello(e, { type: 'postplan:db-hello', nonce: opts.nonce, getSource: opts.getSource })
+    if (!hello) return
+    const p = hello.port
+    // The frame may have navigated to another site on the shared content host; only the page we loaded holds the nonce.
+    if (!hello.trusted) {
       p.postMessage({
         type: 'postplan:db-error',
         error: 'postplan.db is unavailable on this page — open it from a link in the site',

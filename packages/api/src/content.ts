@@ -16,6 +16,7 @@ import { verifyOgSig } from './lib/og-image'
 import { renderOgPng } from './lib/og-render'
 import { fetchAccessFacts, isSharedFromFacts, resolveSite } from './lib/site-access'
 import { verifyToken } from './lib/token'
+import { FRAME_NONCE_PARAM } from '../../shared/frame'
 
 // Re-exported so cache-key consumers (tests) keep a single import site next to the route.
 export { storageCacheKey } from './lib/object-read'
@@ -186,6 +187,9 @@ async function serve(
   const isHtml = isHtmlFile(path)
 
   const frameAncestors = `frame-ancestors 'self' ${c.env.APP_URL}`
+  // The viewer's per-load nonce, echoed into the page's boot payloads (it is already in the URL).
+  const nonceParam = c.req.query(FRAME_NONCE_PARAM) ?? ''
+  const frameNonce = /^[0-9a-f]{32}$/.test(nonceParam) ? nonceParam : null
   const contentCsp = `${frameAncestors}; ${SANDBOX}`
   // The content origin this page is served from — the yardstick for "is this link external?".
   // A link to any OTHER origin is rewritten to open in a new tab (see transformServedHtml).
@@ -243,7 +247,11 @@ async function serve(
         )
       : rendered
     const doc = annotate
-      ? injectAnnotate(withDiagrams, { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot }, nonce)
+      ? injectAnnotate(
+          withDiagrams,
+          { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot, frameNonce },
+          nonce,
+        )
       : withDiagrams
     const res = c.html(doc, 200, {
       'content-security-policy': markdownCsp(contentCsp, nonce),
@@ -264,11 +272,12 @@ async function serve(
     const read = await readStoredObject(c, storageKey, mime)
     if (!read) return notFound(c)
     await view()
-    const injected = injectAnnotate(injectDb(await new Response(read.body).text(), c.env.APP_URL), {
+    const injected = injectAnnotate(injectDb(await new Response(read.body).text(), c.env.APP_URL, frameNonce), {
       siteId: siteRow.id,
       filePath: path, // the RESOLVED path (single-file fallback), not the URL guess
       appOrigin: c.env.APP_URL,
       siteRoot,
+      frameNonce,
     })
     const res = c.html(injected, 200, {
       'content-security-policy': contentCsp,
@@ -310,6 +319,8 @@ async function serve(
     storageKey,
     size,
     etag: file.etag,
+    // Plain HTML carries the streamed-in SDK, so its validator must change when the SDK does.
+    htmlEtagSuffix: POSTPLAN_DB_VERSION,
     headers,
     rangeable,
     isHtml,
@@ -357,7 +368,7 @@ export function isHtmlFile(path: string): boolean {
  *  script-src 'nonce-…' CSP; uploaded HTML passes null and keeps its permissive policy. */
 export function injectAnnotate(
   html: string,
-  payload: { siteId: string; filePath: string; appOrigin: string; siteRoot: string },
+  payload: { siteId: string; filePath: string; appOrigin: string; siteRoot: string; frameNonce: string | null },
   nonce: string | null = null,
 ): string {
   const json = JSON.stringify(payload).replace(/</g, '\\u003c')
@@ -379,17 +390,17 @@ export function injectAnnotate(
  *  SYNCHRONOUSLY — unlike the passive annotate client, page scripts call `postplan.db` directly,
  *  so the API must exist before any of them run. Boot carries only the app origin (the
  *  postMessage target); the parent decides which site requests bind to — the page can't. */
-function dbTags(appOrigin: string): string {
-  const json = JSON.stringify({ appOrigin }).replace(/</g, '\\u003c')
+function dbTags(appOrigin: string, frameNonce: string | null): string {
+  const json = JSON.stringify({ appOrigin, frameNonce }).replace(/</g, '\\u003c')
   return `<script>window.__POSTPLAN_DB__=${json}</script><script src="/_postplan/db.js?v=${POSTPLAN_DB_VERSION}"></script>`
 }
 
-export function injectDb(html: string, appOrigin: string): string {
-  const tags = dbTags(appOrigin)
-  // Replacement FUNCTIONS so any `$`-sequence inside `tags` is inserted verbatim (and `$1` stays the
-  // captured <body> attributes). db.js loads SYNCHRONOUSLY, so anchor it as early as possible.
-  if (html.includes('</head>')) return html.replace('</head>', () => `${tags}</head>`)
-  if (/<body[^>]*>/i.test(html)) return html.replace(/<body([^>]*)>/i, (_m, attrs) => `<body${attrs}>${tags}`)
+export function injectDb(html: string, appOrigin: string, frameNonce: string | null = null): string {
+  const tags = dbTags(appOrigin, frameNonce)
+  // Replacement FUNCTIONS so any `$`-sequence inside `tags` is inserted verbatim. db.js loads
+  // SYNCHRONOUSLY right after the opening tag, before any page script in <head> can run.
+  const open = /<(head|body)(\s[^>]*)?>/i.exec(html)
+  if (open) return html.slice(0, open.index + open[0].length) + tags + html.slice(open.index + open[0].length)
   // No <head>/<body> to anchor to: insert right AFTER any leading doctype rather than before it —
   // prepending `tags` ahead of the doctype would push it off the first line and flip into quirks mode.
   const doctype = /^\s*<!doctype[^>]*>/i.exec(html)
@@ -411,12 +422,6 @@ export function isExternalHref(href: string, base: string): boolean {
   return u.origin !== new URL(base).origin
 }
 
-/** The streamed HTMLRewriter pass every served HTML document goes through — no full-body buffering.
- *  Links to OTHER origins open in a new tab (`target="_blank"` + `rel="noopener noreferrer"`);
- *     same-site/relative links keep in-viewer navigation. Paired with the viewer iframe's
- *     `allow-popups allow-popups-to-escape-sandbox` sandbox so the new tab actually opens and isn't
- *     itself sandboxed. Only ever applied to HTML the site owns — NOT the directory-listing shell,
- *     whose `target="_top"` app links must stay as-is. */
 /** Streams the SDK into a plain (unannotated) page, so its sandboxed localStorage still works (in memory). */
 function withDbSdk(res: Response, appOrigin: string): Response {
   let injected = false
@@ -424,12 +429,18 @@ function withDbSdk(res: Response, appOrigin: string): Response {
     element(el: Element) {
       if (injected) return
       injected = true
-      el.prepend(dbTags(appOrigin), { html: true })
+      el.prepend(dbTags(appOrigin, null), { html: true })
     },
   }
   return new HTMLRewriter().on('head', prepend).on('body', prepend).transform(res)
 }
 
+/** The streamed HTMLRewriter pass every served HTML document goes through — no full-body buffering.
+ *  Links to OTHER origins open in a new tab (`target="_blank"` + `rel="noopener noreferrer"`);
+ *     same-site/relative links keep in-viewer navigation. Paired with the viewer iframe's
+ *     `allow-popups allow-popups-to-escape-sandbox` sandbox so the new tab actually opens and isn't
+ *     itself sandboxed. Only ever applied to HTML the site owns — NOT the directory-listing shell,
+ *     whose `target="_top"` app links must stay as-is. */
 export function transformServedHtml(res: Response, base: string): Response {
   const rewriter = new HTMLRewriter().on('a[href]', {
     element(el) {
@@ -458,6 +469,11 @@ export function normalizePath(rest: string): string {
 // existing importers of `./content` (and content*.test.ts) working unchanged.
 export { escapeHtml, markdown } from './lib/markdown'
 
+// Every served document gets an opaque origin: sites can't read each other's storage or script each
+// other, even though they share this host. The flags mirror the viewer iframe's sandbox attribute.
+const SANDBOX =
+  'sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation'
+
 // Strict CSP for rendered markdown: no scripts, no plugins, no external loads. Inline
 // styles are allowed because renderMarkdownDoc inlines its stylesheet; images may be
 // self-hosted or data: (markdown can embed both). frame-ancestors is preserved so the
@@ -465,11 +481,6 @@ export { escapeHtml, markdown } from './lib/markdown'
 // In annotate mode a `nonce` is supplied: script-src then admits EXACTLY the two injected tags
 // (never 'unsafe-inline' — an unnonced script in the document still can't run), and style-src
 // additionally allows 'self' so /_postplan/annotate.css loads alongside the inlined shell styles.
-// Every served document gets an opaque origin: sites can't read each other's storage or script each
-// other, even though they share this host. The flags mirror the viewer iframe's sandbox attribute.
-const SANDBOX =
-  'sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation'
-
 function markdownCsp(contentCsp: string, nonce: string | null = null): string {
   const styleSelf = nonce !== null
   return [
@@ -506,7 +517,7 @@ function directoryListing(c: Ctx, site: string, paths: string[], dir: string): R
     dir ? `<code>${escapeHtml(dir)}</code>` : 'the root'
   } — add one to set the landing page, or open a file below.</p><ul>${rows}</ul></body></html>`
   return c.html(html, 200, {
-    'content-security-policy': `frame-ancestors 'self' ${c.env.APP_URL}`,
+    'content-security-policy': `frame-ancestors 'self' ${c.env.APP_URL}; ${SANDBOX}`,
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
     'cache-control': 'no-store',

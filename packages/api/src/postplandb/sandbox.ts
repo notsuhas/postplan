@@ -1,6 +1,7 @@
-// A Web Storage stand-in for sandboxed pages, where the real localStorage throws: an in-memory Map
-// that lives as long as the page.
+// Fixes for pages running sandboxed on an opaque origin: Web Storage that doesn't throw, and
+// same-site `download` links that still download.
 
+/** A Web Storage stand-in: an in-memory Map that lives as long as the page. */
 const METHODS = new Set(['getItem', 'setItem', 'removeItem', 'clear', 'key', 'length'])
 
 export function createStorage(): Storage {
@@ -43,11 +44,33 @@ export function createStorage(): Storage {
   }) as unknown as Storage
 }
 
-/** True when the page can't use real Web Storage (a sandboxed, opaque-origin document). */
-export function storageBlocked(): boolean {
+/** True in a sandboxed, opaque-origin document, where real Web Storage throws. */
+export function isSandboxed(): boolean {
   try {
     return !window.localStorage
   } catch {
     return true
   }
+}
+
+/** A link the browser would navigate instead of download: same-site, so cross-origin to the page. */
+export function needsBlobDownload(href: string, pageUrl: string): boolean {
+  try {
+    const url = new URL(href, pageUrl)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && url.origin === new URL(pageUrl).origin
+  } catch {
+    return false
+  }
+}
+
+/** Saves a same-site file from a blob URL, which belongs to the page, so `download` is honoured. */
+export async function saveViaBlob(href: string, fileName: string): Promise<void> {
+  const res = await fetch(href)
+  if (!res.ok) throw new Error(`download failed (${res.status})`)
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }

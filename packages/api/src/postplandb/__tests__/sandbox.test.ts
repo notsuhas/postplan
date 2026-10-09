@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createStorage } from '../storage'
+import { createStorage, needsBlobDownload } from '../sandbox'
 
 describe('createStorage — an in-memory Web Storage for sandboxed pages', () => {
   test('behaves like Storage: stringified writes, removal, clear, key, length', () => {
@@ -32,5 +32,18 @@ describe('createStorage — an in-memory Web Storage for sandboxed pages', () =>
     storage.setItem('getItem', 'x')
     expect(typeof storage.getItem).toBe('function')
     expect(storage.getItem('getItem')).toBe('x')
+  })
+})
+
+describe('needsBlobDownload — which download links the sandbox would turn into navigations', () => {
+  const page = 'https://c.example/_t/tok/sp/site/index.html'
+  test.each([
+    ['report.csv', true],
+    ['/sp/other/file.pdf', true],
+    ['https://elsewhere.example/a.zip', false],
+    ['data:text/plain,hi', false],
+    ['blob:https://c.example/123', false],
+  ])('%s → %p', (href, expected) => {
+    expect(needsBlobDownload(href, page)).toBe(expected)
   })
 })

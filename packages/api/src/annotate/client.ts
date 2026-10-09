@@ -25,14 +25,14 @@
 // command and no per-anchor lit set — badges, and the rect batches that positioned them, are gone.
 // Clicking a painted anchor is what opens its thread in the rail (postplan:anchor-click).
 
-import { FRAME_HELLO, FRAME_NONCE_PARAM } from '../../../shared/frame'
+import { FRAME_HELLO } from '../../../shared/frame'
 import { withAnnotateParam, withFrameNonce } from './linkRewrite'
 import type { TextContext } from '../lib/anchor'
 import { findRange, resolveSelector } from './locator'
 import { anchorIdAtPoint, anchorRanges, type ElementAnchor, installIndexInvalidation, type TextAnchor } from './reflow'
 import { installSelectionCapture, type Rect } from './selection'
 
-type Boot = { siteId: string; filePath: string; appOrigin: string; siteRoot: string }
+type Boot = { siteId: string; filePath: string; appOrigin: string; siteRoot: string; frameNonce: string | null }
 type PaintAnchor = {
   id: string
   anchorType?: 'text' | 'page' | 'element'
@@ -42,10 +42,7 @@ type PaintAnchor = {
 }
 
 const boot = (window as unknown as { __POSTPLAN__?: Boot }).__POSTPLAN__
-// The db SDK captures it before page scripts run (they may rewrite the URL); markdown pages have no SDK.
-const frameNonce =
-  (window as unknown as { __POSTPLAN_DB__?: { frameNonce?: string | null } }).__POSTPLAN_DB__?.frameNonce ??
-  new URLSearchParams(window.location.search).get(FRAME_NONCE_PARAM)
+const frameNonce = boot?.frameNonce ?? null
 let mode: 'experience' | 'comment' = 'experience'
 
 // One port to the viewer, handed over with the nonce in the hello; nothing else crosses the frame boundary.

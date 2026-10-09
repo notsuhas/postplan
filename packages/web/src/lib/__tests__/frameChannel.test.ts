@@ -12,6 +12,7 @@ function setup() {
   const hello = (over: { source?: Window; nonce?: unknown } = {}) => {
     const ch = new MessageChannel()
     channel.onWindowMessage({
+      origin: 'null',
       source: over.source ?? frame,
       data: { type: 'postplan:hello', nonce: 'nonce' in over ? over.nonce : 'n1' },
       ports: [ch.port2],

@@ -12,9 +12,8 @@
 //
 // The global is __POSTPLAN_DB__, not __POSTPLAN__ — that one belongs to the annotate overlay.
 
-import { FRAME_NONCE_PARAM } from '../../../shared/frame'
 import { WS_PROTOCOL } from '../realtime/protocol'
-import { createStorage, storageBlocked } from './storage'
+import { createStorage, isSandboxed, needsBlobDownload, saveViaBlob } from './sandbox'
 import { type ChangeEvent, type Frame, type StreamHandlers, type Transport, createSubscriptions } from './subscriptions'
 
 type Boot = {
@@ -38,9 +37,6 @@ const HELLO_TIMEOUT_MS = 5000
 const REQUEST_TIMEOUT_MS = 15000
 
 const boot = (window as unknown as { __POSTPLAN_DB__?: Boot }).__POSTPLAN_DB__
-// Read before page scripts run, so a router tidying the query string can't drop it; the annotate client reuses it.
-const frameNonce = new URLSearchParams(location.search).get(FRAME_NONCE_PARAM)
-if (boot) boot.frameNonce = frameNonce
 
 // --- broker transport (hosted pages inside the app viewer) --------------------------------
 
@@ -90,7 +86,7 @@ function connect(appOrigin: string): Promise<MessagePort> {
         else settle(d.id, 'reject', new Error((d.body as { error?: string })?.error || `postplan: ${d.status}`))
       }
     }
-    window.parent.postMessage({ type: 'postplan:db-hello', nonce: frameNonce }, appOrigin, [ch.port2])
+    window.parent.postMessage({ type: 'postplan:db-hello', nonce: boot?.frameNonce ?? null }, appOrigin, [ch.port2])
   })
   return connecting
 }
@@ -278,10 +274,19 @@ function collection(name: string) {
 
 ;(window as unknown as { postplan: unknown }).postplan = { db: { collection } }
 
-// --- Web Storage for sandboxed pages -----------------------------------------------------------
-// The page has an opaque origin, so the browser's own storage throws. Give it working in-memory
-// stand-ins for the page's lifetime; persistence belongs in postplan.db, which is explicit.
-if (storageBlocked()) {
+// --- Sandboxed pages ---------------------------------------------------------------------------
+// The page has an opaque origin: the browser's own storage throws, and a same-site `download` link is
+// cross-origin, so it would navigate instead of saving. Persistence stays explicit (postplan.db).
+if (isSandboxed()) {
   Object.defineProperty(window, 'localStorage', { value: createStorage(), configurable: true })
   Object.defineProperty(window, 'sessionStorage', { value: createStorage(), configurable: true })
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0) return
+    const a = (e.target as Element | null)?.closest?.('a[download][href]') as HTMLAnchorElement | null
+    if (!a || !needsBlobDownload(a.href, location.href)) return
+    e.preventDefault()
+    saveViaBlob(a.href, a.getAttribute('download') || a.pathname.split('/').pop() || 'download').catch((err) =>
+      console.warn(`postplan: ${err.message}`),
+    )
+  })
 }

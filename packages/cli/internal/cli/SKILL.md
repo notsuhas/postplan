@@ -291,8 +291,11 @@ You can update that site's content even though you don't own it and aren't in it
 
 Every page gets its own browser sandbox (an opaque origin), like Claude artifacts. `localStorage` and
 `sessionStorage` work but only last as long as the page; cookies and IndexedDB are unavailable. To keep
-data across visits, use `postplan.db`. Relative `fetch()` and ES module imports of the site's own files
-work.
+data across visits, use `postplan.db`. Relative `fetch()`, ES module imports and `<a download>` links to
+the site's own files work. Two things need a small change:
+
+- Web workers: `new Worker('worker.js')` fails; fetch the script and start it from a Blob URL.
+- Canvas exports (`toDataURL`, html2canvas): load same-site images with `crossorigin="anonymous"`.
 
 ## Saving data from your pages — `postplan.db` (experimental)
 

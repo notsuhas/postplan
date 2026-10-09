@@ -61,20 +61,20 @@ describe('postplan.db injection', () => {
     expect(body).not.toContain('/_postplan/db.js?v=undefined')
   })
 
-  test('boot payload carries ONLY the app origin — no token, no site identity', async () => {
+  test('boot payload carries only the app origin and the frame nonce — no token, no site identity', async () => {
     const { app, db, r2, env } = setup()
     const token = await gatedSite(db, r2, HTML)
     const body = await (await app.request(`/_t/${token}/sam/site/?postplan_annotate=1`, {}, env)).text()
     const boot = body.match(/window\.__POSTPLAN_DB__=(\{[^<]*?\})</)?.[1]
     expect(boot).toBeDefined()
-    expect(JSON.parse(boot as string)).toEqual({ appOrigin: 'https://postplan.example.com' })
+    expect(JSON.parse(boot as string)).toEqual({ appOrigin: 'https://postplan.example.com', frameNonce: null })
   })
 
   test('without the flag the page only gains the SDK (in-memory localStorage)', async () => {
     const { app, db, r2, env } = setup()
     const token = await gatedSite(db, r2, HTML)
     const body = await (await app.request(`/_t/${token}/sam/site/`, {}, env)).text()
-    expect(body).toContain('window.__POSTPLAN_DB__={"appOrigin":"https://postplan.example.com"}')
+    expect(body).toContain('window.__POSTPLAN_DB__={"appOrigin":"https://postplan.example.com","frameNonce":null}')
     expect(stripSdk(body)).toBe(HTML)
   })
 
@@ -104,5 +104,39 @@ describe('sandboxed pages', () => {
       expect(csp).not.toContain('allow-same-origin')
       expect(res.headers.get('access-control-allow-origin')).toBe('*')
     }
+  })
+
+  test("the viewer's nonce is echoed into both boot payloads only when it is well-formed", async () => {
+    const { app, db, r2, env } = setup()
+    const token = await gatedSite(db, r2, HTML)
+    const good = 'ab'.repeat(16)
+    const page = (q: string) => app.request(`/_t/${token}/sam/site/?postplan_annotate=1&postplan_frame=${q}`, {}, env)
+    const body = await (await page(good)).text()
+    expect(body).toContain(`window.__POSTPLAN_DB__={"appOrigin":"https://postplan.example.com","frameNonce":"${good}"}`)
+    expect(body).toMatch(new RegExp(`window\\.__POSTPLAN__=\\{[^<]*"frameNonce":"${good}"\\}`))
+    const bad = await (await page('%22%3E%3Cscript%3E')).text()
+    expect(bad.match(/"frameNonce":null/g)).toHaveLength(2)
+  })
+
+  test('the SDK lands before any script in <head>, so page scripts already see it', () => {
+    const out = injectDb('<html><head><script>localStorage.theme</script></head><body></body></html>', 'https://a')
+    expect(out.indexOf('/_postplan/db.js')).toBeLessThan(out.indexOf('localStorage.theme'))
+    expect(injectDb('<header>x</header>', 'https://a')).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
+  })
+
+  test('plain HTML revalidates against an ETag that names the SDK version', async () => {
+    const { app, db, r2, env } = setup()
+    const token = await gatedSite(db, r2, HTML)
+    const first = await app.request(`/_t/${token}/sam/site/`, {}, env)
+    const etag = first.headers.get('etag') ?? ''
+    expect(etag).toMatch(/-[0-9a-f]+"$/)
+    const again = await app.request(`/_t/${token}/sam/site/`, { headers: { 'if-none-match': etag } }, env)
+    expect(again.status).toBe(304)
+    const stale = await app.request(
+      `/_t/${token}/sam/site/`,
+      { headers: { 'if-none-match': etag.replace(/-[0-9a-f]+"$/, '"') } },
+      env,
+    )
+    expect(stale.status).toBe(200)
   })
 })

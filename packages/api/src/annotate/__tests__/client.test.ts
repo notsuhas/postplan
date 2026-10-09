@@ -65,6 +65,7 @@ beforeAll(async () => {
     filePath: 'index.html',
     appOrigin: 'https://app.example.com',
     siteRoot: '/sp/site/',
+    frameNonce: 'n1',
   }
 
   const g = globalThis as unknown as AnyRecord
@@ -361,7 +362,7 @@ describe('client.ts — clicking a mermaid diagram opens it in a modal <dialog> 
 })
 
 describe('client.ts — frame channel handshake', () => {
-  test('boot posts one hello to the app origin carrying the nonce slot and a port', () => {
-    expect(hellos).toEqual([{ type: 'postplan:hello', nonce: null }])
+  test('boot posts one hello carrying the nonce from its boot payload', () => {
+    expect(hellos).toEqual([{ type: 'postplan:hello', nonce: 'n1' }])
   })
 })
