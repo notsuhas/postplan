@@ -23,6 +23,7 @@ Commands:
   rollback       Restore an earlier deployment as a new version
   feedback       List, wait for, claim, and complete sent feedback
   shares         List, grant, and revoke explicit site shares
+  mcp            Serve Postplan tools to MCP clients over stdio
   skill          Install the bundled agent skill
   upgrade        Install the latest CLI release
   version        Print the CLI version
@@ -111,6 +112,12 @@ Examples:
   postplan shares list team/report --json
   postplan shares grant team/report <user-id> --role editor
   postplan shares revoke team/report <user-id>`,
+		"mcp": `Usage: postplan mcp
+
+Runs a stdio MCP server for MCP clients. Uses the same login as the CLI.
+
+Example:
+  claude mcp add postplan -s user -- postplan mcp`,
 		"upgrade": `Usage: postplan upgrade`,
 		"version": `Usage: postplan version`,
 		"logout":  `Usage: postplan logout`,

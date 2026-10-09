@@ -237,6 +237,9 @@ func (c *client) deploy(argv []string) error {
 		if !ex.CanReplace {
 			return fmt.Errorf("%s/%s is taken by another user.", space, name)
 		}
+		if !assumeYes && c.nonInteractive {
+			return fmt.Errorf("%s/%s already exists. Retry with replace: true to overwrite it (earlier versions stay restorable).", space, name)
+		}
 		if !assumeYes {
 			ans := c.prompt(fmt.Sprintf("Site exists at %s/%s. Replace? (y/N) ", space, name))
 			if strings.ToLower(ans) != "y" {

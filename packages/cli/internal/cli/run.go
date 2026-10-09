@@ -39,7 +39,7 @@ func Run(args []string) {
 	// Self-update hooks, skipped for machine-invoked commands: `upgrade` IS the updater, and `skill`
 	// is run by install.sh and by the post-swap refresh child - which would otherwise consume the
 	// pending "auto-updated" notice before the user ever sees it.
-	if cmd != "upgrade" && cmd != "skill" {
+	if runsUpdateHooks(cmd) {
 		newClient("", "", os.Stdout).announceUpdate()
 		maybeAutoUpdate()
 	}
@@ -48,6 +48,11 @@ func Run(args []string) {
 		fmt.Fprintln(os.Stderr, "✗ "+err.Error())
 		os.Exit(1)
 	}
+}
+
+// mcp is a long-lived protocol server: its stdout is JSON-RPC only and an update must not swap it mid-session.
+func runsUpdateHooks(cmd string) bool {
+	return cmd != "upgrade" && cmd != "skill" && cmd != "mcp"
 }
 
 var authedCmds = map[string]func(*client, []string) error{
@@ -81,6 +86,11 @@ func dispatch(cmd string, rest []string) error {
 		return nil
 	case "upgrade":
 		return newClient("", "", os.Stdout).upgradeCmd(rest)
+	case "mcp":
+		if len(rest) != 0 {
+			return fmt.Errorf("Usage: postplan mcp")
+		}
+		return serveMCP(os.Stdin, os.Stdout, mcpClient)
 	case "skill":
 		return newClient("", "", os.Stdout).skillCmd(rest)
 	case "logout":

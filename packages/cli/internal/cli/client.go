@@ -21,16 +21,17 @@ func userAgent() string { return "postplan-cli/" + Version }
 // client carries the resolved instance URL + token plus the seams tests stub out (output sink,
 // interactive input, sleep, browser opener). One command == one method on *client.
 type client struct {
-	baseURL     string
-	token       string
-	http        *http.Client
-	out         io.Writer // stdout (results, piped output)
-	errOut      io.Writer // stderr (warnings, update notices) - kept off stdout so pipes stay clean
-	in          io.Reader // interactive prompt source (y/N confirmations)
-	stdin       io.Reader // piped body source (reply)
-	stdinIsTTY  bool
-	openBrowser func(string)
-	sleep       func(time.Duration)
+	baseURL        string
+	token          string
+	http           *http.Client
+	out            io.Writer // stdout (results, piped output)
+	errOut         io.Writer // stderr (warnings, update notices) - kept off stdout so pipes stay clean
+	in             io.Reader // interactive prompt source (y/N confirmations)
+	stdin          io.Reader // piped body source (reply)
+	stdinIsTTY     bool
+	nonInteractive bool // mcp: fail instead of prompting
+	openBrowser    func(string)
+	sleep          func(time.Duration)
 }
 
 func newClient(baseURL, token string, out io.Writer) *client {

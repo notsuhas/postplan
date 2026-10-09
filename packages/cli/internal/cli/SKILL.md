@@ -62,6 +62,7 @@ Put it in your shell profile to make it permanent. Token + URL are saved to `~/.
 | `postplan feedback claim <batch-id> [--json]` | atomically claims one sent batch; another agent cannot claim it |
 | `postplan feedback complete <batch-id> [--version <n>] [--json]` | marks your claimed batch completed and links the deployment version |
 | `postplan shares list\|grant\|revoke ...` | manages explicit viewer/editor shares by stable user ID |
+| `postplan mcp` | runs a stdio MCP server exposing these commands as tools (see MCP below) |
 | `postplan logout` | revokes the server session and removes the local token |
 
 ### login
@@ -284,6 +285,32 @@ postplan deploy ./roadmap                       # redeploys to the same site, se
 You can update that site's content even though you don't own it and aren't in its space. If someone else redeployed since your pull, the deploy is refused as stale (409) — re-run the `--pull` to get the current version, reapply your change, and deploy again.
 
 **Editing etiquette — content, not chrome.** As an editor you own the *content*, not the site's look. Add or remove sections, update copy, correct data — but keep the owner's styling and layout intact: don't restyle, re-theme, change the CSS/structure, or re-lay-out the page. The owner set the design; an editor fills it in. (Renaming, moving, deleting, changing visibility, or editing the title aren't yours to do at all — those stay with the owner.)
+
+## MCP
+
+For chat-only or MCP-first clients with no shell, `postplan mcp` runs a local stdio MCP server. Its tools wrap the CLI commands and use the same login (`postplan login`, `POSTPLAN_TOKEN`, `POSTPLAN_API_URL`): `deploy`, `list`, `comments`, `reply`, `feedback`, `versions`, `rollback`, `delete`, `fork`. `deploy` takes an absolute local path. `feedback` with `action: "wait"` returns within 50 seconds; call it again to keep listening.
+
+Claude Code:
+
+```bash
+claude mcp add postplan -s user -- postplan mcp
+```
+
+Claude Desktop (`claude_desktop_config.json`) and Cursor (`~/.cursor/mcp.json`):
+
+```json
+{ "mcpServers": { "postplan": { "command": "postplan", "args": ["mcp"] } } }
+```
+
+Codex (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.postplan]
+command = "postplan"
+args = ["mcp"]
+```
+
+GUI apps may not inherit your shell `PATH`; if the server fails to start, use the absolute path from `command -v postplan`.
 
 ## Visibility values
 `unlisted` · `private` · `members` · `team`. New sites default to `unlisted`; replacing without `--visibility` preserves the current tier.
