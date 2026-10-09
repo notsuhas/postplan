@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
-import { injectDb } from '../content'
 import contentApp from '../content'
 import { POSTPLAN_DB_JS } from '../postplandb/bundle'
 import { signToken } from '../lib/token'
+import { stripSdk } from '../test/content-fixtures'
 import { makeDb, makeR2, seedFile, seedSite, seedSpace, seedUser } from '../test/harness'
 
 // postplan.db SDK injection (broker mode). The injected page gets an API surface and the app
@@ -77,21 +77,7 @@ describe('postplan.db injection', () => {
     expect(body).toContain('window.__POSTPLAN_DB__={"appOrigin":"https://postplan.example.com","frameNonce":null}')
     expect(stripSdk(body)).toBe(HTML)
   })
-
-  test('injectDb falls back sanely when the page has no <head>', () => {
-    expect(injectDb('<body class="x"><p>hi</p></body>', 'https://a.example', null)).toMatch(
-      /<body class="x"><script>window\.__POSTPLAN_DB__=/,
-    )
-    expect(injectDb('<p>bare fragment</p>', 'https://a.example', null)).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
-  })
 })
-
-function stripSdk(html: string): string {
-  return html.replace(
-    /<script>window\.__POSTPLAN_DB__=.*?<\/script><script src="\/_postplan\/db\.js\?v=[^"]+"><\/script>/,
-    '',
-  )
-}
 
 describe('sandboxed pages', () => {
   test('every served document gets an opaque origin and can still fetch its own files', async () => {
@@ -118,14 +104,14 @@ describe('sandboxed pages', () => {
     expect(bad.match(/"frameNonce":null/g)).toHaveLength(2)
   })
 
-  test('the SDK lands before any script in <head>, so page scripts already see it', () => {
-    const out = injectDb(
-      '<html><head><script>localStorage.theme</script></head><body></body></html>',
-      'https://a',
-      null,
-    )
-    expect(out.indexOf('/_postplan/db.js')).toBeLessThan(out.indexOf('localStorage.theme'))
-    expect(injectDb('<header>x</header>', 'https://a', null)).toMatch(/^<script>window\.__POSTPLAN_DB__=/)
+  test('served pages get the SDK before any script in <head>, so page scripts already see it', async () => {
+    const { app, db, r2, env } = setup()
+    const token = await gatedSite(db, r2, '<html><head><script>localStorage.theme</script></head><body></body></html>')
+    for (const q of ['?postplan_annotate=1', '']) {
+      const out = await (await app.request(`/_t/${token}/sam/site/${q}`, {}, env)).text()
+      expect(out.indexOf('/_postplan/db.js')).toBeGreaterThan(-1)
+      expect(out.indexOf('/_postplan/db.js')).toBeLessThan(out.indexOf('localStorage.theme'))
+    }
   })
 
   test('plain HTML revalidates against an ETag that names the SDK version', async () => {

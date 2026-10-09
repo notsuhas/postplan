@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { storageCacheKey } from '../content'
 import { events, files, siteUserShares, sites, users } from '../db/schema'
-import { type FileSpec, mintToken, setup, teamSite } from '../test/content-fixtures'
+import { type FileSpec, mintToken, setup, teamSite, stripSdk } from '../test/content-fixtures'
 import { seedFile, seedMember, seedSite, seedSpace, seedUser, seedUserShare } from '../test/harness'
 
 const BODY = '0123456789ABCDEF' // 16 bytes — easy to reason about offsets
@@ -77,7 +77,7 @@ describe('T2.5 rangeable pins', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('accept-ranges')).toBeNull()
     expect(res.headers.get('content-range')).toBeNull()
-    expect(await res.text()).toBe('<h1>hi</h1>')
+    expect(stripSdk(await res.text())).toBe('<h1>hi</h1>')
   })
 
   test('markdown returns before range handling: Range on a .md is ignored (200 rendered)', async () => {
@@ -272,7 +272,7 @@ describe('T2.6 missing object and site-replace key rotation', () => {
       { path: 'index.html', text: '<p>OLD</p>', storageKey: 'k1/index.html' },
     ])
     const warm = await get(s, token, 'index.html')
-    expect(await warm.text()).toBe('<p>OLD</p>')
+    expect(stripSdk(await warm.text())).toBe('<p>OLD</p>')
     expect(s.caches.store.has(storageCacheKey('k1/index.html'))).toBe(true)
 
     // Replace simulation: the row is re-pointed at a NEW immutable key with new bytes.
@@ -282,11 +282,11 @@ describe('T2.6 missing object and site-replace key rotation', () => {
     const before = ops(s)
     const fresh = await get(s, token, 'index.html')
     expect(fresh.status).toBe(200)
-    expect(await fresh.text()).toBe('<p>NEW</p>')
+    expect(stripSdk(await fresh.text())).toBe('<p>NEW</p>')
     expect(diff(before, ops(s))).toEqual(COLD_FULL) // a MISS on the new key — the old entry never matched
 
     const again = await get(s, token, 'index.html')
-    expect(await again.text()).toBe('<p>NEW</p>')
+    expect(stripSdk(await again.text())).toBe('<p>NEW</p>')
     expect(diff(before, ops(s))).toEqual({ ...COLD_FULL, matches: 2, hits: 1 })
     // Both keys coexist; the stale one is simply unreachable (no invalidation needed, ever).
     expect(s.caches.store.size).toBe(2)

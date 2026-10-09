@@ -246,23 +246,19 @@ async function serve(
           `<script nonce="${nonce}" src="/_postplan/mermaid.js?v=${MERMAID_VERSION}" defer></script></body>`,
         )
       : rendered
-    const doc = annotate
-      ? injectAnnotate(
-          withDiagrams,
-          { siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot, frameNonce },
-          nonce,
-        )
-      : withDiagrams
-    const res = c.html(doc, 200, {
+    const res = c.html(withDiagrams, 200, {
       'content-security-policy': markdownCsp(contentCsp, nonce),
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
       ...(nonce ? { 'cache-control': 'no-store' } : {}),
     })
-    return transformServedHtml(res, selfOrigin)
+    const late = annotate
+      ? annotateTags({ siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot, frameNonce }, nonce)
+      : undefined
+    return transformServedHtml(injectTags(res, { late }), selfOrigin)
   }
 
-  // Annotate mode: gated HTML + ?postplan_annotate=1 → buffer the body and inject the annotate
+  // Annotate mode: gated HTML + ?postplan_annotate=1 → stream the body through, injecting the annotate
   // client + boot payload, plus the postplan.db SDK (broker mode — the page gets an API, never a
   // credential; the app viewer's parent frame answers). Every serve here is already token-gated
   // (anonymous requests 403 above), so the flag always applies to an authed viewer. The RAW
@@ -272,21 +268,22 @@ async function serve(
     const read = await readStoredObject(c, storageKey, mime)
     if (!read) return notFound(c)
     await view()
-    const injected = injectAnnotate(injectDb(await new Response(read.body).text(), c.env.APP_URL, frameNonce), {
-      siteId: siteRow.id,
-      filePath: path, // the RESOLVED path (single-file fallback), not the URL guess
-      appOrigin: c.env.APP_URL,
-      siteRoot,
-      frameNonce,
+    const res = new Response(read.body, {
+      headers: {
+        'content-type': 'text/html; charset=UTF-8',
+        'content-security-policy': contentCsp,
+        'access-control-allow-origin': '*',
+        'x-content-type-options': 'nosniff',
+        'referrer-policy': 'no-referrer',
+        'cache-control': 'no-store',
+      },
     })
-    const res = c.html(injected, 200, {
-      'content-security-policy': contentCsp,
-      'access-control-allow-origin': '*',
-      'x-content-type-options': 'nosniff',
-      'referrer-policy': 'no-referrer',
-      'cache-control': 'no-store',
-    })
-    return transformServedHtml(res, selfOrigin)
+    const tags = {
+      early: dbTags(c.env.APP_URL, frameNonce),
+      // the RESOLVED path (single-file fallback), not the URL guess
+      late: annotateTags({ siteId: siteRow.id, filePath: path, appOrigin: c.env.APP_URL, siteRoot, frameNonce }),
+    }
+    return transformServedHtml(injectTags(res, tags), selfOrigin)
   }
 
   const headers = new Headers()
@@ -326,7 +323,8 @@ async function serve(
     isHtml,
     mime,
     view,
-    transformHtml: (response) => transformServedHtml(withDbSdk(response, c.env.APP_URL), selfOrigin),
+    transformHtml: (response) =>
+      transformServedHtml(injectTags(response, { early: dbTags(c.env.APP_URL, null) }), selfOrigin),
   })
 }
 
@@ -366,46 +364,23 @@ export function isHtmlFile(path: string): boolean {
  *  path can't break out of the inline script. Inserted before </body> (else </head>, else end).
  *  `nonce` (rendered markdown only) stamps both script tags so they pass that branch's
  *  script-src 'nonce-…' CSP; uploaded HTML passes null and keeps its permissive policy. */
-export function injectAnnotate(
-  html: string,
+function annotateTags(
   payload: { siteId: string; filePath: string; appOrigin: string; siteRoot: string; frameNonce: string | null },
   nonce: string | null = null,
 ): string {
   const json = JSON.stringify(payload).replace(/</g, '\\u003c')
   const n = nonce ? ` nonce="${nonce}"` : ''
-  const tags =
+  return (
     `<link rel="stylesheet" href="/_postplan/annotate.css?v=${ANNOTATE_VERSION}">` +
     `<script${n}>window.__POSTPLAN__=${json}</script>` +
     `<script${n} src="/_postplan/annotate.js?v=${ANNOTATE_VERSION}" defer></script>`
-  // Replacement FUNCTIONS, not strings: `tags` embeds a user-controlled filePath, and `$&`/`$1`/`$$`
-  // in a replacement STRING are special (they'd corrupt output). A function's return is used verbatim.
-  if (html.includes('</body>')) return html.replace('</body>', () => `${tags}</body>`)
-  if (html.includes('</head>')) return html.replace('</head>', () => `${tags}</head>`)
-  // No close tag to anchor to: append after the document. The client is `defer`, so it still runs
-  // after parse, and appending (never prepending) keeps any leading doctype first — no quirks flip.
-  return html + tags
+  )
 }
 
-/** Inject the postplan.db SDK (broker mode) into an HTML document. Goes into <head> and loads
- *  SYNCHRONOUSLY — unlike the passive annotate client, page scripts call `postplan.db` directly,
- *  so the API must exist before any of them run. Boot carries only the app origin (the
- *  postMessage target); the parent decides which site requests bind to — the page can't. */
+/** The SDK's boot payload and synchronous script; carries no credential, only where to say hello. */
 function dbTags(appOrigin: string, frameNonce: string | null): string {
   const json = JSON.stringify({ appOrigin, frameNonce }).replace(/</g, '\\u003c')
   return `<script>window.__POSTPLAN_DB__=${json}</script><script src="/_postplan/db.js?v=${POSTPLAN_DB_VERSION}"></script>`
-}
-
-export function injectDb(html: string, appOrigin: string, frameNonce: string | null): string {
-  const tags = dbTags(appOrigin, frameNonce)
-  // Replacement FUNCTIONS so any `$`-sequence inside `tags` is inserted verbatim. db.js loads
-  // SYNCHRONOUSLY right after the opening tag, before any page script in <head> can run.
-  const open = /<(head|body)(\s[^>]*)?>/i.exec(html)
-  if (open) return html.slice(0, open.index + open[0].length) + tags + html.slice(open.index + open[0].length)
-  // No <head>/<body> to anchor to: insert right AFTER any leading doctype rather than before it —
-  // prepending `tags` ahead of the doctype would push it off the first line and flip into quirks mode.
-  const doctype = /^\s*<!doctype[^>]*>/i.exec(html)
-  if (doctype) return html.slice(0, doctype[0].length) + tags + html.slice(doctype[0].length)
-  return tags + html
 }
 
 /** True when an anchor href points OFF this content origin — an absolute http(s) URL to another
@@ -422,25 +397,52 @@ export function isExternalHref(href: string, base: string): boolean {
   return u.origin !== new URL(base).origin
 }
 
-/** Streams the SDK into a plain (unannotated) page, so its sandboxed localStorage still works (in memory). */
-function withDbSdk(res: Response, appOrigin: string): Response {
-  let injected = false
-  const prepend = {
-    element(el: Element) {
-      if (injected) return
-      injected = true
-      el.prepend(dbTags(appOrigin, null), { html: true })
-    },
+/** Streams Postplan's tags into a served page with an HTML-aware parser (comments and quoted `>`
+ *  can't fool it). `early` (the SDK) lands before any page script can run: at the opening of <head>
+ *  or <body>, else before the first <script>, else at the end of a script-less fragment. `late`
+ *  (the passive annotate client) goes just before </body>, else at the end. */
+export function injectTags(res: Response, tags: { early?: string; late?: string }): Response {
+  const { early, late } = tags
+  let placedEarly = !early
+  let placedLate = !late
+  const rewriter = new HTMLRewriter()
+  if (early) {
+    const into = {
+      element(el: Element) {
+        if (placedEarly) return
+        placedEarly = true
+        el.prepend(early, { html: true })
+      },
+    }
+    rewriter
+      .on('head', into)
+      .on('body', into)
+      .on('script', {
+        element(el) {
+          if (placedEarly) return
+          placedEarly = true
+          el.before(early, { html: true })
+        },
+      })
   }
-  // A fragment page has no <head>/<body>: go in just before its first script instead.
-  const beforeScript = {
-    element(el: Element) {
-      if (injected) return
-      injected = true
-      el.before(dbTags(appOrigin, null), { html: true })
-    },
-  }
-  return new HTMLRewriter().on('head', prepend).on('body', prepend).on('script', beforeScript).transform(res)
+  if (late)
+    rewriter.on('body', {
+      element(el) {
+        el.onEndTag((end) => {
+          if (placedLate) return
+          placedLate = true
+          end.before(late, { html: true })
+        })
+      },
+    })
+  return rewriter
+    .onDocument({
+      end(end) {
+        if (!placedEarly && early) end.append(early, { html: true })
+        if (!placedLate && late) end.append(late, { html: true })
+      },
+    })
+    .transform(res)
 }
 
 /** The streamed HTMLRewriter pass every served HTML document goes through — no full-body buffering.
