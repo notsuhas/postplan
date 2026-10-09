@@ -53,7 +53,7 @@ Put it in your shell profile to make it permanent. Token + URL are saved to `~/.
 | `postplan fork <space/slug> [--space <slug>] [--name <slug>]` | copies a site you can open into your own space — your copy, to edit freely |
 | `postplan comments <space/slug> [--file <path>] [--open] [--json]` | prints a site's review comments as a markdown digest (or raw JSON) |
 | `postplan reply <space/slug> <threadId> [message] [--tag <label>\|--no-tag]` | posts a reply to a comment thread (get the `threadId` from `postplan comments`) |
-| `postplan read <space/slug> [--file <path>] [--pull <dir>]` | prints a file to stdout, or `--pull` downloads the whole site's source into a folder to edit + redeploy |
+| `postplan read <space/slug> [--file <path>] [--pull <dir>]` | prints a file's source to stdout, or `--pull` downloads the whole site's source into a folder to edit + redeploy |
 | `postplan notifications [--read] [--json]` | shows your notifications — mentions and comments on your sites (or raw JSON); `--read` marks them all read |
 | `postplan versions <space/slug> [--json]` | lists immutable deployment snapshots and marks the current version |
 | `postplan rollback <space/slug> <version> [--yes] [--json]` | restores an older snapshot as a new version without deleting history |

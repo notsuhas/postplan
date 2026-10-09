@@ -183,7 +183,7 @@ var mcpTools = []mcpTool{
 		Name:  "read",
 		Title: "Read a deployed file",
 		Description: "Return the text of one file in a deployed site, e.g. to check what is live before editing. Omit file for the site root. " +
-			"Markdown files come back as rendered HTML. Output over 200 KB is truncated; binary files return an error.",
+			"Returns the stored source (markdown as markdown). Output over 200 KB is truncated; binary files return an error.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{
 "site":` + siteSchema + `,
 "file":{"type":"string","description":"In-site file path, e.g. index.html or docs/guide.md. Omit for the site root."}

@@ -59,7 +59,8 @@ func (c *client) read(argv []string) error {
 	}
 
 	// contentUrl always ends with '/'; append the in-site path (empty -> site root / single file).
-	cres, err := c.http.Get(meta.ContentURL + encodePath(file))
+	// raw=1 returns the stored source, without the scripts Postplan injects into served pages.
+	cres, err := c.http.Get(meta.ContentURL + encodePath(file) + "?raw=1")
 	if err != nil {
 		return err
 	}
