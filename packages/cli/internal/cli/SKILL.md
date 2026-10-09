@@ -305,8 +305,8 @@ script (`location.href = …`) or a GET form loses access; use links between you
 
 To keep small values across visits, use `window.storage` (same API as Claude artifacts). Keys are
 personal to the viewer unless you pass `shared = true`. Values are strings (JSON.stringify objects);
-keys are up to 200 characters with no spaces or slashes; values up to 1 MB. Each viewer gets 5 MB of
-personal keys, the shared pool 10 MB, and a site 20 MB and 10,000 keys in all; `list` returns at most
+keys are up to 200 characters with no spaces or slashes; values up to 1 MB. Each viewer gets 5 MB and 1,000
+personal keys; shared keys get 10 MB and 10,000. `list(prefix)` is case-sensitive and returns at most
 1,000 keys.
 
 Shared keys can be overwritten or deleted by anyone who can open the site, and writes aren't

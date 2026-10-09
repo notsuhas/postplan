@@ -6,7 +6,7 @@ import { type ChangeLogRow, type DocumentRow, type Site, documents, sites } from
 import { type DataCapability, type DataClaims, hasCap, signDataToken, verifyDataToken } from '../lib/data-token'
 import { canViewerRead, readsEveryCreator } from '../lib/data-visibility'
 import { authorizeViewerById, fetchAccessFacts, siteAccessFromFacts } from '../lib/site-access'
-import { KV_MAX_VALUE_BYTES, utf8Bytes, validKvKey } from '../../../shared/kv'
+import { KV_MAX_KEY, KV_MAX_VALUE_BYTES, utf8Bytes, validKvKey } from '../../../shared/kv'
 import { deleteKv, getKv, kvOwner, listKv, setKv } from '../lib/site-kv'
 import { requireAuth } from '../middleware/auth'
 import {
@@ -154,7 +154,9 @@ const kvShared = (c: DataCtx) => c.req.param('scope') === 'shared'
 const kvOwnerOf = (c: DataCtx) => kvOwner(kvShared(c), c.get('claims').viewerId)
 
 kvApi.get('/:scope', async (c) => {
-  const keys = await listKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), c.req.query('prefix') ?? '')
+  const prefix = c.req.query('prefix') ?? ''
+  if (prefix.length > KV_MAX_KEY) return c.json({ error: 'invalid prefix' }, 400)
+  const keys = await listKv(getDb(c), c.get('claims').siteId, kvOwnerOf(c), prefix)
   return c.json({ keys })
 })
 

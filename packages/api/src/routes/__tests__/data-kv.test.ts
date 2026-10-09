@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { validKvKey } from '../../../../shared/kv'
 import { signDataToken } from '../../lib/data-token'
-import { KV_PERSONAL_QUOTA, KV_SHARED_QUOTA, KV_SITE_KEYS } from '../../lib/site-kv'
+import { KV_PERSONAL_QUOTA, KV_SHARED_QUOTA } from '../../lib/site-kv'
 import { type HarnessDb, makeDb, seedMember, seedSite, seedSpace, seedUser } from '../../test/harness'
 import { dataApi } from '../data'
 
@@ -94,7 +94,7 @@ describe('window.storage backend', () => {
     const chunk = 'x'.repeat(990_000)
     let i = 0
     while ((await call(alice, 'PUT', `/personal/c${i}`, chunk)).status === 200) i++
-    expect(i).toBe(Math.floor(KV_PERSONAL_QUOTA / (chunk.length + 3)))
+    expect(i).toBe(Math.floor(KV_PERSONAL_QUOTA.bytes / (chunk.length + 3)))
     expect((await call(bob, 'PUT', '/personal/mine', 'still fine')).status).toBe(200)
     expect((await call(bob, 'PUT', '/shared/also', 'fine')).status).toBe(200)
   })
@@ -104,34 +104,30 @@ describe('window.storage backend', () => {
     const chunk = 'x'.repeat(990_000)
     let i = 0
     while ((await call(alice, 'PUT', `/shared/c${i}`, chunk)).status === 200) i++
-    expect(i).toBe(Math.floor(KV_SHARED_QUOTA / (chunk.length + 3)))
+    expect(i).toBe(Math.floor(KV_SHARED_QUOTA.bytes / (chunk.length + 3)))
     expect((await call(bob, 'PUT', '/personal/mine', chunk)).status).toBe(200)
     // Overwriting only counts the new size.
     expect((await call(alice, 'PUT', '/shared/c0', 'small')).status).toBe(200)
     expect((await call(alice, 'PUT', `/shared/c${i}`, chunk)).status).toBe(200)
   })
 
-  test('a site holds a bounded number of keys; existing ones can still be updated', async () => {
-    const { db, call, alice } = await scenario()
-    await db.run(sql`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${KV_SITE_KEYS})
-      INSERT INTO site_kv (siteId, ownerId, key, value, bytes, updatedAt) SELECT 'site1', '', 'k' || i, 'v', 3, '' FROM n`)
-    expect((await call(alice, 'PUT', '/shared/one-more', 'v')).status).toBe(413)
-    expect((await call(alice, 'PUT', '/shared/k1', 'updated')).status).toBe(200)
-    expect((await call(alice, 'GET', '/shared?prefix=k')).body?.keys).toHaveLength(1000)
+  test("each pool holds a bounded number of keys; one viewer's full pool locks out no one else", async () => {
+    const { db, call, alice, bob } = await scenario()
+    await db.run(sql`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${KV_PERSONAL_QUOTA.keys})
+      INSERT INTO site_kv (siteId, ownerId, key, value, bytes, updatedAt) SELECT 'site1', 'alice', 'k' || i, 'v', 3, '' FROM n`)
+    expect((await call(alice, 'PUT', '/personal/one-more', 'v')).status).toBe(413)
+    expect((await call(alice, 'PUT', '/personal/k1', 'updated')).status).toBe(200)
+    expect((await call(alice, 'GET', '/personal?prefix=k')).body?.keys).toHaveLength(1000)
+    expect((await call(bob, 'PUT', '/personal/mine', 'v')).status).toBe(200)
+    expect((await call(alice, 'PUT', '/shared/one-more', 'v')).status).toBe(200)
   })
 
-  test('the site counters follow inserts, updates and deletes', async () => {
-    const { db, call, alice } = await scenario()
-    const totals = async () =>
-      (
-        await db.all<{ kvBytes: number; kvCount: number }>(sql`SELECT kvBytes, kvCount FROM sites WHERE id = 'site1'`)
-      )[0]
-    await call(alice, 'PUT', '/personal/k', 'abc')
-    expect(await totals()).toEqual({ kvBytes: 4, kvCount: 1 })
-    await call(alice, 'PUT', '/personal/k', 'abcdef')
-    expect(await totals()).toEqual({ kvBytes: 7, kvCount: 1 })
-    await call(alice, 'DELETE', '/personal/k')
-    expect(await totals()).toEqual({ kvBytes: 0, kvCount: 0 })
+  test('list is a case-sensitive prefix match and rejects oversized prefixes', async () => {
+    const { call, alice } = await scenario()
+    for (const k of ['Todo1', 'todo2', 'todo_3', 'todx']) await call(alice, 'PUT', `/personal/${k}`, 'v')
+    expect((await call(alice, 'GET', '/personal?prefix=todo')).body?.keys).toEqual(['todo2', 'todo_3'])
+    expect((await call(alice, 'GET', '/personal?prefix=todo_')).body?.keys).toEqual(['todo_3'])
+    expect((await call(alice, 'GET', `/personal?prefix=${'x'.repeat(201)}`)).status).toBe(400)
   })
 
   test('a deleted user takes their personal keys with them', async () => {

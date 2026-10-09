@@ -143,11 +143,12 @@ export function createDbBroker(
     return res.status === 401 ? run(await mint()) : res
   }
 
-  async function execute(req: BrokerRequest): Promise<{ ok: boolean; status: number; body: unknown }> {
-    if (req.op === 'kv') {
-      const call = parseKv(req as unknown as Record<string, unknown>)
+  async function execute(msg: Record<string, unknown>): Promise<{ ok: boolean; status: number; body: unknown }> {
+    if (msg.op === 'kv') {
+      const call = parseKv(msg)
       return typeof call === 'string' ? { ok: false, status: 400, body: { error: call } } : send(kvRequest(call))
     }
+    const req = msg as BrokerRequest
     const bad = validate(req)
     if (bad) return { ok: false, status: 400, body: { error: bad } }
     if (req.op === 'subscribe') return subscribe(req)
@@ -334,7 +335,7 @@ export function createDbBroker(
   }
 
   function onPortMessage(p: MessagePort, e: MessageEvent): void {
-    const req = e.data as BrokerRequest | null
+    const req = e.data as Record<string, unknown> | null
     if (!req || typeof req.id !== 'number') return
     execute(req).then(
       (r) => p.postMessage({ id: req.id, ...r }),

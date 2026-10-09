@@ -65,8 +65,8 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
   navigate them (`postplandb/sandbox.ts`). Persistence is explicit: `window.storage` (Claude
   artifacts' API: personal or shared string keys in `site_kv`, served by the `/api/_data/_kv`
   sub-app, terminal and with its own capability table — reads `read`, writes `create`; UTF-8 bytes,
-  5 MB per viewer's personal keys, 10 MB shared, 20 MB and 10,000 keys per site via the
-  trigger-kept `sites.kvBytes`/`kvCount`, checked and written in one statement; shared keys are
+  each viewer's personal keys capped at 5 MB / 1,000 keys and the shared keys at 10 MB / 10,000,
+  checked and written in one statement; `list` is a case-sensitive prefix match; shared keys are
   writable by any viewer and unattributed) or `postplan.db`. Collection names starting with `_`
   are reserved for these built-in routes.
 
