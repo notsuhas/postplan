@@ -270,6 +270,7 @@ function collection(name: string) {
     onCreate: (cb: (e: ChangeEvent) => void) => subscriptions().on(name, 'create', cb),
     onUpdate: (cb: (e: ChangeEvent) => void) => subscriptions().on(name, 'update', cb),
     onDelete: (cb: (e: ChangeEvent) => void) => subscriptions().on(name, 'delete', cb),
+    onReady: (cb: () => void) => subscriptions().onReady(cb),
   }
 }
 

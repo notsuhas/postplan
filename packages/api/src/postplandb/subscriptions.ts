@@ -65,9 +65,12 @@ const keyOf = (e: ChangeEvent) => `${e.type}|${e.collection}|${e.id}|${e.at}`
 
 export function createSubscriptions(transport: Transport) {
   const listeners = new Set<Listener>()
+  const readyListeners = new Set<() => void>()
   const seen = new Set<string>()
   const order: string[] = []
   let opened = false
+  let ready = false
+  let epoch = 0
   let cursor: string | null = null
   // Frames that arrived while a catch-up was in flight. Without this queue the join race delivers
   // the newest event first and then "replays" older ones behind it — or drops the window entirely.
@@ -111,20 +114,53 @@ export function createSubscriptions(transport: Transport) {
    *  row beyond it unrequested — the returned cursor has already advanced past them — and the
    *  page would be silently, permanently stale. Terminates because each page's cursor advances
    *  past every row the server scanned, so `more` can only stay true while rows remain. */
-  async function replay(): Promise<void> {
+  async function replay(connection: number): Promise<void> {
     for (;;) {
       const f = await transport.catchUp(cursor)
+      if (connection !== epoch) return
       apply(f)
       if (!f.more) return
     }
   }
 
   function onOpen(): void {
+    ready = false
+    const connection = ++epoch
     queued = []
     // A failed catch-up is a missed window, not a dead stream: keep delivering, and the next
     // reconnect resumes from the last cursor that landed (a mid-backlog failure keeps the pages
     // already applied and re-asks for the rest).
-    replay().then(drain, drain)
+    const finish = () => {
+      if (connection !== epoch) return
+      drain()
+      if (connection !== epoch || !opened) return
+      ready = true
+      for (const cb of [...readyListeners]) notifyReady(cb)
+    }
+    replay(connection).then(finish, finish)
+  }
+
+  function notifyReady(cb: () => void): void {
+    try {
+      cb()
+    } catch {
+      // One page's callback must not block the others.
+    }
+  }
+
+  function start(): void {
+    if (opened) return
+    opened = true
+    transport.open({ onOpen, onFrame: (f) => (queued ? queued.push(f) : apply(f)) })
+  }
+
+  function stopIfUnused(): void {
+    if (listeners.size || readyListeners.size || !opened) return
+    opened = false
+    ready = false
+    epoch++
+    queued = null
+    transport.close?.()
   }
 
   return {
@@ -133,19 +169,19 @@ export function createSubscriptions(transport: Transport) {
     on(collection: string, type: ChangeEvent['type'], cb: (e: ChangeEvent) => void): () => void {
       const l: Listener = { collection, type, cb }
       listeners.add(l)
-      if (!opened) {
-        opened = true
-        transport.open({ onOpen, onFrame: (f) => (queued ? queued.push(f) : apply(f)) })
-      }
+      start()
       return () => {
         listeners.delete(l)
-        // Last one out closes the stream. `opened` resets with it, so a later subscribe dials
-        // again rather than listening to a socket nobody kept.
-        if (listeners.size === 0 && opened) {
-          opened = false
-          queued = null
-          transport.close?.()
-        }
+        stopIfUnused()
+      }
+    },
+    onReady(cb: () => void): () => void {
+      readyListeners.add(cb)
+      start()
+      if (ready) notifyReady(cb)
+      return () => {
+        readyListeners.delete(cb)
+        stopIfUnused()
       }
     },
   }

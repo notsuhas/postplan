@@ -23,6 +23,7 @@ Commands:
   rollback       Restore an earlier deployment as a new version
   feedback       List, wait for, claim, and complete sent feedback
   shares         List, grant, and revoke explicit site shares
+  data           Push query results to a site's <pp-chart> charts
   skill          Install the bundled agent skill
   upgrade        Install the latest CLI release
   version        Print the CLI version
@@ -70,6 +71,17 @@ Example:
 
 Example:
   postplan move personal/report team`,
+		"data": `Usage: postplan data push <space/site> <chart-id> <file.json|file.csv|-> [options]
+
+Replaces one chart's data; open pages update live. Only the site owner can push.
+
+Options:
+  --sql <file>          The query that produced the data, shown under the chart
+  --source <name>       Where it came from, e.g. "Snowflake · analytics"
+  --stale-after <dur>   When the freshness badge turns amber (default 24h)
+
+Example:
+  postplan data push team/kpis revenue out.csv --sql revenue.sql --source Snowflake --stale-after 6h`,
 		"fork": `Usage: postplan fork <space/site> [--space <slug>] [--name <slug>]
 
 Example:

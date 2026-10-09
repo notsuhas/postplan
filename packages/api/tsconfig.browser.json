@@ -12,6 +12,8 @@
     "src/annotate/motion.ts",
     "src/postplandb/client.ts",
     "src/postplandb/sandbox.ts",
-    "src/mermaid/client.ts"
+    "src/mermaid/client.ts",
+    "src/chart/client.ts",
+    "src/chart/model.ts"
   ]
 }
