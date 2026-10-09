@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 type mcpAnnotations struct {
@@ -176,6 +177,33 @@ var mcpTools = []mcpTool{
 				argv = append(argv, "--open")
 			}
 			return runOutput(c.comments(append(argv, "--", a.Site)), out)
+		},
+	},
+	{
+		Name:  "read",
+		Title: "Read a deployed file",
+		Description: "Return the text of one file in a deployed site, e.g. to check what is live before editing. Omit file for the site root. " +
+			"Markdown files come back as rendered HTML. Output over 200 KB is truncated; binary files return an error.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{
+"site":` + siteSchema + `,
+"file":{"type":"string","description":"In-site file path, e.g. index.html or docs/guide.md. Omit for the site root."}
+},"required":["site"],"additionalProperties":false}`),
+		Annotations: mcpAnnotations{ReadOnlyHint: true, IdempotentHint: true},
+		call: func(c *client, raw json.RawMessage, out *bytes.Buffer) (string, error) {
+			var a struct {
+				Site string `json:"site"`
+				File string `json:"file"`
+			}
+			if err := decodeArgs(raw, &a); err != nil {
+				return "", err
+			}
+			if err := need("site", a.Site); err != nil {
+				return "", err
+			}
+			if err := c.read(append(withFlag(nil, "file", a.File), "--", a.Site)); err != nil {
+				return "", err
+			}
+			return capText(out.Bytes(), mcpReadLimit)
 		},
 	},
 	{
@@ -363,6 +391,29 @@ var mcpTools = []mcpTool{
 			return runOutput(c.fork(append(argv, "--", a.Site)), out)
 		},
 	},
+}
+
+const mcpReadLimit = 200 * 1024
+
+// capText returns body as text, cut at a rune boundary under limit with a note; binary bodies are refused.
+func capText(body []byte, limit int) (string, error) {
+	total := len(body)
+	if total > limit {
+		body = body[:limit]
+		for i := 0; i < utf8.UTFMax-1 && len(body) > 0; i++ {
+			if r, _ := utf8.DecodeLastRune(body); r != utf8.RuneError {
+				break
+			}
+			body = body[:len(body)-1]
+		}
+	}
+	if !utf8.Valid(body) || bytes.IndexByte(body, 0) >= 0 {
+		return "", fmt.Errorf("This file is binary (%d bytes); open it in a browser instead.", total)
+	}
+	if total > limit {
+		return fmt.Sprintf("%s\n\n[truncated: showing %d of %d bytes]", body, len(body), total), nil
+	}
+	return string(body), nil
 }
 
 func siteArgs(argv []string, site string) []string {

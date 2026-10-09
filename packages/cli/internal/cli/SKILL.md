@@ -288,7 +288,7 @@ You can update that site's content even though you don't own it and aren't in it
 
 ## MCP
 
-For chat-only or MCP-first clients with no shell, `postplan mcp` runs a local stdio MCP server. Its tools wrap the CLI commands and use the same login (`postplan login`, `POSTPLAN_TOKEN`, `POSTPLAN_API_URL`): `deploy`, `list`, `comments`, `reply`, `feedback`, `versions`, `rollback`, `delete`, `fork`. `deploy` takes an absolute local path. `feedback` with `action: "wait"` returns within 50 seconds; call it again to keep listening.
+For chat-only or MCP-first clients with no shell, `postplan mcp` runs a local stdio MCP server. Its tools wrap the CLI commands and use the same login (`postplan login`, `POSTPLAN_TOKEN`, `POSTPLAN_API_URL`): `deploy`, `list`, `comments`, `read`, `reply`, `feedback`, `versions`, `rollback`, `delete`, `fork`. `deploy` takes an absolute local path. `feedback` with `action: "wait"` returns within 50 seconds; call it again to keep listening. `read` returns up to 200 KB of a deployed file. Clients on MCP 2026-07-28 and on the older `initialize` handshake both connect.
 
 Claude Code:
 

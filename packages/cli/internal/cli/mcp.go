@@ -13,8 +13,19 @@ import (
 	"sync"
 )
 
+// Stateless per-request-metadata revision; older clients use the initialize handshake below.
+const mcpModernVersion = "2026-07-28"
+
 // Newest first; initialize echoes the client's version when supported, else offers the newest.
-var mcpProtocolVersions = []string{"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
+var mcpLegacyVersions = []string{"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
+
+const (
+	metaProtocolVersion    = "io.modelcontextprotocol/protocolVersion"
+	metaClientCapabilities = "io.modelcontextprotocol/clientCapabilities"
+	metaServerInfo         = "io.modelcontextprotocol/serverInfo"
+)
+
+var mcpCapabilities = map[string]any{"tools": map[string]any{}}
 
 const mcpInstructions = "Postplan hosts HTML, markdown and files at shareable URLs where people leave review comments. " +
 	"Deploy a local path, share the returned URL, then read comments or claimed feedback batches, reply to threads, and redeploy with replace: true."
@@ -29,6 +40,7 @@ type rpcRequest struct {
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
 }
 
 type rpcResponse struct {
@@ -41,11 +53,6 @@ type rpcResponse struct {
 type mcpTextContent struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
-}
-
-type mcpCallResult struct {
-	Content []mcpTextContent `json:"content"`
-	IsError bool             `json:"isError"`
 }
 
 // mcpClient resolves credentials per call, so a `postplan login` mid-session takes effect without a restart.
@@ -65,14 +72,17 @@ func newMCPClient(baseURL, token string, out io.Writer) *client {
 }
 
 type mcpServer struct {
-	connect func(io.Writer) *client
-	mu      sync.Mutex
-	enc     *json.Encoder
+	connect   func(io.Writer) *client
+	mu        sync.Mutex
+	enc       *json.Encoder
+	inFlight  map[string]bool // tools/call ids awaiting a reply
+	cancelled map[string]bool
 }
 
 // serveMCP speaks newline-delimited JSON-RPC 2.0 on in/out until in closes; stdout carries protocol only.
 func serveMCP(in io.Reader, out io.Writer, connect func(io.Writer) *client) error {
-	s := &mcpServer{connect: connect, enc: json.NewEncoder(out)}
+	s := &mcpServer{connect: connect, enc: json.NewEncoder(out), inFlight: map[string]bool{}, cancelled: map[string]bool{}}
+	s.enc.SetEscapeHTML(false)
 	scanner := bufio.NewScanner(in)
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	var wg sync.WaitGroup
@@ -83,13 +93,19 @@ func serveMCP(in io.Reader, out io.Writer, connect func(io.Writer) *client) erro
 		}
 		var req rpcRequest
 		if err := json.Unmarshal(line, &req); err != nil {
-			s.reply(rpcResponse{ID: json.RawMessage("null"), Error: &rpcError{-32700, "Parse error"}})
+			s.reply(rpcResponse{ID: json.RawMessage("null"), Error: &rpcError{Code: -32700, Message: "Parse error"}})
 			continue
 		}
+		if req.Method == "notifications/cancelled" {
+			s.cancel(req.Params)
+		}
 		if len(req.ID) == 0 || string(req.ID) == "null" || req.Method == "" {
-			continue // notifications (initialized, cancelled) and stray responses need no answer
+			continue // notifications and stray responses need no answer
 		}
 		if req.Method == "tools/call" {
+			s.mu.Lock()
+			s.inFlight[string(req.ID)] = true
+			s.mu.Unlock()
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -103,63 +119,154 @@ func serveMCP(in io.Reader, out io.Writer, connect func(io.Writer) *client) erro
 	return scanner.Err()
 }
 
+// cancel suppresses the reply to an in-flight call; the command itself runs to completion.
+func (s *mcpServer) cancel(params json.RawMessage) {
+	var p struct {
+		RequestID json.RawMessage `json:"requestId"`
+	}
+	if json.Unmarshal(params, &p) != nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id := string(p.RequestID); s.inFlight[id] {
+		s.cancelled[id] = true
+	}
+}
+
 func (s *mcpServer) reply(resp rpcResponse) {
 	resp.JSONRPC = "2.0"
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	id := string(resp.ID)
+	delete(s.inFlight, id)
+	if s.cancelled[id] {
+		delete(s.cancelled, id)
+		return
+	}
 	if err := s.enc.Encode(resp); err != nil {
 		fmt.Fprintln(os.Stderr, "postplan mcp: write failed:", err)
 	}
 }
 
 func (s *mcpServer) handle(req rpcRequest) rpcResponse {
+	var p struct {
+		Meta map[string]json.RawMessage `json:"_meta"`
+	}
+	_ = json.Unmarshal(req.Params, &p)
+	if version, modern := p.Meta[metaProtocolVersion]; modern && req.Method != "initialize" {
+		return s.handleModern(req, version, p.Meta)
+	}
 	resp := rpcResponse{ID: req.ID}
+	var result map[string]any
 	switch req.Method {
 	case "initialize":
-		var p struct {
+		var init struct {
 			ProtocolVersion string `json:"protocolVersion"`
 		}
-		_ = json.Unmarshal(req.Params, &p)
-		version := mcpProtocolVersions[0]
-		if slices.Contains(mcpProtocolVersions, p.ProtocolVersion) {
-			version = p.ProtocolVersion
+		_ = json.Unmarshal(req.Params, &init)
+		version := mcpLegacyVersions[0]
+		if slices.Contains(mcpLegacyVersions, init.ProtocolVersion) {
+			version = init.ProtocolVersion
 		}
-		resp.Result = map[string]any{
+		result = map[string]any{
 			"protocolVersion": version,
-			"capabilities":    map[string]any{"tools": map[string]any{}},
-			"serverInfo":      map[string]string{"name": "postplan", "title": "Postplan", "version": Version},
+			"capabilities":    mcpCapabilities,
+			"serverInfo":      mcpServerInfo(),
 			"instructions":    mcpInstructions,
 		}
+	case "server/discover":
+		resp.Error = &rpcError{Code: -32602, Message: "Missing _meta." + metaProtocolVersion}
+	default:
+		result, resp.Error = s.dispatchCommon(req)
+	}
+	if resp.Error == nil {
+		resp.Result = result
+	}
+	return resp
+}
+
+// handleModern serves one stateless 2026-07-28 request; every request carries its own version and capabilities.
+func (s *mcpServer) handleModern(req rpcRequest, rawVersion json.RawMessage, meta map[string]json.RawMessage) rpcResponse {
+	resp := rpcResponse{ID: req.ID}
+	var version string
+	if json.Unmarshal(rawVersion, &version) != nil {
+		resp.Error = &rpcError{Code: -32602, Message: "_meta." + metaProtocolVersion + " must be a string"}
+		return resp
+	}
+	if version != mcpModernVersion {
+		resp.Error = &rpcError{Code: -32022, Message: "Unsupported protocol version", Data: map[string]any{
+			"supported": []string{mcpModernVersion}, "requested": version,
+		}}
+		return resp
+	}
+	if _, ok := meta[metaClientCapabilities]; !ok {
+		resp.Error = &rpcError{Code: -32602, Message: "Missing _meta." + metaClientCapabilities}
+		return resp
+	}
+	var result map[string]any
+	switch req.Method {
+	case "server/discover":
+		result = map[string]any{
+			"supportedVersions": []string{mcpModernVersion},
+			"capabilities":      mcpCapabilities,
+			"instructions":      mcpInstructions,
+		}
+	case "initialize":
+		resp.Error = &rpcError{Code: -32601, Message: "Method not found: initialize"}
+	default:
+		result, resp.Error = s.dispatchCommon(req)
+	}
+	if resp.Error != nil {
+		return resp
+	}
+	if req.Method == "server/discover" || req.Method == "tools/list" {
+		result["ttlMs"] = 3600000
+		result["cacheScope"] = "public"
+	}
+	result["resultType"] = "complete"
+	result["_meta"] = map[string]any{metaServerInfo: mcpServerInfo()}
+	resp.Result = result
+	return resp
+}
+
+// dispatchCommon handles the methods both protocol generations share.
+func (s *mcpServer) dispatchCommon(req rpcRequest) (map[string]any, *rpcError) {
+	switch req.Method {
 	case "ping":
-		resp.Result = map[string]any{}
+		return map[string]any{}, nil
 	case "tools/list":
-		resp.Result = map[string]any{"tools": mcpTools}
+		return map[string]any{"tools": mcpTools}, nil
 	case "tools/call":
 		var p struct {
 			Name      string          `json:"name"`
 			Arguments json.RawMessage `json:"arguments"`
 		}
 		if err := json.Unmarshal(req.Params, &p); err != nil {
-			resp.Error = &rpcError{-32602, "Invalid params: " + err.Error()}
-			return resp
+			return nil, &rpcError{Code: -32602, Message: "Invalid params: " + err.Error()}
 		}
 		tool := findTool(p.Name)
 		if tool == nil {
-			resp.Error = &rpcError{-32602, "Unknown tool: " + p.Name}
-			return resp
+			return nil, &rpcError{Code: -32602, Message: "Unknown tool: " + p.Name}
 		}
-		resp.Result = s.call(tool, p.Arguments)
-	default:
-		resp.Error = &rpcError{-32601, "Method not found: " + req.Method}
+		return s.call(tool, p.Arguments), nil
 	}
-	return resp
+	return nil, &rpcError{Code: -32601, Message: "Method not found: " + req.Method}
 }
 
-func (s *mcpServer) call(tool *mcpTool, args json.RawMessage) (result mcpCallResult) {
+func mcpServerInfo() map[string]string {
+	return map[string]string{"name": "postplan", "title": "Postplan", "version": Version}
+}
+
+func toolResult(text string, isError bool) map[string]any {
+	return map[string]any{"content": []mcpTextContent{{Type: "text", Text: text}}, "isError": isError}
+}
+
+func (s *mcpServer) call(tool *mcpTool, args json.RawMessage) (result map[string]any) {
 	var buf bytes.Buffer
 	defer func() {
 		if r := recover(); r != nil {
-			result = mcpCallResult{Content: []mcpTextContent{{"text", fmt.Sprint("Internal error: ", r)}}, IsError: true}
+			result = toolResult(fmt.Sprint("Internal error: ", r), true)
 		}
 	}()
 	if len(args) == 0 || string(args) == "null" {
@@ -167,7 +274,7 @@ func (s *mcpServer) call(tool *mcpTool, args json.RawMessage) (result mcpCallRes
 	}
 	text, err := tool.call(s.connect(&buf), args, &buf)
 	if err != nil {
-		return mcpCallResult{Content: []mcpTextContent{{"text", err.Error()}}, IsError: true}
+		return toolResult(err.Error(), true)
 	}
-	return mcpCallResult{Content: []mcpTextContent{{"text", text}}}
+	return toolResult(text, false)
 }

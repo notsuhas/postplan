@@ -4,7 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -39,12 +42,16 @@ func mcpSession(t *testing.T, connect func(io.Writer) *client, lines ...string) 
 	}
 	replies := map[string]rpcReply{}
 	scanner := bufio.NewScanner(&out)
+	scanner.Buffer(nil, 4*1024*1024)
 	for scanner.Scan() {
 		var r rpcReply
 		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil || r.JSONRPC != "2.0" {
 			t.Fatalf("stdout carried a non-JSON-RPC line: %q", scanner.Text())
 		}
 		replies[string(r.ID)] = r
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
 	}
 	return replies
 }
@@ -119,7 +126,7 @@ func TestMCPSession(t *testing.T) {
 			t.Fatalf("tool %s destructiveHint = %v", tool.Name, tool.Annotations.DestructiveHint)
 		}
 	}
-	if got := strings.Join(names, ","); got != "deploy,list,comments,reply,feedback,versions,rollback,delete,fork" {
+	if got := strings.Join(names, ","); got != "deploy,list,comments,read,reply,feedback,versions,rollback,delete,fork" {
 		t.Fatalf("tools = %s", got)
 	}
 
@@ -217,5 +224,138 @@ func TestMCPToolsWrapCommands(t *testing.T) {
 func TestMCPSkipsUpdateHooks(t *testing.T) {
 	if runsUpdateHooks("mcp") || !runsUpdateHooks("deploy") {
 		t.Fatal("update hooks must skip mcp and still run for ordinary commands")
+	}
+}
+
+const modernMeta = `"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"t","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}`
+
+func TestMCPModernProtocol(t *testing.T) {
+	srv, _ := recordingServer(t, func(r *capturedReq) (int, string) { return 200, `[]` })
+	replies := mcpSession(t, testConnect(srv.URL, "tok"),
+		`{"jsonrpc":"2.0","id":"d","method":"server/discover","params":{`+modernMeta+`}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{`+modernMeta+`}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list","arguments":{},`+modernMeta+`}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2099-01-01","io.modelcontextprotocol/clientCapabilities":{}}}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}`,
+		`{"jsonrpc":"2.0","id":6,"method":"server/discover"}`,
+	)
+
+	var discover struct {
+		ResultType        string   `json:"resultType"`
+		SupportedVersions []string `json:"supportedVersions"`
+		Capabilities      struct {
+			Tools *struct{} `json:"tools"`
+		} `json:"capabilities"`
+		TTL        *int   `json:"ttlMs"`
+		CacheScope string `json:"cacheScope"`
+		Meta       map[string]struct {
+			Name string `json:"name"`
+		} `json:"_meta"`
+	}
+	if err := json.Unmarshal(replies[`"d"`].Result, &discover); err != nil || discover.ResultType != "complete" ||
+		strings.Join(discover.SupportedVersions, ",") != "2026-07-28" || discover.Capabilities.Tools == nil ||
+		discover.TTL == nil || discover.CacheScope != "public" || discover.Meta["io.modelcontextprotocol/serverInfo"].Name != "postplan" {
+		t.Fatalf("discover = %s", replies[`"d"`].Result)
+	}
+
+	var list struct {
+		ResultType string            `json:"resultType"`
+		Tools      []json.RawMessage `json:"tools"`
+		TTL        *int              `json:"ttlMs"`
+		CacheScope string            `json:"cacheScope"`
+	}
+	if err := json.Unmarshal(replies["2"].Result, &list); err != nil || list.ResultType != "complete" || len(list.Tools) != len(mcpTools) || list.TTL == nil || list.CacheScope != "public" {
+		t.Fatalf("tools/list = %s", replies["2"].Result)
+	}
+
+	var call struct {
+		ResultType string `json:"resultType"`
+		callReply
+	}
+	if err := json.Unmarshal(replies["3"].Result, &call); err != nil || call.ResultType != "complete" || call.IsError || len(call.Content) != 1 {
+		t.Fatalf("tools/call = %s", replies["3"].Result)
+	}
+
+	if e := replies["4"].Error; e == nil || e.Code != -32022 || !strings.Contains(fmt.Sprint(e.Data), "2026-07-28") {
+		t.Fatalf("unsupported version = %+v", replies["4"])
+	}
+	if e := replies["5"].Error; e == nil || e.Code != -32602 {
+		t.Fatalf("missing clientCapabilities = %+v", replies["5"])
+	}
+	if e := replies["6"].Error; e == nil {
+		t.Fatalf("discover without _meta must error so dual-era clients fall back to initialize: %+v", replies["6"])
+	}
+}
+
+// A legacy session must not pick up modern-only result fields.
+func TestMCPLegacyResultsStayLegacy(t *testing.T) {
+	replies := mcpSession(t, testConnect("http://unused", "tok"),
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2099-01-01","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`,
+	)
+	if !strings.Contains(string(replies["1"].Result), `"protocolVersion":"2025-11-25"`) {
+		t.Fatalf("initialize should offer the newest legacy version: %s", replies["1"].Result)
+	}
+	if strings.Contains(string(replies["2"].Result), "resultType") {
+		t.Fatalf("legacy tools/list = %s", replies["2"].Result)
+	}
+}
+
+func TestMCPCancelledCallGetsNoReply(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		io.WriteString(w, `[]`)
+	}))
+	t.Cleanup(srv.Close)
+	inR, inW := io.Pipe()
+	var out bytes.Buffer
+	done := make(chan error)
+	go func() { done <- serveMCP(inR, &out, testConnect(srv.URL, "tok")) }()
+	fmt.Fprintln(inW, toolCall(7, "list", `{}`))
+	fmt.Fprintln(inW, `{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}`)
+	fmt.Fprintln(inW, `{"jsonrpc":"2.0","id":8,"method":"ping"}`)
+	inW.Close()
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), `"id":7`) || !strings.Contains(out.String(), `"id":8`) {
+		t.Fatalf("out = %s", out.String())
+	}
+}
+
+func TestMCPReadTool(t *testing.T) {
+	var body []byte
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/sites/") {
+			fmt.Fprintf(w, `{"contentUrl":%q}`, srv.URL+"/content/")
+			return
+		}
+		w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+	read := func(content []byte) callReply {
+		body = content
+		return callResult(t, mcpSession(t, testConnect(srv.URL, "tok"), toolCall(1, "read", `{"site":"team/r","file":"index.html"}`))["1"])
+	}
+
+	if res := read([]byte("<h1>hi</h1>")); res.IsError || res.Content[0].Text != "<h1>hi</h1>" {
+		t.Fatalf("read = %+v", res)
+	}
+	big := bytes.Repeat([]byte("é"), mcpReadLimit) // 2 bytes per rune, so the cap falls mid-file
+	if res := read(big); res.IsError || !strings.Contains(res.Content[0].Text, fmt.Sprintf("[truncated: showing %d of %d bytes]", mcpReadLimit, len(big))) {
+		t.Fatalf("truncation note missing: %q", res.Content[0].Text[len(res.Content[0].Text)-80:])
+	}
+	if res := read([]byte{0x89, 'P', 'N', 'G', 0, 1}); !res.IsError || !strings.Contains(res.Content[0].Text, "binary") {
+		t.Fatalf("binary = %+v", res)
+	}
+}
+
+func TestCapTextRuneBoundary(t *testing.T) {
+	got, err := capText([]byte("aé"), 2) // cap lands inside é
+	if err != nil || !strings.HasPrefix(got, "a\n\n[truncated: showing 1 of 3 bytes]") {
+		t.Fatalf("got %q, %v", got, err)
 	}
 }
