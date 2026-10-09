@@ -1,5 +1,4 @@
-// Motion: finds one seekable timeline on the page and plays it for the viewer's player bar.
-// Global-free (window and clock are injected) so detection and commands are testable.
+// Controls only explicitly registered timelines.
 
 import {
   MOTION_COMMAND,
@@ -12,8 +11,8 @@ import {
 
 type AnyRecord = Record<string, unknown>
 
-export interface ITimeline {
-  source: 'hyperframes' | 'gsap' | 'waapi'
+interface ITimeline {
+  source: 'hyperframes' | 'registered'
   duration: number
   time(): number
   seek(t: number): void
@@ -33,8 +32,13 @@ interface IGsapTimeline {
   timeScale(r: number): unknown
 }
 
-interface IGsapChild {
-  endTime(includeRepeats?: boolean): number
+interface IHyperframesPlayer {
+  getDuration(): number
+  getTime(): number
+  seek(t: number): void
+  play(): void
+  pause(): void
+  isPlaying(): boolean
 }
 
 const REPORT_MS = 100
@@ -65,30 +69,33 @@ function fromGsap(tl: IGsapTimeline, source: ITimeline['source'], duration: numb
       return true
     },
     pause: () => tl.pause(),
-    playing: () => !tl.paused() && tl.time() < duration - END_EPSILON,
+    playing: () => !tl.paused() && tl.time() < Math.min(duration, tl.duration()) - END_EPSILON,
   }
 }
 
+const isHyperframesPlayer = (p: unknown): p is IHyperframesPlayer =>
+  hasFns(p, ['play', 'pause', 'seek', 'getTime', 'getDuration', 'isPlaying'])
+
 // The HyperFrames runtime's player; it has no rate control, so other speeds run on the adapter's clock.
 function fromHyperframesPlayer(p: unknown): ITimeline | null {
-  if (!hasFns(p, ['play', 'pause', 'seek', 'getTime', 'getDuration', 'isPlaying'])) return null
-  const duration = (p.getDuration as () => unknown)()
+  if (!isHyperframesPlayer(p)) return null
+  const duration = p.getDuration()
   if (!okDuration(duration)) return null
   return {
     source: 'hyperframes',
     duration,
-    time: () => (p.getTime as () => number)(),
+    time: () => p.getTime(),
     seek: (t) => {
-      ;(p.pause as () => void)()
-      ;(p.seek as (t: number) => void)(t)
+      p.pause()
+      p.seek(t)
     },
     play: (rate) => {
       if (rate !== 1) return false
-      ;(p.play as () => void)()
+      p.play()
       return true
     },
-    pause: () => (p.pause as () => void)(),
-    playing: () => (p.isPlaying as () => boolean)() === true,
+    pause: () => p.pause(),
+    playing: () => p.isPlaying() === true,
   }
 }
 
@@ -102,60 +109,18 @@ function fromHyperframesTimelines(win: AnyRecord, doc: Document): ITimeline | nu
   const tl = id && isGsapTimeline(timelines[id]) ? timelines[id] : values.length === 1 ? values[0] : null
   if (!tl) return null
   const declared = Number(root?.getAttribute('data-duration'))
-  return fromGsap(tl, 'hyperframes', okDuration(declared) ? declared : tl.duration())
+  const duration = tl.duration()
+  return fromGsap(tl, 'hyperframes', okDuration(declared) ? Math.min(declared, duration) : duration)
 }
 
-// Plain GSAP: everything on the global timeline is wrapped into one, once every child ends.
-function fromGsapGlobal(win: AnyRecord): ITimeline | null {
-  const gsap = win.gsap
-  if (!hasFns(gsap, ['exportRoot']) || !isRecord(gsap.globalTimeline)) return null
-  const global = gsap.globalTimeline as AnyRecord
-  if (typeof global.getChildren !== 'function') return null
-  const children = (global.getChildren as (n: boolean, t: boolean, tl: boolean) => IGsapChild[])(false, true, true)
-  if (children.length === 0) return null
-  const end = Math.max(...children.map((c) => c.endTime(true)))
-  if (!okDuration(end)) return null
-  const tl = (gsap.exportRoot as () => unknown)()
-  return isGsapTimeline(tl) ? fromGsap(tl, 'gsap', tl.duration()) : null
-}
-
-// WAAPI / CSS animations with a finite end; infinite ones (spinners) keep running untouched.
-function fromAnimations(doc: Document): ITimeline | null {
-  if (typeof doc.getAnimations !== 'function') return null
-  const anims = doc.getAnimations().filter((a) => Number.isFinite(Number(a.effect?.getComputedTiming().endTime)))
-  if (anims.length === 0) return null
-  const endOf = (a: Animation) => Number(a.effect?.getComputedTiming().endTime) / 1000
-  const longest = anims.reduce((a, b) => (endOf(b) > endOf(a) ? b : a))
-  const duration = endOf(longest)
-  if (!okDuration(duration)) return null
-  return {
-    source: 'waapi',
-    duration,
-    time: () => Number(longest.currentTime ?? 0) / 1000,
-    seek: (t) => {
-      for (const a of anims) {
-        a.pause()
-        a.currentTime = t * 1000
-      }
-    },
-    play: () => false,
-    pause: () => {
-      for (const a of anims) a.pause()
-    },
-    playing: () => longest.playState === 'running',
-  }
-}
-
-/** The page's one timeline, in priority order: HyperFrames, plain GSAP, then WAAPI/CSS. */
-export function detectTimeline(win: Window, doc: Document): ITimeline | null {
+function detectTimeline(win: Window, doc: Document): ITimeline | null {
   const w = win as unknown as AnyRecord
-  return (
-    fromHyperframesPlayer(w.__player) ?? fromHyperframesTimelines(w, doc) ?? fromGsapGlobal(w) ?? fromAnimations(doc)
-  )
+  if (isGsapTimeline(w.postplanMotion)) return fromGsap(w.postplanMotion, 'registered', w.postplanMotion.duration())
+  return fromHyperframesPlayer(w.__player) ?? fromHyperframesTimelines(w, doc)
 }
 
 /** Shape-check a viewer command; anything malformed is dropped. */
-export function parseMotionCommand(data: unknown): MotionCommand | null {
+function parseMotionCommand(data: unknown): MotionCommand | null {
   if (!isRecord(data) || data.type !== MOTION_COMMAND) return null
   switch (data.cmd) {
     case 'play':
@@ -182,10 +147,13 @@ export function createMotionAdapter(opts: {
   doc: Document
   send: (msg: unknown) => void
   now?: () => number
-  raf?: (cb: () => void) => void
+  raf?: (cb: () => void) => number
+  cancelRaf?: (id: number) => void
 }) {
   const now = opts.now ?? (() => performance.now())
-  const raf = opts.raf ?? ((cb: () => void) => void opts.win.requestAnimationFrame(cb))
+  const raf = opts.raf ?? ((cb: () => void) => opts.win.requestAnimationFrame(cb))
+  const cancelRaf = opts.cancelRaf ?? ((id: number) => opts.win.cancelAnimationFrame(id))
+  let frame: number | null = null
   let tl: ITimeline | null = null
   let rate = 1
   let loop = false
@@ -194,6 +162,7 @@ export function createMotionAdapter(opts: {
   let clockT = 0
   let clockAt = 0
   let lastSent = Number.NEGATIVE_INFINITY
+  let lastReport: { t: number; playing: boolean } | null = null
 
   const clamp = (t: number) => Math.min(Math.max(t, 0), tl?.duration ?? 0)
   const current = () => {
@@ -204,23 +173,26 @@ export function createMotionAdapter(opts: {
 
   function report(t = current()): void {
     if (!tl) return
+    if (lastReport?.t === t && lastReport.playing === playing) return
+    lastReport = { t, playing }
     lastSent = now()
     opts.send({ type: MOTION_STATE, duration: tl.duration, t, playing })
   }
 
   function start(from: number): void {
     if (!tl) return
+    tl.seek(from)
     native = tl.play(rate)
-    if (!native) tl.seek(from)
     clockT = from
     clockAt = now()
     if (!playing) {
       playing = true
-      raf(tick)
+      frame = raf(tick)
     }
   }
 
   function tick(): void {
+    frame = null
     if (!tl || !playing) return
     const t = current()
     if (t >= tl.duration - END_EPSILON) {
@@ -231,9 +203,13 @@ export function createMotionAdapter(opts: {
         report(tl.duration)
         return
       }
+    } else if (native && !tl.playing()) {
+      playing = false
+      report(t)
+      return
     } else if (!native) tl.seek(t)
     if (now() - lastSent >= REPORT_MS) report()
-    raf(tick)
+    frame = raf(tick)
   }
 
   function seek(t: number): void {
@@ -257,6 +233,8 @@ export function createMotionAdapter(opts: {
     if (!tl) return
     const t = current()
     playing = false
+    if (frame !== null) cancelRaf(frame)
+    frame = null
     tl.pause()
     if (!native) tl.seek(t)
     clockT = t
@@ -264,7 +242,7 @@ export function createMotionAdapter(opts: {
   }
 
   return {
-    /** Looks for a timeline once; a page that has one starts playing and reports, others stay silent. */
+    // Registered pages report once; HyperFrames starts playing.
     detect(): boolean {
       if (tl) return true
       tl = detectTimeline(opts.win, opts.doc)
@@ -289,8 +267,9 @@ export function createMotionAdapter(opts: {
         if (playing) pause()
         seek(current() + c.dir / MOTION_FPS)
       } else if (c.cmd === 'rate') {
+        const from = current()
         rate = c.rate
-        if (playing) start(current())
+        if (playing) start(from)
       } else loop = c.on
       return true
     },

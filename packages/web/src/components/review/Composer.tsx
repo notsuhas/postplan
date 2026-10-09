@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { EmojiPicker } from '@/components/review/EmojiPicker'
 import { UserAvatar } from '@/components/layout/UserAvatar'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
-import { formatTimestamp } from '@/lib/audio'
+import { formatTimestamp } from '@/lib/timestamp'
 import { type MentionUser, filterMentions, insertMention, mentionLabel, mentionQuery } from '@/lib/mentions'
 import { cn } from '@/lib/utils'
 

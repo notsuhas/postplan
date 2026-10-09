@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { formatTimestamp, splitTimestamps, timestampPrefix } from '../audio'
+import { formatTimestamp, splitTimestamps, timestampPrefix } from '../timestamp'
 
 describe('formatTimestamp', () => {
   test('formats seconds as m:ss with zero-padded seconds', () => {

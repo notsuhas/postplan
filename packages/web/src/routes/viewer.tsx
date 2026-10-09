@@ -82,19 +82,19 @@ function Viewer() {
   }, [site.contentUrl, sitePath, frameNonce])
   // Bumped each time a page in the frame proves the nonce, so per-page state (paint, mode) is re-sent.
   const [frameEpoch, setFrameEpoch] = useState(0)
-  const [channel] = useState(() =>
-    createFrameChannel({
+  const [{ channel, motion }] = useState(() => {
+    const channel = createFrameChannel({
       nonce: frameNonce,
       getSource: () => iframeRef.current?.contentWindow,
-      onConnect: () => setFrameEpoch((n) => n + 1),
-    }),
-  )
-  const [motion] = useState(() => createMotionStore(channel.send))
-  const hasMotion = useSyncExternalStore(motion.subscribe, () => motion.get() !== null)
-  // Each connected page reports its own timeline, or nothing.
-  useEffect(() => {
-    if (frameEpoch) motion.apply({ type: 'reset' })
-  }, [motion, frameEpoch])
+      onConnect: () => {
+        motion.apply({ type: 'reset' })
+        setFrameEpoch((n) => n + 1)
+      },
+    })
+    const motion = createMotionStore(channel.send)
+    return { channel, motion }
+  })
+  const motionAvailable = useSyncExternalStore(motion.subscribe, () => motion.get() !== null)
   // Layout effects run in the same task as the commit that inserts the iframe, so the listener exists
   // before the frame can possibly post its one-shot hello.
   useLayoutEffect(() => {
@@ -112,7 +112,16 @@ function Viewer() {
   const mediaSrc = useMemo(() => appendPath(site.contentUrl, entryPath ?? ''), [site.contentUrl, entryPath])
   const mediaKind = useMediaKind(entryPath, mediaSrc)
   const isMedia = mediaKind !== 'document'
+  const hasMotion = !isMedia && motionAvailable
   const isPlayable = mediaKind === 'audio' || mediaKind === 'video'
+  const previousDocumentRef = useRef({ src, isMedia })
+  useLayoutEffect(() => {
+    const previous = previousDocumentRef.current
+    if (previous.src === src && previous.isMedia === isMedia) return
+    previousDocumentRef.current = { src, isMedia }
+    motion.apply({ type: 'reset' })
+    channel.dispose()
+  }, [motion, channel, src, isMedia])
 
   // Is the comments rail on screen. It gates the on-page HIGHLIGHTS again (the rail is the panel
   // that explains them, so they live and die with it) but NOT commenting: selecting text still
@@ -257,7 +266,7 @@ function Viewer() {
     function onMsg(data: unknown) {
       const intent: Intent | null = parseIntent(data)
       if (!intent) return
-      if (intent.type === 'motion') motion.apply({ ...intent, type: 'report' })
+      if (intent.type === 'report') motion.apply(intent)
       else if (intent.type === 'ready') {
         // Audio has no iframe/'ready'; for HTML this is where the SPA learns the current file.
         // The arbiter arbitrates: a matching ready applies the parked prefetch, a mismatch discards
@@ -734,6 +743,7 @@ function Viewer() {
             onSendFeedback={site.authenticated ? sendFeedback : undefined}
             onClose={closeRail}
             onStartComment={startPageComment}
+            canSelectText={!isMedia}
             getCurrentTime={isPlayable || hasMotion ? getCurrentTime : undefined}
             onSeek={isPlayable || hasMotion ? seekTo : undefined}
             // Highlight clicks take over from the deep link once one has happened (see revealThread):

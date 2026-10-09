@@ -1,7 +1,7 @@
 // Viewer side of motion playback: the player bar's state, fed by page reports and its own commands.
 import { MOTION_COMMAND, type MotionCommand } from '../../../shared/motion'
 
-export interface IMotionState {
+interface IMotionState {
   duration: number
   t: number
   playing: boolean
@@ -17,10 +17,10 @@ type MotionEvent =
   | { type: 'loop'; loop: boolean }
 
 /** Null until the page reports a timeline; rate and loop are viewer-owned and survive reports. */
-// fallow-ignore-next-line private-type-leak -- events are built by this module's store and its test.
-export function stepMotion(state: IMotionState | null, event: MotionEvent): IMotionState | null {
+function stepMotion(state: IMotionState | null, event: MotionEvent): IMotionState | null {
   switch (event.type) {
     case 'report':
+      if (state?.duration === event.duration && state.t === event.t && state.playing === event.playing) return state
       return {
         rate: state?.rate ?? 1,
         loop: state?.loop ?? false,
@@ -39,15 +39,21 @@ export function stepMotion(state: IMotionState | null, event: MotionEvent): IMot
   }
 }
 
-const EDITABLE = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'])
-
-/** Space toggles, arrows step a frame — unless a control or text field already owns the key. */
 export function deriveMotionKey(
-  e: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey'> & { target: unknown },
+  e: Pick<
+    KeyboardEvent,
+    'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'defaultPrevented' | 'isComposing' | 'target'
+  >,
 ): 'toggle' | 'back' | 'forward' | null {
-  if (e.metaKey || e.ctrlKey || e.altKey) return null
-  const el = e.target as { tagName?: string; isContentEditable?: boolean } | null
-  if (el && (EDITABLE.has(el.tagName ?? '') || el.isContentEditable)) return null
+  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return null
+  const el = e.target
+  if (
+    !(el instanceof HTMLElement) ||
+    el.tagName !== 'BODY' ||
+    el.isContentEditable ||
+    el.closest('[contenteditable], [role]')
+  )
+    return null
   if (e.key === ' ') return 'toggle'
   if (e.key === 'ArrowLeft') return 'back'
   if (e.key === 'ArrowRight') return 'forward'

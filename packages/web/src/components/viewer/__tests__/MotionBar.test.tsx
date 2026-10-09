@@ -14,7 +14,7 @@ test('the bar stays hidden until the page reports a timeline', () => {
   const { store, view } = setup()
   expect(view.container.innerHTML).toBe('')
   act(() => store.apply({ type: 'report', duration: 65, t: 3, playing: false }))
-  expect(screen.getByRole('toolbar', { name: 'Motion' })).toBeTruthy()
+  expect(screen.getByRole('group', { name: 'Motion' })).toBeTruthy()
   expect(screen.getByText('0:03 / 1:05')).toBeTruthy()
 })
 
@@ -24,7 +24,7 @@ test('controls and keys send commands to the page', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
   fireEvent.click(screen.getByRole('button', { name: '0.5x' }))
   fireEvent.click(screen.getByRole('button', { name: 'Loop' }))
-  fireEvent.keyDown(window, { key: 'ArrowRight' })
+  fireEvent.keyDown(document.body, { key: 'ArrowRight' })
   expect(sent).toEqual([
     { type: 'postplan:motion-cmd', cmd: 'pause' },
     { type: 'postplan:motion-cmd', cmd: 'rate', rate: 0.5 },
@@ -33,4 +33,22 @@ test('controls and keys send commands to the page', () => {
   ])
   expect(screen.getByRole('button', { name: '0.5x' }).getAttribute('aria-pressed')).toBe('true')
   expect(screen.getByRole('button', { name: 'Loop' }).getAttribute('aria-pressed')).toBe('true')
+})
+
+test('controls retain their keys and the slider announces elapsed time', () => {
+  const { store, sent } = setup()
+  act(() => store.apply({ type: 'report', duration: 65, t: 3, playing: false }))
+  const seek = screen.getByRole('slider', { name: 'Seek' })
+  expect(seek.getAttribute('aria-valuetext')).toBe('0:03 of 1:05')
+  expect(screen.getByRole('group', { name: 'Playback speed' })).toBeTruthy()
+  fireEvent.keyDown(seek, { key: 'ArrowRight' })
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Play' }), { key: ' ' })
+  const railWidget = document.createElement('div')
+  railWidget.setAttribute('role', 'tab')
+  document.body.append(railWidget)
+  fireEvent.keyDown(railWidget, { key: 'ArrowRight' })
+  railWidget.remove()
+  expect(sent).toEqual([])
+  fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
+  expect(sent).toEqual([{ type: 'postplan:motion-cmd', cmd: 'step', dir: -1 }])
 })

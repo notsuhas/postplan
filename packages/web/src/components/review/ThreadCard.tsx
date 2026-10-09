@@ -5,7 +5,7 @@ import { ApiError } from '@/lib/api'
 import { comments, type CommentItem, type CommentReaction, type Thread } from '@/lib/comments'
 import type { Me, ViewerSite } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { splitTimestamps } from '@/lib/audio'
+import { splitTimestamps } from '@/lib/timestamp'
 import { AudioPlayer } from '@/components/audio/AudioPlayer'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { UserAvatar } from '@/components/layout/UserAvatar'
@@ -448,9 +448,6 @@ export function ThreadCard({
   )
 }
 
-/** Who reacted: the viewer first as "You" (the server sends `mine`, never the caller's own name),
- *  then everyone else in reaction order, comma-separated. The whole list, however long — a name
- *  the reader was looking for is no use summarised away. */
 interface ICommentBody {
   body: string
   onSeek?: (t: number) => void

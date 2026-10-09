@@ -183,7 +183,7 @@ describe('parseIntent', () => {
 
   test('a motion report is accepted with t clamped into the timeline', () => {
     expect(parseIntent({ type: 'postplan:motion', duration: 4, t: 9, playing: true })).toEqual({
-      type: 'motion',
+      type: 'report',
       duration: 4,
       t: 4,
       playing: true,

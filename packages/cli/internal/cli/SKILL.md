@@ -422,8 +422,10 @@ product demos and title cards. Author it HyperFrames-style (https://github.com/h
   reflows mid-animation.
 - **60 seconds max**, one idea per scene. Mark scenes with `class="clip" data-start data-duration`.
 
-The player also picks up plain GSAP pages (everything on `gsap.globalTimeline`) and finite CSS/Web
-Animations, but a registered timeline is the reliable path.
+For other GSAP pages, register `window.postplanMotion = timeline`, then dispatch
+`window.dispatchEvent(new Event('postplan:motion-ready'))`. Dispatch this after delayed registration too.
+Only registered timelines and HyperFrames `__player`/`__timelines` are controlled; ordinary GSAP, CSS
+and Web Animations keep their own behavior.
 
 ```html
 <!doctype html>
@@ -451,6 +453,7 @@ Animations, but a registered timeline is the reliable path.
         .to({}, { duration: 6 - 3.8 }) // hold to the declared duration
       window.__timelines = window.__timelines || {}
       window.__timelines.root = tl
+      window.dispatchEvent(new Event('postplan:motion-ready'))
     })
   </script>
 </body>

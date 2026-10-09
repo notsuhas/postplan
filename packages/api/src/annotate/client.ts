@@ -390,6 +390,8 @@ function detectMotion(retries: number[]): void {
   setTimeout(() => detectMotion(retries.slice(1)), retries[0])
 }
 if (boot) {
+  window.addEventListener('postplan:motion-ready', () => detectMotion([]))
+  document.fonts?.ready.then(() => detectMotion([])).catch(() => {})
   if (document.readyState === 'complete') detectMotion([500, 1500])
   else window.addEventListener('load', () => detectMotion([500, 1500]), { once: true })
 }

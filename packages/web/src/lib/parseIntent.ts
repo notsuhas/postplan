@@ -39,8 +39,6 @@ export type AnchorStatusIntent = { type: 'anchorStatus'; resolved: string[]; orp
  *  by the annotate client, which cannot see the parent's popover state; the reducer decides
  *  whether there is anything to open — same contract as `CommentKeyIntent`. */
 export type AskKeyIntent = { type: 'askKey' }
-/** The page's motion timeline state; only pages with a seekable timeline send it. */
-export type MotionIntent = { type: 'motion'; duration: number; t: number; playing: boolean }
 export type Intent =
   | SelectIntent
   | ReadyIntent
@@ -51,7 +49,7 @@ export type Intent =
   | AnchorClickIntent
   | AnchorStatusIntent
   | AskKeyIntent
-  | MotionIntent
+  | { type: 'report'; duration: number; t: number; playing: boolean }
 
 export type DOMRectLike = { top: number; left: number; width: number; height: number }
 
@@ -132,7 +130,7 @@ export function parseIntent(data: unknown): Intent | null {
       const { duration, t } = d
       if (typeof duration !== 'number' || !(duration > 0 && duration <= MOTION_MAX_DURATION)) return null
       if (typeof t !== 'number' || !Number.isFinite(t) || typeof d.playing !== 'boolean') return null
-      return { type: 'motion', duration, t: Math.min(Math.max(t, 0), duration), playing: d.playing }
+      return { type: 'report', duration, t: Math.min(Math.max(t, 0), duration), playing: d.playing }
     }
     case 'postplan:ready': {
       const filePath = str((data as { filePath?: unknown }).filePath)

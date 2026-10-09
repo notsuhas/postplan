@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { Window } from 'happy-dom'
-import { createMotionAdapter, detectTimeline, parseMotionCommand } from '../motion'
+import { createMotionAdapter } from '../motion'
 
 // motion.ts is global-free: each test builds its own happy-dom window and hangs fake timelines on it.
 
@@ -38,110 +38,6 @@ function fakeTimeline(duration: number, opts: { paused?: boolean } = {}) {
   return tl
 }
 
-describe('detectTimeline', () => {
-  test('a page with no animation has no timeline', () => {
-    const { win, doc } = page('<p>static</p>')
-    expect(detectTimeline(win, doc)).toBeNull()
-  })
-
-  test('HyperFrames: the outermost composition timeline wins, sized by its data-duration', () => {
-    const { win, doc } = page(
-      '<div data-composition-id="root" data-duration="6"><div data-composition-id="intro"></div></div>',
-    )
-    win.__timelines = { intro: fakeTimeline(2), root: fakeTimeline(5) }
-    const tl = detectTimeline(win, doc)
-    expect(tl?.source).toBe('hyperframes')
-    expect(tl?.duration).toBe(6)
-  })
-
-  test('HyperFrames: a lone registered timeline is used even without a matching id', () => {
-    const { win, doc } = page()
-    win.__timelines = { scene: fakeTimeline(4) }
-    expect(detectTimeline(win, doc)?.duration).toBe(4)
-  })
-
-  test('the HyperFrames runtime player is preferred when present', () => {
-    const { win, doc } = page()
-    win.__timelines = { scene: fakeTimeline(4) }
-    win.__player = {
-      play() {},
-      pause() {},
-      seek() {},
-      getTime: () => 0,
-      getDuration: () => 8,
-      isPlaying: () => false,
-    }
-    const tl = detectTimeline(win, doc)
-    expect(tl?.source).toBe('hyperframes')
-    expect(tl?.duration).toBe(8)
-    expect(tl?.play(0.5)).toBe(false)
-  })
-
-  test('plain GSAP: the global timeline is exported once every child ends', () => {
-    const { win, doc } = page()
-    const exported = fakeTimeline(3)
-    win.gsap = {
-      globalTimeline: { getChildren: () => [{ endTime: () => 1 }, { endTime: () => 3 }] },
-      exportRoot: () => exported,
-    }
-    const tl = detectTimeline(win, doc)
-    expect(tl?.source).toBe('gsap')
-    expect(tl?.duration).toBe(3)
-  })
-
-  test('plain GSAP with an infinite repeat is not a timeline', () => {
-    const { win, doc } = page()
-    let exported = false
-    win.gsap = {
-      globalTimeline: { getChildren: () => [{ endTime: () => 1e10 }] },
-      exportRoot: () => {
-        exported = true
-        return fakeTimeline(1)
-      },
-    }
-    expect(detectTimeline(win, doc)).toBeNull()
-    expect(exported).toBe(false)
-  })
-
-  test('WAAPI: finite animations form a timeline as long as the longest one', () => {
-    const { win, doc } = page()
-    const anim = (end: number) => ({
-      effect: { getComputedTiming: () => ({ endTime: end }) },
-      currentTime: 0,
-      playState: 'running',
-      pause() {},
-    })
-    doc.getAnimations = () => [anim(1000), anim(2500), anim(Number.POSITIVE_INFINITY)] as unknown as Animation[]
-    const tl = detectTimeline(win, doc)
-    expect(tl?.source).toBe('waapi')
-    expect(tl?.duration).toBe(2.5)
-  })
-})
-
-describe('parseMotionCommand', () => {
-  const cmd = (fields: AnyRecord) => parseMotionCommand({ type: 'postplan:motion-cmd', ...fields })
-
-  test('accepts each well-formed command', () => {
-    expect(cmd({ cmd: 'play' })).toEqual({ cmd: 'play' })
-    expect(cmd({ cmd: 'pause' })).toEqual({ cmd: 'pause' })
-    expect(cmd({ cmd: 'seek', t: 1.5 })).toEqual({ cmd: 'seek', t: 1.5 })
-    expect(cmd({ cmd: 'rate', rate: 0.5 })).toEqual({ cmd: 'rate', rate: 0.5 })
-    expect(cmd({ cmd: 'step', dir: -1 })).toEqual({ cmd: 'step', dir: -1 })
-    expect(cmd({ cmd: 'loop', on: true })).toEqual({ cmd: 'loop', on: true })
-  })
-
-  test('rejects wrong types, unknown commands and bad fields', () => {
-    expect(parseMotionCommand(null)).toBeNull()
-    expect(parseMotionCommand({ type: 'postplan:paint', cmd: 'play' })).toBeNull()
-    expect(cmd({ cmd: 'eval' })).toBeNull()
-    expect(cmd({ cmd: 'seek', t: '1' })).toBeNull()
-    expect(cmd({ cmd: 'seek', t: Number.NaN })).toBeNull()
-    expect(cmd({ cmd: 'rate', rate: 16 })).toBeNull()
-    expect(cmd({ cmd: 'step', dir: 5 })).toBeNull()
-    expect(cmd({ cmd: 'loop', on: 'yes' })).toBeNull()
-  })
-})
-
 describe('createMotionAdapter', () => {
   function harness(tl: ReturnType<typeof fakeTimeline>) {
     const { win, doc } = page('<div data-composition-id="root"></div>')
@@ -154,19 +50,25 @@ describe('createMotionAdapter', () => {
       doc,
       send: (m) => sent.push(m as AnyRecord),
       now: () => clock,
-      raf: (cb) => frames.push(cb),
+      raf: (cb) => {
+        frames.push(cb)
+        return frames.length
+      },
+      cancelRaf: () => {
+        frames.length = 0
+      },
     })
     const frame = (ms: number) => {
       clock += ms
       frames.shift()?.()
     }
-    return { adapter, sent, frame, last: () => sent.at(-1) }
+    return { adapter, sent, frame, frames, last: () => sent.at(-1) }
   }
 
   test('pages without a timeline send nothing', () => {
     const { win, doc } = page()
     const sent: unknown[] = []
-    const adapter = createMotionAdapter({ win, doc, send: (m) => sent.push(m), raf: () => {} })
+    const adapter = createMotionAdapter({ win, doc, send: (m) => sent.push(m), raf: () => 1 })
     expect(adapter.detect()).toBe(false)
     expect(adapter.command({ type: 'postplan:motion-cmd', cmd: 'play' })).toBe(false)
     expect(sent).toEqual([])
@@ -210,6 +112,31 @@ describe('createMotionAdapter', () => {
     expect(tl.isPaused).toBe(false)
   })
 
+  test('duplicate reports are suppressed and pause cancels the pending frame', () => {
+    const tl = fakeTimeline(4, { paused: true })
+    const { adapter, sent, frames, frame } = harness(tl)
+    adapter.detect()
+    frame(100)
+    expect(sent).toHaveLength(1)
+    adapter.command({ type: 'postplan:motion-cmd', cmd: 'pause' })
+    expect(frames).toHaveLength(0)
+    adapter.command({ type: 'postplan:motion-cmd', cmd: 'pause' })
+    adapter.command({ type: 'postplan:motion-cmd', cmd: 'seek', t: 0 })
+    expect(sent).toHaveLength(2)
+    adapter.command({ type: 'postplan:motion-cmd', cmd: 'play' })
+    expect(frames).toHaveLength(1)
+  })
+
+  test('native playback stopping externally stops reporting and frame scheduling', () => {
+    const tl = fakeTimeline(4)
+    const { adapter, frames, frame, last } = harness(tl)
+    adapter.detect()
+    tl.isPaused = true
+    frame(100)
+    expect(last()?.playing).toBe(false)
+    expect(frames).toHaveLength(0)
+  })
+
   test('the end stops playback, or restarts it when looping', () => {
     const tl = fakeTimeline(1, { paused: true })
     const { adapter, frame, last } = harness(tl)
@@ -225,4 +152,125 @@ describe('createMotionAdapter', () => {
     expect(tl.t).toBe(0)
     expect(tl.isPaused).toBe(false)
   })
+})
+
+describe('timeline registration', () => {
+  test('unregistered GSAP and CSS animations are never inspected or controlled', () => {
+    const { win, doc } = page()
+    win.gsap = {
+      get globalTimeline() {
+        throw new Error('global timeline touched')
+      },
+      exportRoot() {
+        throw new Error('exported')
+      },
+    }
+    doc.getAnimations = () => {
+      throw new Error('animations inspected')
+    }
+    const sent: unknown[] = []
+    const adapter = createMotionAdapter({ win, doc, send: (m) => sent.push(m) })
+    expect(adapter.detect()).toBe(false)
+    expect(adapter.command({ type: 'postplan:motion-cmd', cmd: 'play' })).toBe(false)
+    expect(sent).toEqual([])
+  })
+
+  test('explicit registration preserves a paused timeline until commanded', () => {
+    const { win, doc } = page()
+    const tl = fakeTimeline(3, { paused: true })
+    win.postplanMotion = tl
+    const sent: unknown[] = []
+    const adapter = createMotionAdapter({ win, doc, send: (m) => sent.push(m), raf: () => 1 })
+    expect(adapter.detect()).toBe(true)
+    expect(tl.isPaused).toBe(true)
+    expect(sent).toEqual([{ type: 'postplan:motion', duration: 3, t: 0, playing: false }])
+    for (const fields of [
+      { cmd: 'seek', t: Number.NaN },
+      { cmd: 'rate', rate: 16 },
+      { cmd: 'step', dir: 5 },
+      { cmd: 'loop', on: 'yes' },
+    ]) {
+      expect(adapter.command({ type: 'postplan:motion-cmd', ...fields })).toBe(false)
+    }
+    expect(adapter.command({ type: 'postplan:motion-cmd', cmd: 'seek', t: 2 })).toBe(true)
+    expect(tl.t).toBe(2)
+  })
+
+  test('HyperFrames bounds the root composition duration to the native timeline', () => {
+    const { win, doc } = page(
+      '<div data-composition-id="root" data-duration="6"><div data-composition-id="intro"></div></div>',
+    )
+    const root = fakeTimeline(5)
+    win.__timelines = { intro: fakeTimeline(2), root }
+    const sent: unknown[] = []
+    const frames: (() => void)[] = []
+    const adapter = createMotionAdapter({
+      win,
+      doc,
+      send: (m) => sent.push(m),
+      raf: (cb) => {
+        frames.push(cb)
+        return frames.length
+      },
+    })
+    expect(adapter.detect()).toBe(true)
+    expect(sent).toEqual([{ type: 'postplan:motion', duration: 5, t: 0, playing: true }])
+    root.t = 5
+    frames.shift()?.()
+    expect(sent.at(-1)).toEqual({ type: 'postplan:motion', duration: 5, t: 5, playing: false })
+    expect(frames).toHaveLength(0)
+  })
+
+  test('invalid durations do not opt into controls', () => {
+    for (const duration of [0, -1, 3601, Number.POSITIVE_INFINITY, Number.NaN]) {
+      const { win, doc } = page()
+      win.postplanMotion = fakeTimeline(duration)
+      expect(createMotionAdapter({ win, doc, send: () => {} }).detect()).toBe(false)
+    }
+  })
+})
+
+test('the HyperFrames player preserves elapsed time when switching between native and clock playback', () => {
+  const { win, doc } = page()
+  let t = 0
+  let playing = false
+  let clock = 0
+  let tick: (() => void) | null = null
+  win.__player = {
+    getDuration: () => 4,
+    getTime: () => t,
+    isPlaying: () => playing,
+    seek: (to: number) => {
+      t = to
+    },
+    play: () => {
+      playing = true
+    },
+    pause: () => {
+      playing = false
+    },
+  }
+  const sent: unknown[] = []
+  const adapter = createMotionAdapter({
+    win,
+    doc,
+    now: () => clock,
+    send: (m) => sent.push(m),
+    raf: (cb) => {
+      tick = cb
+      return 1
+    },
+  })
+  expect(adapter.detect()).toBe(true)
+  adapter.command({ type: 'postplan:motion-cmd', cmd: 'rate', rate: 0.5 })
+  expect(playing).toBe(false)
+  clock = 200
+  tick?.()
+  expect(t).toBeCloseTo(0.1)
+  clock = 300
+  adapter.command({ type: 'postplan:motion-cmd', cmd: 'rate', rate: 1 })
+  expect(t).toBeCloseTo(0.15)
+  expect(playing).toBe(true)
+  adapter.command({ type: 'postplan:motion-cmd', cmd: 'pause' })
+  expect(sent.at(-1)).toEqual({ type: 'postplan:motion', duration: 4, t: 0.15, playing: false })
 })

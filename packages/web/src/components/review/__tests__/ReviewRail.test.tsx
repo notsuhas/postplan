@@ -220,7 +220,7 @@ describe('ReviewRail — responsive resize bounds', () => {
 // rail's `composing` and the popover's own composer are independent states, so an always-open
 // textarea makes "two live drafts at once" the default on every text selection.
 describe('ReviewRail — the page-comment trigger (#112)', () => {
-  function renderWithStart(extra: { getCurrentTime?: () => number } = {}) {
+  function renderWithStart(extra: { getCurrentTime?: () => number; canSelectText?: boolean } = {}) {
     let started = 0
     const view = render(
       <ReviewRail
@@ -259,8 +259,13 @@ describe('ReviewRail — the page-comment trigger (#112)', () => {
     expect(empty.textContent).toContain('select text')
   })
 
-  test('the audio empty state does NOT offer a select-text path (there is no DOM to select in)', () => {
+  test('motion keeps the text-selection path even with timestamps available', () => {
     renderWithStart({ getCurrentTime: () => 0 })
+    expect(screen.getByText(/Add a comment above/).textContent).toContain('select text')
+  })
+
+  test('the audio empty state does NOT offer a select-text path (there is no DOM to select in)', () => {
+    renderWithStart({ getCurrentTime: () => 0, canSelectText: false })
     const empty = screen.getByText(/Add a comment above/)
     expect(empty.textContent).not.toContain('select text')
     expect(empty.textContent).toContain('timestamp')

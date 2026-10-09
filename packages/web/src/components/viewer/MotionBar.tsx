@@ -2,7 +2,7 @@ import { Pause, Play, Repeat, StepBack, StepForward } from 'lucide-react'
 import { useEffect, useSyncExternalStore } from 'react'
 import { MOTION_RATES } from '../../../../shared/motion'
 import { Button } from '@/components/ui/button'
-import { formatTimestamp } from '@/lib/audio'
+import { formatTimestamp } from '@/lib/timestamp'
 import { deriveMotionKey, type MotionStore } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
@@ -10,7 +10,6 @@ interface IMotionBar {
   store: MotionStore
 }
 
-// fallow-ignore-next-line private-type-leak -- Component props are intentionally module-private.
 export function MotionBar(props: IMotionBar) {
   const { store } = props
   const state = useSyncExternalStore(store.subscribe, store.get)
@@ -32,7 +31,7 @@ export function MotionBar(props: IMotionBar) {
   const { duration, t, playing, rate, loop } = state
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 border-t p-2" role="toolbar" aria-label="Motion">
+    <fieldset className="flex flex-wrap items-center justify-center gap-2 border-t p-2" aria-label="Motion">
       <Button
         variant="outline"
         size="icon"
@@ -67,23 +66,26 @@ export function MotionBar(props: IMotionBar) {
         value={t}
         onChange={(e) => store.command({ cmd: 'seek', t: Number(e.target.value) })}
         aria-label="Seek"
+        aria-valuetext={`${formatTimestamp(t)} of ${formatTimestamp(duration)}`}
         className="h-1 min-w-24 flex-1 cursor-pointer accent-primary"
       />
       <span className="shrink-0 font-mono text-muted-foreground text-xs tabular-nums">
         {formatTimestamp(t)} / {formatTimestamp(duration)}
       </span>
-      {MOTION_RATES.map((r) => (
-        <Button
-          key={r}
-          variant="outline"
-          size="sm"
-          aria-pressed={rate === r}
-          className={cn('font-mono tabular-nums', rate === r && 'bg-accent text-accent-foreground')}
-          onClick={() => store.command({ cmd: 'rate', rate: r })}
-        >
-          {r}x
-        </Button>
-      ))}
+      <fieldset className="flex gap-2" aria-label="Playback speed">
+        {MOTION_RATES.map((r) => (
+          <Button
+            key={r}
+            variant="outline"
+            size="sm"
+            aria-pressed={rate === r}
+            className={cn('font-mono tabular-nums', rate === r && 'bg-accent text-accent-foreground')}
+            onClick={() => store.command({ cmd: 'rate', rate: r })}
+          >
+            {r}x
+          </Button>
+        ))}
+      </fieldset>
       <Button
         variant="outline"
         size="icon"
@@ -94,6 +96,6 @@ export function MotionBar(props: IMotionBar) {
       >
         <Repeat />
       </Button>
-    </div>
+    </fieldset>
   )
 }
