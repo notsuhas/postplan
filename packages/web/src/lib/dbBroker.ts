@@ -27,7 +27,11 @@ const NEEDS_DOC_ID = new Set(['get', 'put', 'delete'])
 const NEEDS_DATA = new Set(['create', 'put'])
 // Stream ops address the site's room, not a collection — they carry a cursor and nothing else.
 const STREAM_OPS = new Set(['subscribe', 'unsubscribe'])
-const OPS = new Set(['create', 'get', 'list', 'put', 'delete', 'subscribe', 'unsubscribe'])
+const OPS = new Set(['create', 'get', 'list', 'put', 'delete', 'subscribe', 'unsubscribe', 'kv'])
+// window.storage: get/set/delete one key, or list keys by prefix, in the personal or shared scope.
+const KV_ACTIONS: Record<string, string> = { get: 'GET', set: 'PUT', delete: 'DELETE', list: 'GET' }
+const MAX_KV_KEY = 200
+const MAX_KV_VALUE = 1_000_000
 const OP_METHOD: Record<string, string> = { create: 'POST', get: 'GET', list: 'GET', put: 'PUT', delete: 'DELETE' }
 // Pre-check only — the server's 100KB byte cap is authoritative.
 const MAX_DATA_CHARS = 110_000
@@ -44,6 +48,35 @@ export function reconnectDelay(attempt: number, base = RECONNECT_MS): number {
   return full / 2 + Math.random() * (full / 2)
 }
 
+type HttpRequest = { path: string; method: string; body?: unknown }
+
+function docRequest(req: BrokerRequest): HttpRequest {
+  const path =
+    req.docId !== undefined
+      ? `/api/_data/${req.collection}/${encodeURIComponent(req.docId)}`
+      : `/api/_data/${req.collection}`
+  return { path, method: OP_METHOD[req.op], body: NEEDS_DATA.has(req.op) ? req.data : undefined }
+}
+
+function kvRequest(req: BrokerRequest): HttpRequest {
+  const base = `/api/_data/_kv/${req.shared ? 'shared' : 'personal'}`
+  if (req.action === 'list') return { path: `${base}?prefix=${encodeURIComponent(req.prefix ?? '')}`, method: 'GET' }
+  const path = `${base}/${encodeURIComponent(req.key ?? '')}`
+  return { path, method: KV_ACTIONS[req.action ?? ''], body: req.action === 'set' ? { value: req.value } : undefined }
+}
+
+function validateKv(req: BrokerRequest): string | null {
+  if (!req.action || !(req.action in KV_ACTIONS)) return 'unknown storage action'
+  if (req.shared !== undefined && typeof req.shared !== 'boolean') return 'invalid scope'
+  if (req.action === 'list')
+    return req.prefix === undefined || (typeof req.prefix === 'string' && req.prefix.length <= MAX_KV_KEY)
+      ? null
+      : 'invalid prefix'
+  if (typeof req.key !== 'string' || req.key.length === 0 || req.key.length > MAX_KV_KEY) return 'invalid key'
+  if (req.action === 'set' && (typeof req.value !== 'string' || req.value.length > MAX_KV_VALUE)) return 'invalid value'
+  return null
+}
+
 export type BrokerSite = { spaceSlug: string; siteSlug: string }
 /** Only what the relay uses — so a test can stand in for a real socket. */
 export type BrokerSocket = {
@@ -54,7 +87,19 @@ export type BrokerSocket = {
   onclose: (() => void) | null
 }
 type MintResponse = { token: string; caps: string[]; expiresIn: number }
-type BrokerRequest = { id: number; op: string; collection: string; docId?: string; data?: unknown; cursor?: string }
+type BrokerRequest = {
+  id: number
+  op: string
+  collection: string
+  docId?: string
+  data?: unknown
+  cursor?: string
+  action?: string
+  shared?: boolean
+  key?: string
+  value?: string
+  prefix?: string
+}
 
 export type DbBroker = { onWindowMessage: (e: MessageEvent) => void; dispose: () => void }
 
@@ -106,17 +151,15 @@ export function createDbBroker(
       closeStream()
       return { ok: true, status: 200, body: null }
     }
-    const path =
-      req.docId !== undefined
-        ? `/api/_data/${req.collection}/${encodeURIComponent(req.docId)}`
-        : `/api/_data/${req.collection}`
+    const { path, method, body: payload } = req.op === 'kv' ? kvRequest(req) : docRequest(req)
     const call = async (t: string) =>
       deps.fetchFn(path, {
-        method: OP_METHOD[req.op],
-        headers: NEEDS_DATA.has(req.op)
-          ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }
-          : { Authorization: `Bearer ${t}` },
-        body: NEEDS_DATA.has(req.op) ? JSON.stringify(req.data) : undefined,
+        method,
+        headers:
+          payload === undefined
+            ? { Authorization: `Bearer ${t}` }
+            : { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        body: payload === undefined ? undefined : JSON.stringify(payload),
         credentials: 'omit',
       })
     const res = await withToken(call)
@@ -126,6 +169,7 @@ export function createDbBroker(
 
   function validate(req: BrokerRequest): string | null {
     if (!OPS.has(req.op)) return 'unknown operation'
+    if (req.op === 'kv') return validateKv(req)
     if (STREAM_OPS.has(req.op))
       return req.cursor === undefined || typeof req.cursor === 'string' ? null : 'invalid cursor'
     if (typeof req.collection !== 'string' || !COLLECTION_RE.test(req.collection)) return 'invalid collection'

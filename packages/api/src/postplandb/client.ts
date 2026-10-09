@@ -26,6 +26,11 @@ type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; time
 type BrokerReq = {
   id: number
   op: string
+  action?: string
+  shared?: boolean
+  key?: string
+  value?: string
+  prefix?: string
   collection?: string
   docId?: string
   data?: unknown
@@ -290,3 +295,23 @@ if (isSandboxed()) {
     )
   })
 }
+
+// --- window.storage: the Claude artifacts storage API -----------------------------------------
+// Opt-in, async persistence: personal keys belong to the viewer, `shared` ones to everyone who can
+// open the site. Saved only when a page calls `set`; requests go through the viewer's broker.
+
+function kv(action: string, fields: Omit<BrokerReq, 'id' | 'op' | 'action'>): Promise<unknown> {
+  if (!boot?.appOrigin || window.parent === window)
+    return Promise.reject(new Error('window.storage: open this site through the Postplan app'))
+  return brokerCall(boot.appOrigin, { op: 'kv', action, ...fields })
+}
+
+Object.defineProperty(window, 'storage', {
+  value: {
+    get: (key: string, shared = false) => kv('get', { key, shared }),
+    set: (key: string, value: string, shared = false) => kv('set', { key, value: String(value), shared }),
+    delete: (key: string, shared = false) => kv('delete', { key, shared }),
+    list: (prefix = '', shared = false) => kv('list', { prefix, shared }),
+  },
+  configurable: true,
+})

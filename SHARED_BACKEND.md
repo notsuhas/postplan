@@ -62,8 +62,9 @@ Unset → `/api/_data` is inert (404). The `documents` table ships with the stan
   (`lib/frameChannel.ts`). Real Web Storage throws there, so the SDK installs in-memory
   `localStorage`/`sessionStorage` that last as long as the page; nothing is stored server-side. It
   also saves same-site `<a download>` links through a Blob URL, since the browser would otherwise
-  navigate them (`postplandb/sandbox.ts`).
-  Persistence is `postplan.db`, explicitly.
+  navigate them (`postplandb/sandbox.ts`). Persistence is explicit: `window.storage` (Claude
+  artifacts' API: personal or shared string keys, `site_kv`, `/api/_data/_kv`, 20 MB per site,
+  writes need `create`) or `postplan.db`.
 
 - **Standalone tabs** — a site opened directly on the content origin has no parent frame, so
   `postplan.db` calls fail with a clear "open this site through the Postplan app" error. By design

@@ -487,6 +487,22 @@ export const documents = sqliteTable(
   ],
 )
 
+// `window.storage` for sites (lib/site-kv.ts). ownerId is the viewer for personal keys and '' for
+// keys shared by everyone who can open the site. Rows exist only when a page calls `set`.
+export const siteKv = sqliteTable(
+  'site_kv',
+  {
+    siteId: text('siteId')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    ownerId: text('ownerId').notNull(),
+    key: text('key').notNull(),
+    value: text('value').notNull(),
+    updatedAt: text('updatedAt').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.siteId, t.ownerId, t.key] })],
+)
+
 // Append-only per-site change stream for `postplan.db` realtime push. Every documents mutation
 // writes exactly one row here in the SAME db.batch, so a client that reconnects — or notices a
 // gap — replays from a cursor instead of going permanently stale (Cloudflare terminates every

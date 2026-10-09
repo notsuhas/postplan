@@ -144,6 +144,34 @@ describe('request surface', () => {
     expect(JSON.stringify(h.received)).not.toContain('tok-1')
   })
 
+  test.each([
+    [{ action: 'set', key: 'a b/c', value: 'v' }, 'PUT', '/api/_data/_kv/personal/a%20b%2Fc', '{"value":"v"}'],
+    [{ action: 'get', key: 'k', shared: true }, 'GET', '/api/_data/_kv/shared/k', undefined],
+    [{ action: 'delete', key: 'k' }, 'DELETE', '/api/_data/_kv/personal/k', undefined],
+    [{ action: 'list', prefix: 'todo:', shared: true }, 'GET', '/api/_data/_kv/shared?prefix=todo%3A', undefined],
+  ])('window.storage %j maps to %s %s', async (req, method, url, body) => {
+    const h = await ready((u) => (u.includes('/api/_data/') ? Response.json({}) : mintOk()))
+    h.port.postMessage({ id: 9, op: 'kv', ...req })
+    await h.waitFor((m) => m.some((x) => (x as { id?: number }).id === 9))
+    const call = h.calls.find((c) => c.url.includes('/api/_data/'))
+    expect(call?.url).toBe(url)
+    expect(call?.init?.method).toBe(method)
+    expect(call?.init?.body).toBe(body)
+  })
+
+  test.each([
+    [{ action: 'drop', key: 'k' }],
+    [{ action: 'set', key: 'k', value: { evil: true } }],
+    [{ action: 'get', key: 'k'.repeat(201) }],
+    [{ action: 'get', key: 'k', shared: 'yes' }],
+  ])('ATTACK: a malformed window.storage request %j → 400, no fetch', async (req) => {
+    const h = await ready(mintOk)
+    h.port.postMessage({ id: 10, op: 'kv', ...req })
+    await h.waitFor((m) => m.some((x) => (x as { id?: number }).id === 10))
+    expect((h.received.find((x) => (x as { id?: number }).id === 10) as { status: number }).status).toBe(400)
+    expect(h.calls.filter((c) => c.url.includes('/api/_data/'))).toHaveLength(0)
+  })
+
   test('ATTACK: unknown op / path-smuggling collection / bad docId → 400, no fetch', async () => {
     const h = await ready(mintOk)
     h.port.postMessage({ id: 1, op: 'admin', collection: 'notes' })

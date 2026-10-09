@@ -293,15 +293,34 @@ You can update that site's content even though you don't own it and aren't in it
 ## Pages run sandboxed
 
 Every page gets its own browser sandbox (an opaque origin), like Claude artifacts. `localStorage` and
-`sessionStorage` work but only last as long as the page; cookies and IndexedDB are unavailable. To keep
-data across visits, use `postplan.db`. Relative `fetch()`, ES module imports and `<a download>` links to
-the site's own files work. Two things need a small change:
+`sessionStorage` work but only last as long as the page; cookies and IndexedDB are unavailable. Relative
+`fetch()`, ES module imports and `<a download>` links to the site's own files work. Two things need a
+small change:
 
 - Web workers: `new Worker('worker.js')` fails; fetch the script and start it from a Blob URL.
 - Canvas exports (`toDataURL`, html2canvas): load same-site images with `crossorigin="anonymous"`.
 
-`postplan.db` works on pages reached through ordinary links. A page opened by script (`location.href =
-…`) or a GET form loses access; use links between your pages.
+`postplan.db` and `window.storage` work on pages reached through ordinary links. A page opened by
+script (`location.href = …`) or a GET form loses access; use links between your pages.
+
+To keep small values across visits, use `window.storage` (same API as Claude artifacts). Keys are
+personal to the viewer unless you pass `shared = true`. Values are strings (JSON.stringify objects);
+keys are up to 200 characters with no spaces or slashes; values up to 1 MB; 5 MB per viewer and
+20 MB per site.
+
+Shared keys can be overwritten or deleted by anyone who can open the site, and writes aren't
+attributed. Don't use them for anything that must be trusted, like who voted; use `postplan.db`
+(documents record their creator) for that.
+
+```js
+await window.storage.set('draft', JSON.stringify(state))          // personal
+const { value } = await window.storage.get('draft')               // throws if missing
+await window.storage.set('theme', 'dark', true)                   // shared with every viewer
+const { keys } = await window.storage.list('', true)
+await window.storage.delete('draft')
+```
+
+For collections, realtime updates or larger data, use `postplan.db` below.
 
 ## Saving data from your pages — `postplan.db` (experimental)
 

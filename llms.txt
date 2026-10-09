@@ -72,7 +72,7 @@ For any other update, first run `postplan read <space/site> --pull <dir>` and de
 - Fork a site before changing someone else's work.
 - Compare deployment versions and restore an older snapshot without deleting history.
 - Use `postplan.db` for opt-in browser data and realtime updates.
-- Pages run sandboxed on their own origin. `localStorage` works for the life of the page only; persist with `postplan.db`. `fetch` of the site's own files works.
+- Pages run sandboxed on their own origin. `localStorage` works for the life of the page only; persist small values with `window.storage` (Claude artifacts API) or data with `postplan.db`. `fetch` of the site's own files works.
 
 ## Safety
 
